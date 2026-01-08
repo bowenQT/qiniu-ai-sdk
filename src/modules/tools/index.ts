@@ -51,6 +51,14 @@ export class Tools {
             return response.results;
         }
 
+        // Handle { success: true, data: { results: [...] } } format
+        if (response && 'data' in response && typeof (response as any).data === 'object') {
+            const data = (response as any).data;
+            if (data && 'results' in data && Array.isArray(data.results)) {
+                return data.results;
+            }
+        }
+
         // If neither, return empty array with warning
         logger.warn('Unexpected search response format', { response });
         return [];
