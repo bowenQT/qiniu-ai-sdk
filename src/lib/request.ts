@@ -83,7 +83,8 @@ export async function request<T>(
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
         timeout,
-        endpoint: new URL(url).pathname,
+        // Safe endpoint extraction - handle both absolute and relative URLs
+        endpoint: url.startsWith('http') ? new URL(url).pathname : url.split('?')[0],
         requestId,
     };
 
@@ -157,7 +158,24 @@ export async function request<T>(
                 };
             }
 
-            const data = await response.json();
+            // Parse JSON with error handling
+            let data: unknown;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                logger.error('HTTP Response (Invalid JSON)', {
+                    requestId: serverRequestId,
+                    status: response.status,
+                    duration,
+                    error: parseError instanceof Error ? parseError.message : String(parseError),
+                });
+                throw new APIError(
+                    'Invalid JSON response from server',
+                    response.status,
+                    'INVALID_JSON',
+                    serverRequestId
+                );
+            }
 
             logger.debug('HTTP Response', {
                 requestId: serverRequestId,

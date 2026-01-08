@@ -98,6 +98,11 @@ export class Video {
                 const result = await this.get(id);
                 consecutiveErrors = 0;
 
+                // Detect missing status field - API response is malformed
+                if (result.status === undefined || result.status === null) {
+                    logger.warn('Video task response missing status field', { id, result });
+                }
+
                 if (result.status && TERMINAL_STATUSES.includes(result.status)) {
                     logger.info('Video task completed', {
                         id,
@@ -126,18 +131,39 @@ export class Video {
                 }
             }
 
-            await new Promise((resolve, reject) => {
-                const timeoutHandle = setTimeout(resolve, intervalMs);
-                if (signal) {
-                    signal.addEventListener('abort', () => {
-                        clearTimeout(timeoutHandle);
-                        reject(new Error('Operation cancelled'));
-                    }, { once: true });
-                }
-            });
+            // Wait before next poll with proper cleanup
+            await this.waitWithCancellation(intervalMs, signal);
         }
 
         logger.error('Video task timeout', { id, timeoutMs });
         throw new Error(`Timeout waiting for video generation after ${timeoutMs}ms`);
+    }
+
+    /**
+     * Wait for specified duration with cancellation support and proper cleanup
+     */
+    private waitWithCancellation(ms: number, signal?: AbortSignal): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (signal?.aborted) {
+                reject(new Error('Operation cancelled'));
+                return;
+            }
+
+            const timeoutHandle = setTimeout(resolve, ms);
+
+            if (signal) {
+                const abortHandler = () => {
+                    clearTimeout(timeoutHandle);
+                    reject(new Error('Operation cancelled'));
+                };
+
+                signal.addEventListener('abort', abortHandler, { once: true });
+
+                // Clean up listener when timeout completes normally
+                setTimeout(() => {
+                    signal.removeEventListener('abort', abortHandler);
+                }, ms + 10);
+            }
+        });
     }
 }

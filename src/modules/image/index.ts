@@ -80,7 +80,7 @@ export class Image {
         let consecutiveErrors = 0;
 
         while (Date.now() - start < timeoutMs) {
-            // Check for cancellation
+            // Check for cancellation at start of each iteration
             if (signal?.aborted) {
                 logger.info('Image task polling cancelled', { taskId });
                 throw new Error('Operation cancelled');
@@ -89,6 +89,12 @@ export class Image {
             try {
                 const result = await this.get(taskId);
                 consecutiveErrors = 0; // Reset on success
+
+                // Detect missing status field - API response is malformed
+                if (result.status === undefined || result.status === null) {
+                    logger.warn('Image task response missing status field', { taskId, result });
+                    // Continue polling, but this is suspicious
+                }
 
                 // Check for terminal status
                 if (result.status && TERMINAL_STATUSES.includes(result.status)) {
@@ -120,19 +126,39 @@ export class Image {
                 }
             }
 
-            // Wait before next poll
-            await new Promise((resolve, reject) => {
-                const timeoutHandle = setTimeout(resolve, intervalMs);
-                if (signal) {
-                    signal.addEventListener('abort', () => {
-                        clearTimeout(timeoutHandle);
-                        reject(new Error('Operation cancelled'));
-                    }, { once: true });
-                }
-            });
+            // Wait before next poll with proper cleanup
+            await this.waitWithCancellation(intervalMs, signal);
         }
 
         logger.error('Image task timeout', { taskId, timeoutMs });
         throw new Error(`Timeout waiting for image generation after ${timeoutMs}ms`);
+    }
+
+    /**
+     * Wait for specified duration with cancellation support and proper cleanup
+     */
+    private waitWithCancellation(ms: number, signal?: AbortSignal): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (signal?.aborted) {
+                reject(new Error('Operation cancelled'));
+                return;
+            }
+
+            const timeoutHandle = setTimeout(resolve, ms);
+
+            if (signal) {
+                const abortHandler = () => {
+                    clearTimeout(timeoutHandle);
+                    reject(new Error('Operation cancelled'));
+                };
+
+                signal.addEventListener('abort', abortHandler, { once: true });
+
+                // Clean up listener when timeout completes normally
+                setTimeout(() => {
+                    signal.removeEventListener('abort', abortHandler);
+                }, ms + 10);
+            }
+        });
     }
 }

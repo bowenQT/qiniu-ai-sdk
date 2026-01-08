@@ -79,6 +79,7 @@ export function retryMiddleware(options: { maxRetries?: number; retryDelay?: num
 
     return async (request, next) => {
         let lastError: Error | undefined;
+        let first5xxStatus: number | undefined;
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
@@ -86,6 +87,9 @@ export function retryMiddleware(options: { maxRetries?: number; retryDelay?: num
 
                 // Retry on 5xx errors
                 if (response.status >= 500 && attempt < maxRetries) {
+                    if (first5xxStatus === undefined) {
+                        first5xxStatus = response.status;
+                    }
                     await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
                     continue;
                 }
@@ -100,7 +104,12 @@ export function retryMiddleware(options: { maxRetries?: number; retryDelay?: num
             }
         }
 
-        throw lastError;
+        // Include first 5xx status in error message if available
+        if (first5xxStatus !== undefined) {
+            throw new Error(`Request failed after ${maxRetries + 1} attempts. First error: HTTP ${first5xxStatus}`);
+        }
+
+        throw lastError ?? new Error(`Request failed after ${maxRetries + 1} attempts`);
     };
 }
 
