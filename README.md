@@ -18,13 +18,13 @@ TypeScript SDK for Qiniu Cloud AI Token API.
 ## Installation
 
 ```bash
-npm install @anthropic-test/qiniu-ai-sdk
+npm install @bowenqt/qiniu-ai-sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { QiniuAI } from '@anthropic-test/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
 
 const client = new QiniuAI({
   apiKey: 'Sk-xxxxxxxxxxxxxxxx',
@@ -112,7 +112,7 @@ interface WaitOptions {
 ### Error Handling
 
 ```typescript
-import { QiniuAI, APIError } from '@anthropic-test/qiniu-ai-sdk';
+import { QiniuAI, APIError } from '@bowenqt/qiniu-ai-sdk';
 
 try {
   await client.chat.create({ ... });
