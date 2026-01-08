@@ -137,7 +137,7 @@ export class Account {
     async usage(query: UsageQuery): Promise<UsageResponse> {
         const logger = this.client.getLogger();
 
-        // Validate date format
+        // Validate date format (YYYY-MM-DD)
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
         if (!dateRegex.test(query.start_date)) {
             throw new Error('start_date must be in YYYY-MM-DD format');
@@ -146,8 +146,19 @@ export class Account {
             throw new Error('end_date must be in YYYY-MM-DD format');
         }
 
+        // Validate date values are actually valid dates (e.g., reject 2024-13-40)
+        const startDate = new Date(query.start_date);
+        const endDate = new Date(query.end_date);
+
+        if (isNaN(startDate.getTime())) {
+            throw new Error(`start_date "${query.start_date}" is not a valid date`);
+        }
+        if (isNaN(endDate.getTime())) {
+            throw new Error(`end_date "${query.end_date}" is not a valid date`);
+        }
+
         // Validate date range
-        if (new Date(query.start_date) > new Date(query.end_date)) {
+        if (startDate > endDate) {
             throw new Error('start_date must be before or equal to end_date');
         }
 

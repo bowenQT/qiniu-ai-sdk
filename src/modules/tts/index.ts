@@ -158,12 +158,19 @@ interface VoiceListResponse {
 export class Tts {
     private client: IQiniuClient;
     private wsBaseUrl: string;
+    private apiKey: string;
 
     constructor(client: IQiniuClient) {
         this.client = client;
         // Derive WebSocket URL from HTTP base URL
+        // Correctly map http:// -> ws:// and https:// -> wss://
         const httpUrl = client.getBaseUrl();
-        this.wsBaseUrl = httpUrl.replace(/^https?:\/\//, 'wss://').replace(/\/v1$/, '');
+        this.wsBaseUrl = httpUrl
+            .replace(/^https:\/\//, 'wss://')
+            .replace(/^http:\/\//, 'ws://')
+            .replace(/\/v1$/, '');
+        // Store API key for WebSocket auth (extracted from client)
+        this.apiKey = (client as any).apiKey || '';
     }
 
     /**
@@ -182,7 +189,7 @@ export class Tts {
 
         logger.debug('Fetching TTS voice list');
 
-        const response = await this.client.get<VoiceListResponse>('/voice/voices');
+        const response = await this.client.get<VoiceListResponse>('/voice/list');
 
         // Normalize response format
         const voices = response.voices || response.data || response.result || [];
@@ -311,8 +318,18 @@ export class Tts {
         });
 
         // Create WebSocket connection with auth headers
-        // Note: Browser WebSocket doesn't support custom headers, so we pass auth via URL or first message
-        const ws = new WebSocket(wsUrl);
+        // Note: Node.js ws library supports headers option, browser WebSocket does not
+        // For browser environments, consider using a server-side proxy
+        const wsOptions: { headers?: Record<string, string> } = {};
+        if (this.apiKey) {
+            wsOptions.headers = {
+                'Authorization': `Bearer ${this.apiKey}`,
+            };
+        }
+
+        // TypeScript: ws library accepts options as second parameter
+        // Browser WebSocket ignores it, ws library uses it
+        const ws = new (WebSocket as any)(wsUrl, wsOptions);
 
         // Create a queue to handle async message delivery
         const messageQueue: (Uint8Array | Error | 'done')[] = [];
@@ -353,7 +370,7 @@ export class Tts {
                 resolve();
             };
 
-            ws.onerror = (event) => {
+            ws.onerror = (event: Event) => {
                 const error = new Error('WebSocket connection error');
                 logger.error('TTS WebSocket error', { event });
                 reject(error);
@@ -361,7 +378,7 @@ export class Tts {
             };
         });
 
-        ws.onmessage = (event) => {
+        ws.onmessage = (event: MessageEvent) => {
             try {
                 // Handle both string (JSON) and binary data
                 if (typeof event.data === 'string') {
@@ -389,11 +406,17 @@ export class Tts {
                         enqueueMessage(bytes);
                     }
                 } else if (event.data instanceof ArrayBuffer) {
-                    // Direct binary data
+                    // Direct binary data (browser)
                     enqueueMessage(new Uint8Array(event.data));
+                } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer(event.data)) {
+                    // Node.js Buffer (ws library returns Buffer by default)
+                    enqueueMessage(new Uint8Array(event.data));
+                } else if (event.data instanceof Uint8Array) {
+                    // Already Uint8Array
+                    enqueueMessage(event.data);
                 } else if (event.data instanceof Blob) {
                     // Handle Blob (browser)
-                    event.data.arrayBuffer().then((buffer) => {
+                    event.data.arrayBuffer().then((buffer: ArrayBuffer) => {
                         enqueueMessage(new Uint8Array(buffer));
                     });
                 }
@@ -404,7 +427,7 @@ export class Tts {
             }
         };
 
-        ws.onclose = (event) => {
+        ws.onclose = (event: { code: number; reason: string }) => {
             logger.debug('TTS WebSocket closed', { code: event.code, reason: event.reason });
             if (event.code !== 1000) {
                 enqueueMessage(new Error(`WebSocket closed unexpectedly: ${event.code} ${event.reason}`));

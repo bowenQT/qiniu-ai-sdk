@@ -35,12 +35,14 @@ export async function* parseSSEStream<T>(
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
+    let cancelled = false;
 
     try {
         while (true) {
             // Check for cancellation
             if (signal?.aborted) {
                 logger.info('SSE stream cancelled by user');
+                cancelled = true;
                 break;
             }
 
@@ -92,6 +94,12 @@ export async function* parseSSEStream<T>(
             }
         }
 
+        // Flush any remaining bytes from the decoder (handles multi-byte character boundaries)
+        const flushed = decoder.decode();
+        if (flushed) {
+            buffer += flushed;
+        }
+
         // Process any remaining data in buffer
         if (buffer.trim()) {
             const trimmedBuffer = buffer.trim();
@@ -108,7 +116,16 @@ export async function* parseSSEStream<T>(
             }
         }
     } finally {
-        // Always release the reader
+        // Cancel the reader to release the underlying connection
+        // This is important for proper resource cleanup, especially when cancelled
+        if (cancelled) {
+            try {
+                await reader.cancel();
+            } catch {
+                // Ignore cancel errors
+            }
+        }
+        // Always release the reader lock
         reader.releaseLock();
     }
 }
@@ -170,7 +187,15 @@ export function accumulateDelta(
         for (const tc of delta.tool_calls) {
             const existing = acc.toolCalls.get(tc.index);
             if (existing) {
-                // Append to existing tool call
+                // Update existing tool call
+                // Backfill id and type if they arrive in later chunks
+                if (tc.id && !existing.id) {
+                    existing.id = tc.id;
+                }
+                if (tc.type && existing.type !== tc.type) {
+                    existing.type = tc.type;
+                }
+                // Append function name and arguments
                 if (tc.function?.name) {
                     existing.function.name += tc.function.name;
                 }
@@ -181,7 +206,7 @@ export function accumulateDelta(
                 // Create new tool call entry
                 acc.toolCalls.set(tc.index, {
                     id: tc.id || '',
-                    type: 'function',
+                    type: tc.type || 'function',
                     function: {
                         name: tc.function?.name || '',
                         arguments: tc.function?.arguments || '',

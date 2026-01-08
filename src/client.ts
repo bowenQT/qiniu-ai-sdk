@@ -164,21 +164,40 @@ export class QiniuAI implements IQiniuClient {
     /**
      * POST request that returns raw Response for streaming.
      * Used by chat.createStream() for SSE parsing.
+     *
+     * Note: This method supports AbortSignal for cancellation via options.signal.
+     * Headers are merged from baseHeaders (including Authorization) and per-request options.
      */
-    async postStream(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<Response> {
+    async postStream(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions & { signal?: AbortSignal }): Promise<Response> {
         const url = `${this.baseUrl}${endpoint}`;
         const timeout = options?.timeout ?? this.timeout;
+
+        // Generate request ID if not provided
+        const reqId = requestId || `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+        // Create abort controller that combines timeout and external signal
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+        // If external signal provided, abort when it aborts
+        if (options?.signal) {
+            if (options.signal.aborted) {
+                controller.abort();
+            } else {
+                options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+            }
+        }
+
+        // Merge headers: baseHeaders (contains Authorization) + Content-Type + X-Request-ID + per-request headers
         const headers: Record<string, string> = {
+            ...this.requestContext.baseHeaders,
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`,
+            'X-Request-ID': reqId,
             ...options?.headers,
         };
 
         this.logger.debug('HTTP Stream Request', {
-            requestId,
+            requestId: reqId,
             method: 'POST',
             url,
             timeout,

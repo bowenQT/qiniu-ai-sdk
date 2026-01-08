@@ -1,4 +1,5 @@
 import { IQiniuClient } from '../../lib/types';
+import { APIError } from '../../lib/request';
 
 /**
  * API key creation request
@@ -219,9 +220,13 @@ export class Admin {
             }
             return response as ApiKey;
         } catch (error) {
-            // Key not found
-            logger.warn('API key not found', { keyPrefix: key.substring(0, 10) + '...' });
-            return null;
+            // Only treat 404 as "not found", re-throw other errors
+            if (error instanceof APIError && error.status === 404) {
+                logger.warn('API key not found', { keyPrefix: key.substring(0, 10) + '...' });
+                return null;
+            }
+            // Re-throw network errors, 5xx errors, and other unexpected errors
+            throw error;
         }
     }
 }

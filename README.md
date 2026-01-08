@@ -60,6 +60,16 @@ const results = await client.sys.search({
   max_results: 5,
 });
 console.log(results);
+
+// Streaming Chat (New!)
+const stream = await client.chat.createStream({
+  model: 'gemini-2.5-flash',
+  messages: [{ role: 'user', content: 'Explain quantum computing' }],
+});
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0]?.delta?.content || '');
+}
 ```
 
 ## API Reference
@@ -183,6 +193,32 @@ const client = new QiniuAI({
 #### `client.chat`
 
 - `create(params: ChatCompletionRequest): Promise<ChatCompletionResponse>`
+- `createStream(params: ChatCompletionRequest): AsyncGenerator<ChatCompletionChunk>` (New!)
+
+**Streaming Example with Function Calling & Reasoning:**
+
+```typescript
+const stream = await client.chat.createStream({
+  model: 'gemini-2.5-flash', // Models supporting reasoning
+  messages: [{ role: 'user', content: 'Solve this puzzle...' }],
+});
+
+for await (const chunk of stream) {
+  const delta = chunk.choices[0]?.delta;
+  
+  // Text content
+  if (delta?.content) {
+    process.stdout.write(delta.content);
+  }
+  
+  // Reasoning content (Gemini/Claude thinking process)
+  if (delta?.reasoning_content) {
+    console.log('[Thinking]:', delta.reasoning_content);
+  }
+  
+  // Function calling arguments are also streamed incrementally
+}
+```
 
 #### `client.image`
 
@@ -199,6 +235,47 @@ const client = new QiniuAI({
 #### `client.sys`
 
 - `search(params: WebSearchRequest): Promise<WebSearchResult[]>`
+
+### Advanced Usage: Generic API Access
+
+For features not yet fully wrapped in modules (like OCR, TTS, or advanced Video parameters like `lastFrame`), use the generic `post` and `get` methods.
+
+**OCR (Optical Character Recognition):**
+
+```typescript
+const response = await client.post<any>('/images/ocr', {
+  model: 'ocr',
+  url: 'https://example.com/image.png'
+});
+console.log(response.data.result.text);
+```
+
+**TTS (Text to Speech):**
+
+```typescript
+// Get Voice List
+const voices = await client.get<any[]>('/voice/list');
+
+// Synthesize Audio
+const res = await client.post<any>('/voice/tts', {
+  request: { text: 'Hello world' },
+  audio: { voice_type: 'qiniu_zh_female_xxx' }
+});
+```
+
+**Veo Video Generation (First & Last Frame):**
+
+```typescript
+// Veo models require a specific structure for first/last frame
+const veoTask = await client.post<{ id: string }>('/v1/videos/generations', {
+  model: 'veo-2.0-generate-001',
+  instances: [{
+    prompt: "A video of a cat jumping",
+    image: { gcsUri: "gs://..." },     // First frame
+    lastFrame: { gcsUri: "gs://..." }  // Last frame
+  }]
+});
+```
 
 ### Wait Options
 

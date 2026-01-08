@@ -72,10 +72,26 @@ export function composeMiddleware(middlewares: Middleware[]): Middleware {
 }
 
 /**
- * Built-in middleware: Retry on 5xx errors
+ * Built-in middleware: Retry on 5xx errors and 429 (rate limit)
+ *
+ * Note: This middleware checks APIError.status to determine retryability.
+ * Only 5xx server errors and 429 rate limit errors are retried.
+ * 4xx client errors (except 429) are NOT retried.
  */
 export function retryMiddleware(options: { maxRetries?: number; retryDelay?: number } = {}): Middleware {
     const { maxRetries = 3, retryDelay = 1000 } = options;
+
+    // Helper to check if an error should be retried
+    const isRetryable = (error: Error): boolean => {
+        // Check if it's an APIError with retryable status
+        if ('status' in error && typeof (error as any).status === 'number') {
+            const status = (error as any).status;
+            // Retry on 5xx server errors and 429 rate limit
+            return status >= 500 || status === 429;
+        }
+        // Network errors (no status) are retryable
+        return true;
+    };
 
     return async (request, next) => {
         let lastError: Error | undefined;
@@ -85,7 +101,8 @@ export function retryMiddleware(options: { maxRetries?: number; retryDelay?: num
             try {
                 const response = await next(request);
 
-                // Retry on 5xx errors
+                // Retry on 5xx errors (this branch is kept for completeness,
+                // but typically 5xx will throw APIError before reaching here)
                 if (response.status >= 500 && attempt < maxRetries) {
                     if (first5xxStatus === undefined) {
                         first5xxStatus = response.status;
@@ -97,6 +114,20 @@ export function retryMiddleware(options: { maxRetries?: number; retryDelay?: num
                 return response;
             } catch (error) {
                 lastError = error instanceof Error ? error : new Error(String(error));
+
+                // Check if this error is retryable
+                if (!isRetryable(lastError)) {
+                    // Non-retryable error (4xx except 429), throw immediately
+                    throw lastError;
+                }
+
+                // Track first 5xx status for error message
+                if ('status' in lastError && typeof (lastError as any).status === 'number') {
+                    const status = (lastError as any).status;
+                    if (status >= 500 && first5xxStatus === undefined) {
+                        first5xxStatus = status;
+                    }
+                }
 
                 if (attempt < maxRetries) {
                     await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));

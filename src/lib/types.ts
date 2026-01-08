@@ -107,7 +107,7 @@ import type { RequestOptions } from './request';
 export interface IQiniuClient {
     post<T>(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<T>;
     get<T>(endpoint: string, params?: Record<string, string>, requestId?: string, options?: RequestOptions): Promise<T>;
-    postStream(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<Response>;
+    postStream(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions & { signal?: AbortSignal }): Promise<Response>;
     getLogger(): Logger;
     getBaseUrl(): string;
 }

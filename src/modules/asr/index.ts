@@ -181,8 +181,13 @@ export class Asr {
         }
 
         // Validate raw/pcm format requirements
-        if ((params.audio.format === 'raw' || params.audio.format === 'pcm') && !params.audio.sample_rate) {
-            throw new Error('sample_rate is required for raw/pcm audio format');
+        if (params.audio.format === 'raw' || params.audio.format === 'pcm') {
+            if (!params.audio.sample_rate) {
+                throw new Error('sample_rate is required for raw/pcm audio format');
+            }
+            if (!params.audio.channels) {
+                throw new Error('channels is required for raw/pcm audio format');
+            }
         }
 
         const requestBody = {

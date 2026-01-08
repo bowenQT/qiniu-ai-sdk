@@ -88,6 +88,10 @@ export class Chat {
         const logger = this.client.getLogger();
         const { signal } = options;
 
+        if (params.n && params.n > 1) {
+            throw new Error('Streaming does not support n > 1 (multiple choices). Please set n=1 or omit it.');
+        }
+
         // Force stream: true
         const requestBody = { ...params, stream: true };
 
@@ -96,8 +100,8 @@ export class Chat {
             messageCount: params.messages.length,
         });
 
-        // Get raw response for SSE parsing
-        const response = await this.client.postStream('/chat/completions', requestBody);
+        // Get raw response for SSE parsing, passing signal for cancellation support
+        const response = await this.client.postStream('/chat/completions', requestBody, undefined, { signal });
 
         // Create accumulator for final result
         const accumulator = createStreamAccumulator();
