@@ -1,6 +1,15 @@
-import { request, RequestContext } from './lib/request';
+import { request, RequestContext, RequestOptions } from './lib/request';
 import { IQiniuClient } from './lib/types';
 import { Logger, noopLogger, consoleLogger, LogLevel, createFilteredLogger } from './lib/logger';
+import {
+    FetchAdapter,
+    defaultFetchAdapter,
+    Middleware,
+    composeMiddleware,
+    retryMiddleware,
+    headersMiddleware,
+    timingMiddleware,
+} from './lib/middleware';
 import { Chat } from './modules/chat';
 import { Image } from './modules/image';
 import { Video } from './modules/video';
@@ -20,6 +29,16 @@ export interface QiniuAIOptions {
      * Default: 'info'
      */
     logLevel?: LogLevel;
+    /**
+     * Custom HTTP adapter. Allows replacing fetch with axios, got, etc.
+     * Default: native fetch
+     */
+    adapter?: FetchAdapter;
+    /**
+     * Middleware functions to process requests/responses.
+     * Executed in order, wrapping the core request.
+     */
+    middleware?: Middleware[];
 }
 
 export class QiniuAI implements IQiniuClient {
@@ -32,6 +51,7 @@ export class QiniuAI implements IQiniuClient {
     private baseUrl: string;
     private timeout: number;
     private logger: Logger;
+    private requestContext: RequestContext;
 
     constructor(options: QiniuAIOptions) {
         // Enhanced validation
@@ -55,9 +75,27 @@ export class QiniuAI implements IQiniuClient {
         const logLevel = options.logLevel || 'info';
         this.logger = createFilteredLogger(baseLogger, logLevel);
 
+        // Setup request context
+        const adapter = options.adapter || defaultFetchAdapter;
+        const middleware = options.middleware?.length
+            ? composeMiddleware(options.middleware)
+            : undefined;
+
+        this.requestContext = {
+            logger: this.logger,
+            adapter,
+            middleware,
+            baseHeaders: {
+                'Authorization': `Bearer ${this.apiKey}`,
+            },
+            defaultTimeout: this.timeout,
+        };
+
         this.logger.info('QiniuAI client initialized', {
             baseUrl: this.baseUrl,
             timeout: this.timeout,
+            hasMiddleware: !!middleware,
+            hasCustomAdapter: !!options.adapter,
         });
 
         // Initialize modules
@@ -75,38 +113,23 @@ export class QiniuAI implements IQiniuClient {
     }
 
     /**
-     * Create a request context with logger
+     * Generic POST request wrapper with optional per-request options
      */
-    private createContext(requestId?: string): RequestContext {
-        return {
-            logger: this.logger,
-            requestId,
-        };
-    }
-
-    /**
-     * Generic POST request wrapper
-     */
-    async post<T>(endpoint: string, body: unknown, requestId?: string): Promise<T> {
+    async post<T>(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<T> {
         const url = `${this.baseUrl}${endpoint}`;
         return request<T>(
             url,
-            {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                },
-                body: JSON.stringify(body),
-                timeout: this.timeout,
-            },
-            this.createContext(requestId)
+            'POST',
+            body,
+            this.requestContext,
+            { ...options, requestId }
         );
     }
 
     /**
-     * Generic GET request wrapper
+     * Generic GET request wrapper with optional per-request options
      */
-    async get<T>(endpoint: string, params?: Record<string, string>, requestId?: string): Promise<T> {
+    async get<T>(endpoint: string, params?: Record<string, string>, requestId?: string, options?: RequestOptions): Promise<T> {
         const url = new URL(`${this.baseUrl}${endpoint}`);
         if (params) {
             Object.entries(params).forEach(([key, value]) => {
@@ -116,18 +139,25 @@ export class QiniuAI implements IQiniuClient {
 
         return request<T>(
             url.toString(),
-            {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                },
-                timeout: this.timeout,
-            },
-            this.createContext(requestId)
+            'GET',
+            undefined,
+            this.requestContext,
+            { ...options, requestId }
         );
     }
 }
 
-// Re-export logger utilities for users
+// Re-export logger utilities
 export { consoleLogger, noopLogger, createFilteredLogger };
 export type { Logger, LogLevel };
+
+// Re-export middleware utilities
+export {
+    defaultFetchAdapter,
+    composeMiddleware,
+    retryMiddleware,
+    headersMiddleware,
+    timingMiddleware
+};
+export type { FetchAdapter, Middleware, MiddlewareRequest, MiddlewareResponse } from './lib/middleware';
+export type { RequestOptions } from './lib/request';

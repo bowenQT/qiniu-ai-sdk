@@ -1,6 +1,26 @@
 // Main client
-export { QiniuAI, QiniuAIOptions, consoleLogger, noopLogger, createFilteredLogger } from './client';
-export type { Logger, LogLevel } from './lib/logger';
+export {
+    QiniuAI,
+    consoleLogger,
+    noopLogger,
+    createFilteredLogger,
+    defaultFetchAdapter,
+    composeMiddleware,
+    retryMiddleware,
+    headersMiddleware,
+    timingMiddleware,
+} from './client';
+
+export type {
+    QiniuAIOptions,
+    Logger,
+    LogLevel,
+    FetchAdapter,
+    Middleware,
+    MiddlewareRequest,
+    MiddlewareResponse,
+    RequestOptions,
+} from './client';
 
 // Error types
 export { APIError } from './lib/request';

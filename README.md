@@ -117,6 +117,66 @@ const client = new QiniuAI({
 });
 ```
 
+### Middleware
+
+Use middleware to intercept and modify requests/responses:
+
+```typescript
+import { QiniuAI, Middleware, retryMiddleware, headersMiddleware } from '@bowenqt/qiniu-ai-sdk';
+
+// Built-in retry middleware (retries on 5xx errors)
+const retry = retryMiddleware({ maxRetries: 3, retryDelay: 1000 });
+
+// Built-in headers middleware (adds custom headers)
+const customHeaders = headersMiddleware({
+  'X-Custom-Header': 'my-value',
+});
+
+// Custom middleware
+const loggingMiddleware: Middleware = async (request, next) => {
+  console.log('Request:', request.method, request.url);
+  const response = await next(request);
+  console.log('Response:', response.status, response.duration + 'ms');
+  return response;
+};
+
+const client = new QiniuAI({
+  apiKey: 'Sk-xxx',
+  middleware: [retry, customHeaders, loggingMiddleware],
+});
+```
+
+### Custom HTTP Adapter
+
+Replace the default `fetch` with a custom HTTP client:
+
+```typescript
+import { QiniuAI, FetchAdapter } from '@bowenqt/qiniu-ai-sdk';
+import axios from 'axios';
+
+const axiosAdapter: FetchAdapter = {
+  async fetch(url, init) {
+    const response = await axios({
+      url,
+      method: init.method as any,
+      headers: init.headers as Record<string, string>,
+      data: init.body,
+      signal: init.signal,
+      validateStatus: () => true, // Don't throw on non-2xx
+    });
+    
+    return new Response(JSON.stringify(response.data), {
+      status: response.status,
+      headers: response.headers as any,
+    });
+  },
+};
+
+const client = new QiniuAI({
+  apiKey: 'Sk-xxx',
+  adapter: axiosAdapter,
+});
+```
 
 ### Modules
 
