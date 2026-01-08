@@ -14,6 +14,11 @@ import { Chat } from './modules/chat';
 import { Image } from './modules/image';
 import { Video } from './modules/video';
 import { Tools } from './modules/tools';
+import { Ocr } from './modules/ocr';
+import { Asr } from './modules/asr';
+import { Tts } from './modules/tts';
+import { Account } from './modules/account';
+import { Admin } from './modules/admin';
 
 export interface QiniuAIOptions {
     apiKey: string; // The Sk-xxxx key
@@ -46,6 +51,11 @@ export class QiniuAI implements IQiniuClient {
     public image: Image;
     public video: Video;
     public sys: Tools;
+    public ocr: Ocr;
+    public asr: Asr;
+    public tts: Tts;
+    public account: Account;
+    public admin: Admin;
 
     private apiKey: string;
     private baseUrl: string;
@@ -65,7 +75,7 @@ export class QiniuAI implements IQiniuClient {
         let baseUrl = options.baseUrl || 'https://api.qnaigc.com/v1';
         this.baseUrl = baseUrl.replace(/\/+$/, '');
 
-        this.timeout = options.timeout || 60000;
+        this.timeout = options.timeout ?? 60000;
         if (this.timeout <= 0) {
             throw new Error('Timeout must be a positive number');
         }
@@ -103,6 +113,11 @@ export class QiniuAI implements IQiniuClient {
         this.image = new Image(this);
         this.video = new Video(this);
         this.sys = new Tools(this);
+        this.ocr = new Ocr(this);
+        this.asr = new Asr(this);
+        this.tts = new Tts(this);
+        this.account = new Account(this);
+        this.admin = new Admin(this);
     }
 
     /**
@@ -144,6 +159,59 @@ export class QiniuAI implements IQiniuClient {
             this.requestContext,
             { ...options, requestId }
         );
+    }
+
+    /**
+     * POST request that returns raw Response for streaming.
+     * Used by chat.createStream() for SSE parsing.
+     */
+    async postStream(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<Response> {
+        const url = `${this.baseUrl}${endpoint}`;
+        const timeout = options?.timeout ?? this.timeout;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`,
+            ...options?.headers,
+        };
+
+        this.logger.debug('HTTP Stream Request', {
+            requestId,
+            method: 'POST',
+            url,
+            timeout,
+        });
+
+        try {
+            const response = await this.requestContext.adapter.fetch(url, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(body),
+                signal: controller.signal,
+            });
+
+            if (!response.ok) {
+                let errorMessage = `Request failed with status ${response.status}`;
+                try {
+                    const errorBody = await response.json() as { error?: { message?: string }; message?: string };
+                    errorMessage = errorBody.error?.message || errorBody.message || errorMessage;
+                } catch { /* ignore */ }
+                throw new Error(errorMessage);
+            }
+
+            return response;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    /**
+     * Get the base URL (for modules that need it)
+     */
+    getBaseUrl(): string {
+        return this.baseUrl;
     }
 }
 

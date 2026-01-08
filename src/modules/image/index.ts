@@ -1,7 +1,23 @@
 import { IQiniuClient } from '../../lib/types';
+import { pollUntilComplete } from '../../lib/poller';
+
+/**
+ * Supported image generation models
+ */
+export type ImageModel =
+    | 'kling-v1'
+    | 'kling-v1-5'
+    | 'kling-v2'
+    | 'flux-1.1-pro'
+    | 'flux-1.1-ultra'
+    | 'flux-1.1-dev'
+    | 'flux-1.1-schnell'
+    | 'ideogram-v3'
+    | 'recraft-v3'
+    | (string & {}); // Allow other strings for forward compatibility
 
 export interface ImageGenerationRequest {
-    model: string; // e.g., 'kling-v1', 'kling-v1-5', 'kling-v2'
+    model: ImageModel;
     prompt: string;
     negative_prompt?: string;
     aspect_ratio?: '16:9' | '9:16' | '1:1' | '4:3' | '3:4' | '3:2' | '2:3' | '21:9';
@@ -70,95 +86,23 @@ export class Image {
 
         const logger = this.client.getLogger();
 
-        if (intervalMs <= 0 || timeoutMs <= 0) {
-            throw new Error('intervalMs and timeoutMs must be positive numbers');
-        }
-
-        logger.debug('Starting image task polling', { taskId, intervalMs, timeoutMs });
-
-        const start = Date.now();
-        let consecutiveErrors = 0;
-
-        while (Date.now() - start < timeoutMs) {
-            // Check for cancellation at start of each iteration
-            if (signal?.aborted) {
-                logger.info('Image task polling cancelled', { taskId });
-                throw new Error('Operation cancelled');
-            }
-
-            try {
-                const result = await this.get(taskId);
-                consecutiveErrors = 0; // Reset on success
-
-                // Detect missing status field - API response is malformed
-                if (result.status === undefined || result.status === null) {
-                    logger.warn('Image task response missing status field', { taskId, result });
-                    // Continue polling, but this is suspicious
+        const { result } = await pollUntilComplete<ImageTaskResponse>(taskId, {
+            intervalMs,
+            timeoutMs,
+            maxRetries,
+            signal,
+            logger,
+            isTerminal: (r) => {
+                // Warn if status is missing
+                if (r.status === undefined || r.status === null) {
+                    logger.warn('Image task response missing status field', { taskId, result: r });
+                    return false;
                 }
-
-                // Check for terminal status
-                if (result.status && TERMINAL_STATUSES.includes(result.status)) {
-                    logger.info('Image task completed', {
-                        taskId,
-                        status: result.status,
-                        duration: Date.now() - start,
-                    });
-                    return result;
-                }
-
-                // Warn if status is unexpected (but continue polling)
-                if (result.status && !['processing', ...TERMINAL_STATUSES].includes(result.status)) {
-                    logger.warn('Unexpected image task status', { taskId, status: result.status });
-                }
-            } catch (error) {
-                consecutiveErrors++;
-                logger.warn('Transient error polling image task', {
-                    taskId,
-                    attempt: consecutiveErrors,
-                    maxRetries,
-                    error: error instanceof Error ? error.message : String(error),
-                });
-
-                if (consecutiveErrors >= maxRetries) {
-                    throw new Error(
-                        `Failed to get task status after ${maxRetries} retries: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                }
-            }
-
-            // Wait before next poll with proper cleanup
-            await this.waitWithCancellation(intervalMs, signal);
-        }
-
-        logger.error('Image task timeout', { taskId, timeoutMs });
-        throw new Error(`Timeout waiting for image generation after ${timeoutMs}ms`);
-    }
-
-    /**
-     * Wait for specified duration with cancellation support and proper cleanup
-     */
-    private waitWithCancellation(ms: number, signal?: AbortSignal): Promise<void> {
-        return new Promise((resolve, reject) => {
-            if (signal?.aborted) {
-                reject(new Error('Operation cancelled'));
-                return;
-            }
-
-            const timeoutHandle = setTimeout(resolve, ms);
-
-            if (signal) {
-                const abortHandler = () => {
-                    clearTimeout(timeoutHandle);
-                    reject(new Error('Operation cancelled'));
-                };
-
-                signal.addEventListener('abort', abortHandler, { once: true });
-
-                // Clean up listener when timeout completes normally
-                setTimeout(() => {
-                    signal.removeEventListener('abort', abortHandler);
-                }, ms + 10);
-            }
+                return TERMINAL_STATUSES.includes(r.status);
+            },
+            getStatus: (id) => this.get(id),
         });
+
+        return result;
     }
 }

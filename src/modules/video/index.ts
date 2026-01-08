@@ -1,7 +1,20 @@
 import { IQiniuClient } from '../../lib/types';
+import { pollUntilComplete } from '../../lib/poller';
+
+/**
+ * Supported video generation models
+ */
+export type VideoModel =
+    | 'kling-video-o1'
+    | 'kling-v2-1'
+    | 'kling-v2-5-turbo'
+    | 'kling-v1-6'
+    | 'vidu-2.0'
+    | 'vidu-2.5'
+    | (string & {}); // Allow other strings for forward compatibility
 
 export interface VideoGenerationRequest {
-    model: string; // e.g., 'kling-video-o1', 'kling-v2-1', 'kling-v2-5-turbo'
+    model: VideoModel;
     prompt: string;
     image?: string; // base64 for image-to-video
     image_url?: string; // URL for image-to-video
@@ -79,91 +92,23 @@ export class Video {
 
         const logger = this.client.getLogger();
 
-        if (intervalMs <= 0 || timeoutMs <= 0) {
-            throw new Error('intervalMs and timeoutMs must be positive numbers');
-        }
-
-        logger.debug('Starting video task polling', { id, intervalMs, timeoutMs });
-
-        const start = Date.now();
-        let consecutiveErrors = 0;
-
-        while (Date.now() - start < timeoutMs) {
-            if (signal?.aborted) {
-                logger.info('Video task polling cancelled', { id });
-                throw new Error('Operation cancelled');
-            }
-
-            try {
-                const result = await this.get(id);
-                consecutiveErrors = 0;
-
-                // Detect missing status field - API response is malformed
-                if (result.status === undefined || result.status === null) {
-                    logger.warn('Video task response missing status field', { id, result });
+        const { result } = await pollUntilComplete<VideoTaskResponse>(id, {
+            intervalMs,
+            timeoutMs,
+            maxRetries,
+            signal,
+            logger,
+            isTerminal: (r) => {
+                // Warn if status is missing
+                if (r.status === undefined || r.status === null) {
+                    logger.warn('Video task response missing status field', { id, result: r });
+                    return false;
                 }
-
-                if (result.status && TERMINAL_STATUSES.includes(result.status)) {
-                    logger.info('Video task completed', {
-                        id,
-                        status: result.status,
-                        duration: Date.now() - start,
-                    });
-                    return result;
-                }
-
-                if (result.status && !['in_progress', 'pending', 'queued', ...TERMINAL_STATUSES].includes(result.status)) {
-                    logger.warn('Unexpected video task status', { id, status: result.status });
-                }
-            } catch (error) {
-                consecutiveErrors++;
-                logger.warn('Transient error polling video task', {
-                    id,
-                    attempt: consecutiveErrors,
-                    maxRetries,
-                    error: error instanceof Error ? error.message : String(error),
-                });
-
-                if (consecutiveErrors >= maxRetries) {
-                    throw new Error(
-                        `Failed to get task status after ${maxRetries} retries: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                }
-            }
-
-            // Wait before next poll with proper cleanup
-            await this.waitWithCancellation(intervalMs, signal);
-        }
-
-        logger.error('Video task timeout', { id, timeoutMs });
-        throw new Error(`Timeout waiting for video generation after ${timeoutMs}ms`);
-    }
-
-    /**
-     * Wait for specified duration with cancellation support and proper cleanup
-     */
-    private waitWithCancellation(ms: number, signal?: AbortSignal): Promise<void> {
-        return new Promise((resolve, reject) => {
-            if (signal?.aborted) {
-                reject(new Error('Operation cancelled'));
-                return;
-            }
-
-            const timeoutHandle = setTimeout(resolve, ms);
-
-            if (signal) {
-                const abortHandler = () => {
-                    clearTimeout(timeoutHandle);
-                    reject(new Error('Operation cancelled'));
-                };
-
-                signal.addEventListener('abort', abortHandler, { once: true });
-
-                // Clean up listener when timeout completes normally
-                setTimeout(() => {
-                    signal.removeEventListener('abort', abortHandler);
-                }, ms + 10);
-            }
+                return TERMINAL_STATUSES.includes(r.status);
+            },
+            getStatus: (taskId) => this.get(taskId),
         });
+
+        return result;
     }
 }

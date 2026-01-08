@@ -66,7 +66,24 @@ export interface ChatCompletionResponse {
     };
 }
 
-// Stream chunk type
+// Stream chunk type with enhanced delta for Function Calling and reasoning
+export interface ToolCallDelta {
+    index: number;
+    id?: string;
+    type?: 'function';
+    function?: {
+        name?: string;
+        arguments?: string;  // Incremental JSON fragments
+    };
+}
+
+export interface ChatDelta {
+    role?: 'assistant';
+    content?: string;
+    reasoning_content?: string;  // Gemini/Claude thinking process
+    tool_calls?: ToolCallDelta[];
+}
+
 export interface ChatCompletionChunk {
     id: string;
     object: 'chat.completion.chunk';
@@ -74,9 +91,14 @@ export interface ChatCompletionChunk {
     model: string;
     choices: {
         index: number;
-        delta: Partial<ChatMessage>;
+        delta: ChatDelta;
         finish_reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | null;
     }[];
+    usage?: {
+        prompt_tokens: number;
+        completion_tokens: number;
+        total_tokens: number;
+    };
 }
 
 import type { Logger } from './logger';
@@ -85,5 +107,7 @@ import type { RequestOptions } from './request';
 export interface IQiniuClient {
     post<T>(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<T>;
     get<T>(endpoint: string, params?: Record<string, string>, requestId?: string, options?: RequestOptions): Promise<T>;
+    postStream(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<Response>;
     getLogger(): Logger;
+    getBaseUrl(): string;
 }
