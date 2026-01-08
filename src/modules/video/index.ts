@@ -1,0 +1,126 @@
+import { IQiniuClient } from '../../lib/types';
+
+export interface VideoGenerationRequest {
+    model: string; // e.g., 'kling-video-o1', 'kling-v2-1', 'kling-v2-5-turbo'
+    prompt: string;
+    image?: string; // base64 for image-to-video
+    image_url?: string; // URL for image-to-video
+    duration?: '5' | '10'; // seconds
+    aspect_ratio?: '16:9' | '1:1' | '9:16';
+    mode?: 'std' | 'pro';
+    negative_prompt?: string;
+    cfg_scale?: number;
+}
+
+export interface VideoTaskResponse {
+    id: string;
+    object?: 'video';
+    model?: string;
+    status: string; // 'in_progress' | 'completed' | 'failed' - allow any for forward compat
+    created_at?: number;
+    updated_at?: number;
+    completed_at?: number;
+    seconds?: string;
+    size?: string;
+    mode?: 'std' | 'pro';
+    task_result?: {
+        videos: {
+            id: string;
+            url: string;
+            duration: string;
+        }[];
+    };
+    error?: {
+        code: string;
+        message: string;
+    };
+}
+
+export interface WaitOptions {
+    intervalMs?: number;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+    maxRetries?: number;
+}
+
+const TERMINAL_STATUSES = ['completed', 'failed'];
+
+export class Video {
+    private client: IQiniuClient;
+
+    constructor(client: IQiniuClient) {
+        this.client = client;
+    }
+
+    /**
+     * Create a video generation task
+     */
+    async create(params: VideoGenerationRequest): Promise<{ id: string }> {
+        return this.client.post<{ id: string }>('/videos', params);
+    }
+
+    /**
+     * Get video generation task status
+     */
+    async get(id: string): Promise<VideoTaskResponse> {
+        return this.client.get<VideoTaskResponse>(`/videos/${id}`);
+    }
+
+    /**
+     * Poll for completion with retry and cancellation support
+     */
+    async waitForCompletion(id: string, options: WaitOptions = {}): Promise<VideoTaskResponse> {
+        const {
+            intervalMs = 3000,
+            timeoutMs = 600000, // 10 minutes default for video (longer than image)
+            signal,
+            maxRetries = 3,
+        } = options;
+
+        if (intervalMs <= 0 || timeoutMs <= 0) {
+            throw new Error('intervalMs and timeoutMs must be positive numbers');
+        }
+
+        const start = Date.now();
+        let consecutiveErrors = 0;
+
+        while (Date.now() - start < timeoutMs) {
+            if (signal?.aborted) {
+                throw new Error('Operation cancelled');
+            }
+
+            try {
+                const result = await this.get(id);
+                consecutiveErrors = 0;
+
+                if (result.status && TERMINAL_STATUSES.includes(result.status)) {
+                    return result;
+                }
+
+                if (result.status && !['in_progress', 'pending', 'queued', ...TERMINAL_STATUSES].includes(result.status)) {
+                    console.warn(`[QiniuAI] Unexpected video task status: ${result.status}`);
+                }
+            } catch (error) {
+                consecutiveErrors++;
+                if (consecutiveErrors >= maxRetries) {
+                    throw new Error(
+                        `Failed to get task status after ${maxRetries} retries: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                }
+                console.warn(`[QiniuAI] Transient error polling video task (retry ${consecutiveErrors}/${maxRetries}): ${error}`);
+            }
+
+            await new Promise((resolve, reject) => {
+                const timeoutHandle = setTimeout(resolve, intervalMs);
+                if (signal) {
+                    signal.addEventListener('abort', () => {
+                        clearTimeout(timeoutHandle);
+                        reject(new Error('Operation cancelled'));
+                    }, { once: true });
+                }
+            });
+        }
+
+        throw new Error(`Timeout waiting for video generation after ${timeoutMs}ms`);
+    }
+}
