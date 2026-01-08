@@ -250,65 +250,68 @@ try {
 
 ## Supported Models
 
-### Chat / Text Completion
+### Chat & Reasoning (66 models)
 
-**OpenAI**
-- `openai/gpt-5`, `openai/gpt-5.2`, `gpt-oss-20b`, `gpt-oss-120b`
+| Provider | Models |
+|----------|--------|
+| **Qwen** | `qwen3-235b-a22b-thinking-2507`, `qwen3-235b-a22b-instruct-2507`, `qwen3-235b-a22b`, `qwen3-max-preview`, `qwen3-max`, `qwen3-32b`, `qwen3-30b-a3b`, `qwen3-next-80b-a3b-thinking`, `qwen3-next-80b-a3b-instruct`, `qwen3-coder-480b-a35b-instruct`, `qwen-max-2025-01-25`, `qwen-turbo` |
+| **Claude** | `claude-4.5-opus`, `claude-4.5-haiku`, `claude-4.5-sonnet`, `claude-4.1-opus`, `claude-4.0-opus`, `claude-4.0-sonnet`, `claude-3.7-sonnet`, `claude-3.5-sonnet`, `claude-3.5-haiku` |
+| **Gemini** | `gemini-3.0-flash-preview`, `gemini-3.0-pro-preview`, `gemini-2.5-flash-lite`, `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash-lite`, `gemini-2.0-flash` |
+| **DeepSeek** | `deepseek-r1-0528`, `deepseek-r1`, `deepseek-v3`, `deepseek-v3-0324`, `deepseek-v3.1`, `deepseek/deepseek-v3.2-251201`, `deepseek/deepseek-v3.2-exp-thinking`, `deepseek/deepseek-v3.2-exp`, `deepseek/deepseek-v3.1-terminus-thinking`, `deepseek/deepseek-v3.1-terminus` |
+| **Doubao** | `doubao-seed-1.6-thinking`, `doubao-seed-1.6-flash`, `doubao-seed-1.6`, `doubao-1.5-thinking-pro`, `doubao-1.5-pro-32k` |
+| **GLM** | `glm-4.5`, `glm-4.5-air`, `z-ai/glm-4.7`, `z-ai/glm-4.6` |
+| **Grok** | `x-ai/grok-4-fast-reasoning`, `x-ai/grok-4-fast-non-reasoning`, `x-ai/grok-4-fast`, `x-ai/grok-4.1-fast-non-reasoning`, `x-ai/grok-4.1-fast-reasoning`, `x-ai/grok-4.1-fast`, `x-ai/grok-code-fast-1` |
+| **OpenAI** | `openai/gpt-5.2`, `openai/gpt-5`, `gpt-oss-20b`, `gpt-oss-120b` |
+| **Kimi** | `moonshotai/kimi-k2-thinking`, `moonshotai/kimi-k2-0905`, `kimi-k2` |
+| **MiniMax** | `minimax/minimax-m2`, `minimax/minimax-m2.1`, `MiniMax-M1`, `mimo-v2-flash` |
+| **Meituan** | `meituan/longcat-flash-chat` |
+| **StepFun** | `stepfun-ai/gelab-zero-4b-preview` |
+| **AutoGLM** | `z-ai/autoglm-phone-9b` |
 
-**Anthropic Claude**
-- `claude-4.5-opus`, `claude-4.5-sonnet`, `claude-4.5-haiku`
-- `claude-4.1-opus`, `claude-4.0-opus`, `claude-4.0-sonnet`
-- `claude-3.7-sonnet`, `claude-3.5-sonnet`, `claude-3.5-haiku`
+### Image Generation & Vision
 
-**Google Gemini**
-- `gemini-3.0-pro-preview`, `gemini-3.0-pro-image-preview`, `gemini-3.0-flash-preview`
-- `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-flash-image`
-- `gemini-2.0-flash`, `gemini-2.0-flash-lite`
-
-**DeepSeek**
-- `deepseek-v3`, `deepseek-v3-0324`, `deepseek-v3.1`
-- `deepseek/deepseek-v3.1-terminus`, `deepseek/deepseek-v3.1-terminus-thinking`
-- `deepseek/deepseek-v3.2-exp`, `deepseek/deepseek-v3.2-exp-thinking`, `deepseek/deepseek-v3.2-251201`
-- `deepseek-r1`, `deepseek-r1-0528`
-
-**Alibaba Qwen**
-- `qwen3-max`, `qwen3-max-preview`, `qwen3-32b`, `qwen3-30b-a3b`
-- `qwen3-235b-a22b`, `qwen3-235b-a22b-instruct`, `qwen3-235b-a22b-thinking-2507`
-- `qwen3-next-80b-a3b-instruct`, `qwen3-next-80b-a3b-thinking`
-- `qwen3-coder-480b-a35b-instruct`
-- `qwen-max-2025-01-25`, `qwen-turbo`
-- `qwen2.5-vl-7b-instruct`, `qwen2.5-vl-72b-instruct`, `qwen-vl-max-2025-01-25`
-
-**ByteDance Doubao**
-- `doubao-seed-1.6`, `doubao-seed-1.6-flash`, `doubao-seed-1.6-thinking`
-- `doubao-1.5-pro-32k`, `doubao-1.5-thinking-pro`, `doubao-1.5-vision-pro`
-
-**Zhipu GLM**
-- `glm-4.5`, `glm-4.5-air`
-- `z-ai/glm-4.6`, `z-ai/glm-4.7`
-- `z-ai/autoglm-phone-9b`
-
-**Moonshot Kimi**
-- `kimi-k2`, `moonshotai/kimi-k2-0905`, `moonshotai/kimi-k2-thinking`
-
-**xAI Grok**
-- `x-ai/grok-4-fast`, `x-ai/grok-4-fast-reasoning`, `x-ai/grok-4-fast-non-reasoning`
-- `x-ai/grok-4.1-fast`, `x-ai/grok-4.1-fast-reasoning`, `x-ai/grok-4.1-fast-non-reasoning`
-- `x-ai/grok-code-fast-1`
-
-**MiniMax**
-- `MiniMax-M1`, `minimax/minimax-m2`, `minimax/minimax-m2.1`
-
-**Others**
-- `mimo-v2-flash`, `meituan/longcat-flash-chat`, `stepfun-ai/gelab-zero-4b-preview`
-
-### Image Generation
-- `kling-v1`, `kling-v1-5`, `kling-v2`, `kling-v2-1`
+| Type | Models |
+|------|--------|
+| **Kling** | `kling-v1`, `kling-v1-5`, `kling-v2`, `kling-v2-new`, `kling-v2-1` |
+| **Gemini** | `gemini-3.0-pro-image-preview`, `gemini-2.5-flash-image` |
+| **Vision** | `doubao-1.5-vision-pro`, `qwen2.5-vl-7b-instruct`, `qwen2.5-vl-72b-instruct`, `qwen-vl-max-2025-01-25` |
 
 ### Video Generation
-- `kling-video-o1`, `kling-v2-1`, `kling-v2-5-turbo`
 
-For the full list, check [Qiniu Model Plaza](https://www.qiniu.com/ai/models).
+| Provider | Models |
+|----------|--------|
+| **Kling** | `kling-video-o1`, `kling-v2-1`, `kling-v2-5-turbo` |
+| **Sora** | `sora-2` |
+| **Veo** | `veo-2.0-generate-001`, `veo-3.0-generate-001`, `veo-3.0-fast-generate-001`, `veo-3.0-generate-preview`, `veo-3.0-fast-generate-preview`, `veo-3.1-generate-preview`, `veo-3.1-fast-generate-preview` |
+| **Other** | `minimax/minimax-m2`, `mimo-v2-flash` |
+
+### OCR (文字识别)
+
+| Model | Description |
+|-------|-------------|
+| `ocr` | 图片/PDF文档高精度文字识别，支持 PNG、JPG、PDF 等格式 |
+
+### ASR (语音识别)
+
+| Model | Description |
+|-------|-------------|
+| `asr` | 中英等多语种语音识别，嘈杂环境识别准确率超95%，支持 raw/wav/mp3/ogg 格式 |
+
+### TTS (语音合成)
+
+通过 `/voice/list` 接口获取完整音色列表，使用 `voice_type` 参数指定音色：
+
+| Voice Type | Description |
+|------------|-------------|
+| `qiniu_zh_female_tmjxxy` | 甜美教学小源 |
+| `qiniu_zh_female_wwxkjx` | 温婉小课堂 |
+| ... | 更多音色请通过 API 获取 |
+
+---
+
+**Summary**: 66 Chat models, 11 Image models, 12 Video models, OCR, ASR, TTS
+
+For the full list and pricing, check [Qiniu AI Developer Center](https://developer.qiniu.com/aitokenapi).
 
 ## License
 
