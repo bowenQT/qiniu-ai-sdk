@@ -1,5 +1,6 @@
 // Main client
-export { QiniuAI, QiniuAIOptions } from './client';
+export { QiniuAI, QiniuAIOptions, consoleLogger, noopLogger, createFilteredLogger } from './client';
+export type { Logger, LogLevel } from './lib/logger';
 
 // Error types
 export { APIError } from './lib/request';

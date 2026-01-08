@@ -77,15 +77,20 @@ export class Video {
             maxRetries = 3,
         } = options;
 
+        const logger = this.client.getLogger();
+
         if (intervalMs <= 0 || timeoutMs <= 0) {
             throw new Error('intervalMs and timeoutMs must be positive numbers');
         }
+
+        logger.debug('Starting video task polling', { id, intervalMs, timeoutMs });
 
         const start = Date.now();
         let consecutiveErrors = 0;
 
         while (Date.now() - start < timeoutMs) {
             if (signal?.aborted) {
+                logger.info('Video task polling cancelled', { id });
                 throw new Error('Operation cancelled');
             }
 
@@ -94,20 +99,31 @@ export class Video {
                 consecutiveErrors = 0;
 
                 if (result.status && TERMINAL_STATUSES.includes(result.status)) {
+                    logger.info('Video task completed', {
+                        id,
+                        status: result.status,
+                        duration: Date.now() - start,
+                    });
                     return result;
                 }
 
                 if (result.status && !['in_progress', 'pending', 'queued', ...TERMINAL_STATUSES].includes(result.status)) {
-                    console.warn(`[QiniuAI] Unexpected video task status: ${result.status}`);
+                    logger.warn('Unexpected video task status', { id, status: result.status });
                 }
             } catch (error) {
                 consecutiveErrors++;
+                logger.warn('Transient error polling video task', {
+                    id,
+                    attempt: consecutiveErrors,
+                    maxRetries,
+                    error: error instanceof Error ? error.message : String(error),
+                });
+
                 if (consecutiveErrors >= maxRetries) {
                     throw new Error(
                         `Failed to get task status after ${maxRetries} retries: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
-                console.warn(`[QiniuAI] Transient error polling video task (retry ${consecutiveErrors}/${maxRetries}): ${error}`);
             }
 
             await new Promise((resolve, reject) => {
@@ -121,6 +137,7 @@ export class Video {
             });
         }
 
+        logger.error('Video task timeout', { id, timeoutMs });
         throw new Error(`Timeout waiting for video generation after ${timeoutMs}ms`);
     }
 }

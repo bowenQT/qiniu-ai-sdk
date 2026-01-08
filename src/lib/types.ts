@@ -79,7 +79,10 @@ export interface ChatCompletionChunk {
     }[];
 }
 
+import type { Logger } from './logger';
+
 export interface IQiniuClient {
-    post<T>(endpoint: string, body: any): Promise<T>;
-    get<T>(endpoint: string, params?: Record<string, string>): Promise<T>;
+    post<T>(endpoint: string, body: unknown, requestId?: string): Promise<T>;
+    get<T>(endpoint: string, params?: Record<string, string>, requestId?: string): Promise<T>;
+    getLogger(): Logger;
 }

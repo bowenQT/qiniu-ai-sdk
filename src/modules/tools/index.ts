@@ -38,6 +38,8 @@ export class Tools {
             throw new Error('Search query is required and must be a non-empty string');
         }
 
+        const logger = this.client.getLogger();
+
         // Call API and handle potential response formats
         const response = await this.client.post<WebSearchResult[] | { results: WebSearchResult[] }>('/search/web', params);
 
@@ -50,7 +52,7 @@ export class Tools {
         }
 
         // If neither, return empty array with warning
-        console.warn('[QiniuAI] Unexpected search response format:', response);
+        logger.warn('Unexpected search response format', { response });
         return [];
     }
 }

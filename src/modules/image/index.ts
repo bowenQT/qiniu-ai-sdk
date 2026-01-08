@@ -68,9 +68,13 @@ export class Image {
             maxRetries = 3,
         } = options;
 
+        const logger = this.client.getLogger();
+
         if (intervalMs <= 0 || timeoutMs <= 0) {
             throw new Error('intervalMs and timeoutMs must be positive numbers');
         }
+
+        logger.debug('Starting image task polling', { taskId, intervalMs, timeoutMs });
 
         const start = Date.now();
         let consecutiveErrors = 0;
@@ -78,6 +82,7 @@ export class Image {
         while (Date.now() - start < timeoutMs) {
             // Check for cancellation
             if (signal?.aborted) {
+                logger.info('Image task polling cancelled', { taskId });
                 throw new Error('Operation cancelled');
             }
 
@@ -87,21 +92,32 @@ export class Image {
 
                 // Check for terminal status
                 if (result.status && TERMINAL_STATUSES.includes(result.status)) {
+                    logger.info('Image task completed', {
+                        taskId,
+                        status: result.status,
+                        duration: Date.now() - start,
+                    });
                     return result;
                 }
 
                 // Warn if status is unexpected (but continue polling)
                 if (result.status && !['processing', ...TERMINAL_STATUSES].includes(result.status)) {
-                    console.warn(`[QiniuAI] Unexpected image task status: ${result.status}`);
+                    logger.warn('Unexpected image task status', { taskId, status: result.status });
                 }
             } catch (error) {
                 consecutiveErrors++;
+                logger.warn('Transient error polling image task', {
+                    taskId,
+                    attempt: consecutiveErrors,
+                    maxRetries,
+                    error: error instanceof Error ? error.message : String(error),
+                });
+
                 if (consecutiveErrors >= maxRetries) {
                     throw new Error(
                         `Failed to get task status after ${maxRetries} retries: ${error instanceof Error ? error.message : String(error)}`
                     );
                 }
-                console.warn(`[QiniuAI] Transient error polling image task (retry ${consecutiveErrors}/${maxRetries}): ${error}`);
             }
 
             // Wait before next poll
@@ -116,6 +132,7 @@ export class Image {
             });
         }
 
+        logger.error('Image task timeout', { taskId, timeoutMs });
         throw new Error(`Timeout waiting for image generation after ${timeoutMs}ms`);
     }
 }

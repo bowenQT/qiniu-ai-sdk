@@ -67,12 +67,56 @@ console.log(results);
 ### Client Initialization
 
 ```typescript
+import { QiniuAI, consoleLogger } from '@bowenqt/qiniu-ai-sdk';
+
 const client = new QiniuAI({
   apiKey: string;           // Required: Your Qiniu AI API key
   baseUrl?: string;         // Optional: API base URL (default: https://api.qnaigc.com/v1)
   timeout?: number;         // Optional: Request timeout in ms (default: 60000)
+  logger?: Logger;          // Optional: Custom logger (use consoleLogger for debug output)
+  logLevel?: LogLevel;      // Optional: 'debug' | 'info' | 'warn' | 'error' | 'silent' (default: 'info')
 });
 ```
+
+### Logging
+
+Enable debug logging to see request/response details:
+
+```typescript
+import { QiniuAI, consoleLogger } from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({
+  apiKey: 'Sk-xxx',
+  logger: consoleLogger,
+  logLevel: 'debug',
+});
+
+// Now you'll see logs like:
+// [QiniuAI:DEBUG] HTTP Request { requestId: 'req_123...', method: 'POST', url: '...', timeout: 60000 }
+// [QiniuAI:DEBUG] HTTP Response { requestId: 'req_123...', status: 200, duration: 1234 }
+```
+
+Use a custom logger (e.g., pino, winston):
+
+```typescript
+import { QiniuAI, Logger } from '@bowenqt/qiniu-ai-sdk';
+import pino from 'pino';
+
+const pinoLogger = pino();
+
+const customLogger: Logger = {
+  debug: (msg, meta) => pinoLogger.debug(meta, msg),
+  info: (msg, meta) => pinoLogger.info(meta, msg),
+  warn: (msg, meta) => pinoLogger.warn(meta, msg),
+  error: (msg, meta) => pinoLogger.error(meta, msg),
+};
+
+const client = new QiniuAI({
+  apiKey: 'Sk-xxx',
+  logger: customLogger,
+});
+```
+
 
 ### Modules
 
