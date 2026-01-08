@@ -45,12 +45,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/bowenQT/qiniu-ai-sdk.git"
   },
   "bugs": {
-    "url": ""
+    "url": "https://github.com/bowenQT/qiniu-ai-sdk/issues"
   },
-  "homepage": "",
+  "homepage": "https://github.com/bowenQT/qiniu-ai-sdk#readme",
   "engines": {
     "node": ">=18.0.0"
   },
