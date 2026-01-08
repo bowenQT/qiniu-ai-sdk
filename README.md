@@ -250,8 +250,57 @@ try {
 
 ## Supported Models
 
-### Chat
-- `gemini-2.5-flash`, `gemini-pro`, `deepseek-v3`, `claude-*`, etc.
+### Chat / Text Completion
+
+**OpenAI**
+- `openai/gpt-5`, `openai/gpt-5.2`, `gpt-oss-20b`, `gpt-oss-120b`
+
+**Anthropic Claude**
+- `claude-4.5-opus`, `claude-4.5-sonnet`, `claude-4.5-haiku`
+- `claude-4.1-opus`, `claude-4.0-opus`, `claude-4.0-sonnet`
+- `claude-3.7-sonnet`, `claude-3.5-sonnet`, `claude-3.5-haiku`
+
+**Google Gemini**
+- `gemini-3.0-pro-preview`, `gemini-3.0-pro-image-preview`, `gemini-3.0-flash-preview`
+- `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-flash-image`
+- `gemini-2.0-flash`, `gemini-2.0-flash-lite`
+
+**DeepSeek**
+- `deepseek-v3`, `deepseek-v3-0324`, `deepseek-v3.1`
+- `deepseek/deepseek-v3.1-terminus`, `deepseek/deepseek-v3.1-terminus-thinking`
+- `deepseek/deepseek-v3.2-exp`, `deepseek/deepseek-v3.2-exp-thinking`, `deepseek/deepseek-v3.2-251201`
+- `deepseek-r1`, `deepseek-r1-0528`
+
+**Alibaba Qwen**
+- `qwen3-max`, `qwen3-max-preview`, `qwen3-32b`, `qwen3-30b-a3b`
+- `qwen3-235b-a22b`, `qwen3-235b-a22b-instruct`, `qwen3-235b-a22b-thinking-2507`
+- `qwen3-next-80b-a3b-instruct`, `qwen3-next-80b-a3b-thinking`
+- `qwen3-coder-480b-a35b-instruct`
+- `qwen-max-2025-01-25`, `qwen-turbo`
+- `qwen2.5-vl-7b-instruct`, `qwen2.5-vl-72b-instruct`, `qwen-vl-max-2025-01-25`
+
+**ByteDance Doubao**
+- `doubao-seed-1.6`, `doubao-seed-1.6-flash`, `doubao-seed-1.6-thinking`
+- `doubao-1.5-pro-32k`, `doubao-1.5-thinking-pro`, `doubao-1.5-vision-pro`
+
+**Zhipu GLM**
+- `glm-4.5`, `glm-4.5-air`
+- `z-ai/glm-4.6`, `z-ai/glm-4.7`
+- `z-ai/autoglm-phone-9b`
+
+**Moonshot Kimi**
+- `kimi-k2`, `moonshotai/kimi-k2-0905`, `moonshotai/kimi-k2-thinking`
+
+**xAI Grok**
+- `x-ai/grok-4-fast`, `x-ai/grok-4-fast-reasoning`, `x-ai/grok-4-fast-non-reasoning`
+- `x-ai/grok-4.1-fast`, `x-ai/grok-4.1-fast-reasoning`, `x-ai/grok-4.1-fast-non-reasoning`
+- `x-ai/grok-code-fast-1`
+
+**MiniMax**
+- `MiniMax-M1`, `minimax/minimax-m2`, `minimax/minimax-m2.1`
+
+**Others**
+- `mimo-v2-flash`, `meituan/longcat-flash-chat`, `stepfun-ai/gelab-zero-4b-preview`
 
 ### Image Generation
 - `kling-v1`, `kling-v1-5`, `kling-v2`, `kling-v2-1`
