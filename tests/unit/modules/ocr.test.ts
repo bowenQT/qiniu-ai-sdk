@@ -51,7 +51,7 @@ describe('OCR Module', () => {
             expect(result.text).toBe('Hello World');
             expect(result.confidence).toBe(0.95);
             expect(result.blocks).toHaveLength(2);
-            expect(mockFetch.calls[0].url).toContain('/ocr');
+            expect(mockFetch.calls[0].url).toContain('/images/ocr');
         });
 
         it('should detect text from base64 image', async () => {

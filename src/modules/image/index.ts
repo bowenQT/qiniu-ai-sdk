@@ -16,6 +16,18 @@ export type ImageModel =
     | 'recraft-v3'
     | (string & {}); // Allow other strings for forward compatibility
 
+export interface ImageReference {
+    /** Image URL or base64 data */
+    image: string;
+    /** Reference type tag */
+    image_type?: string;
+}
+
+export interface ImageConfig {
+    aspect_ratio?: string;
+    image_size?: '1K' | '2K' | '4K';
+}
+
 export interface ImageGenerationRequest {
     model: ImageModel;
     prompt: string;
@@ -25,6 +37,51 @@ export interface ImageGenerationRequest {
     image?: string; // base64 for image-to-image
     image_url?: string; // URL for image-to-image
     strength?: number; // 0.0 - 1.0
+    // Kling reference images
+    image_reference?: 'subject' | 'face';
+    image_type?: string;
+    subject_image_list?: ImageReference[];
+    scene_image?: ImageReference;
+    style_image?: ImageReference;
+    // Gemini config
+    image_config?: ImageConfig;
+}
+
+export interface ImageEditRequest {
+    model: ImageModel;
+    prompt?: string;
+    negative_prompt?: string;
+    aspect_ratio?: ImageGenerationRequest['aspect_ratio'];
+    n?: number;
+    strength?: number;
+    image?: string;
+    image_url?: string;
+    images?: string[];
+    mask?: string;
+    // Kling reference images
+    image_reference?: 'subject' | 'face';
+    image_type?: string;
+    subject_image_list?: ImageReference[];
+    scene_image?: ImageReference;
+    style_image?: ImageReference;
+    // Gemini config
+    image_config?: ImageConfig;
+}
+
+export interface ImageEditResponse {
+    task_id?: string;
+    created?: number;
+    status?: string;
+    status_message?: string;
+    data?: {
+        index: number;
+        url: string;
+    }[];
+    error?: {
+        code: string;
+        message: string;
+    };
+    quantity?: number;
 }
 
 export interface ImageTaskResponse {
@@ -64,6 +121,30 @@ export class Image {
      */
     async create(params: ImageGenerationRequest): Promise<{ task_id: string }> {
         return this.client.post<{ task_id: string }>('/images/generations', params);
+    }
+
+    /**
+     * Edit or transform images.
+     */
+    async edit(params: ImageEditRequest): Promise<ImageEditResponse> {
+        const logger = this.client.getLogger();
+        const response = await this.client.post<any>('/images/edits', params);
+
+        if (Array.isArray(response)) {
+            return { data: response };
+        }
+        if (response?.data && Array.isArray(response.data)) {
+            return response as ImageEditResponse;
+        }
+        if (response?.result && Array.isArray(response.result.data)) {
+            return response.result as ImageEditResponse;
+        }
+        if (response?.task_id || response?.data || response?.status) {
+            return response as ImageEditResponse;
+        }
+
+        logger.warn('Unexpected image edit response format', { response });
+        return response as ImageEditResponse;
     }
 
     /**

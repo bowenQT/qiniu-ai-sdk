@@ -41,6 +41,10 @@ export interface OcrBlock {
  */
 export interface OcrResponse {
     /**
+     * Request ID (if provided by API)
+     */
+    id?: string;
+    /**
      * Full extracted text from the image
      */
     text: string;
@@ -58,17 +62,20 @@ export interface OcrResponse {
  * Raw API response format (may vary)
  */
 interface OcrApiResponse {
+    id?: string;
     text?: string;
     content?: string;
     confidence?: number;
     blocks?: OcrBlock[];
     data?: {
+        id?: string;
         text?: string;
         content?: string;
         confidence?: number;
         blocks?: OcrBlock[];
     };
     result?: {
+        id?: string;
         text?: string;
         content?: string;
         confidence?: number;
@@ -119,7 +126,7 @@ export class Ocr {
 
         logger.debug('OCR detect request', { model: requestBody.model, hasUrl: !!params.url });
 
-        const response = await this.client.post<OcrApiResponse>('/ocr', requestBody);
+        const response = await this.client.post<OcrApiResponse>('/images/ocr', requestBody);
 
         // Normalize response format
         return this.normalizeResponse(response, logger);
@@ -132,7 +139,7 @@ export class Ocr {
         // Try different response structures
         const data = response.data || response.result || response;
 
-        const text = data.text || data.content || '';
+        const text = data.text || data.content || response.text || '';
         const confidence = data.confidence;
         const blocks = data.blocks;
 
@@ -141,6 +148,7 @@ export class Ocr {
         }
 
         return {
+            id: data.id || response.id,
             text,
             confidence,
             blocks,

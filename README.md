@@ -223,14 +223,181 @@ for await (const chunk of stream) {
 #### `client.image`
 
 - `create(params: ImageGenerationRequest): Promise<{ task_id: string }>`
+- `edit(params: ImageEditRequest): Promise<ImageEditResponse>`
 - `get(taskId: string): Promise<ImageTaskResponse>`
 - `waitForCompletion(taskId: string, options?: WaitOptions): Promise<ImageTaskResponse>`
+
+**Image Edit (Kling/Gemini):**
+
+```typescript
+// Kling multi-image edit
+const editTask = await client.image.edit({
+  model: 'kling-v1',
+  prompt: 'Make it watercolor style',
+  image_reference: 'subject',
+  subject_image_list: [{ image: 'https://example.com/subject.jpg', image_type: 'subject' }],
+  scene_image: { image: 'https://example.com/scene.jpg', image_type: 'scene' },
+  style_image: { image: 'https://example.com/style.jpg', image_type: 'style' },
+});
+
+// Gemini edit
+const geminiEdit = await client.image.edit({
+  model: 'gemini-3.0-pro-image-preview',
+  prompt: 'Add a sunset sky',
+  image_url: 'https://example.com/input.png',
+  image_config: { aspect_ratio: '16:9', image_size: '2K' },
+  mask: 'base64-mask-data',
+});
+```
 
 #### `client.video`
 
 - `create(params: VideoGenerationRequest): Promise<{ id: string }>`
 - `get(id: string): Promise<VideoTaskResponse>`
+- `remix(id: string, params: VideoRemixRequest): Promise<{ id: string }>`
 - `waitForCompletion(id: string, options?: WaitOptions): Promise<VideoTaskResponse>`
+
+**First & Last Frame Video Generation:**
+
+The SDK provides a unified `frames` parameter that works across all models (Kling, Veo):
+
+```typescript
+// Kling first/last frame (multi-frame generation)
+const klingTask = await client.video.create({
+  model: 'kling-video-o1',
+  prompt: '视频连贯在一起',
+  frames: {
+    first: { url: 'https://example.com/start.jpg' },
+    last: { url: 'https://example.com/end.jpg' }
+  },
+  size: '1920x1080',
+  mode: 'pro'
+});
+
+// Veo first/last frame
+const veoTask = await client.video.create({
+  model: 'veo-2.0-generate-001',
+  prompt: 'A cat jumping from chair to table',
+  frames: {
+    first: { url: 'https://example.com/cat-chair.jpg' },
+    last: { url: 'https://example.com/cat-table.jpg' }
+  },
+  generate_audio: true,
+  resolution: '720p',
+  seed: 12345,
+  sample_count: 1
+});
+
+// Wait for completion (works with both Kling and Veo)
+const result = await client.video.waitForCompletion(veoTask.id);
+console.log(result.task_result?.videos[0].url);
+```
+
+**Video Reference Generation (Kling):**
+
+```typescript
+const task = await client.video.create({
+  model: 'kling-video-o1',
+  prompt: '融合视频风格生成新内容',
+  video_list: [{
+    video_url: 'https://example.com/reference.mp4',
+    refer_type: 'base',
+    keep_original_sound: 'yes'
+  }]
+});
+```
+
+**Kling Native Parameters:**
+
+For backward compatibility, you can also use Kling's native parameters directly:
+
+```typescript
+// Using image_list directly (kling-video-o1)
+const task = await client.video.create({
+  model: 'kling-video-o1',
+  prompt: '...',
+  image_list: [
+    { image: 'https://...', type: 'first_frame' },
+    { image: 'https://...', type: 'end_frame' }
+  ]
+});
+
+// Using image_tail (kling-v2-5-turbo)
+const task = await client.video.create({
+  model: 'kling-v2-5-turbo',
+  prompt: '...',
+  input_reference: 'https://example.com/start.jpg',
+  image_tail: 'https://example.com/end.jpg'
+});
+```
+
+**Video Remix (Sora):**
+
+```typescript
+const remixTask = await client.video.remix('videos-123...', {
+  prompt: 'Make it cinematic',
+});
+console.log(remixTask.id);
+```
+
+#### `client.ocr`
+
+- `detect(params: OcrRequest): Promise<OcrResponse>`
+
+**OCR Example:**
+
+```typescript
+const ocrResult = await client.ocr.detect({
+  url: 'https://static.qiniu.com/ai-inference/example-resources/ocr-example.png',
+});
+console.log(ocrResult.text);
+```
+
+#### `client.asr`
+
+- `transcribe(params: AsrRequest): Promise<AsrResponse>`
+
+**ASR Example:**
+
+```typescript
+const asrResult = await client.asr.transcribe({
+  audio: {
+    format: 'mp3',
+    url: 'https://static.qiniu.com/ai-inference/example-resources/example.mp3',
+  },
+});
+console.log(asrResult.text);
+```
+
+#### `client.account`
+
+- `usage(params: UsageQuery): Promise<UsageResponse>`
+
+**Account Usage Example (API Key):**
+
+```typescript
+const usage = await client.account.usage({
+  granularity: 'day',
+  start: '2024-01-01T00:00:00+08:00',
+  end: '2024-01-31T23:59:59+08:00',
+});
+console.log(usage.data.length);
+```
+
+**Account Usage Example (AK/SK):**
+
+```typescript
+const usage = await client.account.usage({
+  granularity: 'day',
+  start: '2024-01-01T00:00:00+08:00',
+  end: '2024-01-31T23:59:59+08:00',
+  auth: {
+    accessKey: 'your-ak',
+    secretKey: 'your-sk',
+  },
+});
+console.log(usage.data.length);
+```
 
 #### `client.sys`
 
@@ -238,7 +405,7 @@ for await (const chunk of stream) {
 
 ### Advanced Usage: Generic API Access
 
-For features not yet fully wrapped in modules (like OCR, TTS, or advanced Video parameters like `lastFrame`), use the generic `post` and `get` methods.
+For features not yet fully wrapped in modules, use the generic `post` and `get` methods.
 
 **OCR (Optical Character Recognition):**
 
@@ -260,20 +427,6 @@ const voices = await client.get<any[]>('/voice/list');
 const res = await client.post<any>('/voice/tts', {
   request: { text: 'Hello world' },
   audio: { voice_type: 'qiniu_zh_female_xxx' }
-});
-```
-
-**Veo Video Generation (First & Last Frame):**
-
-```typescript
-// Veo models require a specific structure for first/last frame
-const veoTask = await client.post<{ id: string }>('/v1/videos/generations', {
-  model: 'veo-2.0-generate-001',
-  instances: [{
-    prompt: "A video of a cat jumping",
-    image: { gcsUri: "gs://..." },     // First frame
-    lastFrame: { gcsUri: "gs://..." }  // Last frame
-  }]
 });
 ```
 

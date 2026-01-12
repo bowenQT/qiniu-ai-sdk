@@ -89,7 +89,7 @@ describe('ASR Module', () => {
             expect(result.text).toBe('Hello, this is a test.');
             expect(result.duration).toBe(3500);
             expect(result.language).toBe('en');
-            expect(mockFetch.calls[0].url).toContain('/asr');
+            expect(mockFetch.calls[0].url).toContain('/voice/asr');
         });
 
         it('should transcribe audio from base64 data', async () => {
@@ -147,6 +147,33 @@ describe('ASR Module', () => {
             expect(result.words?.[0].word).toBe('Hello');
             expect(result.words?.[0].start).toBe(0);
             expect(result.words?.[0].end).toBe(700);
+        });
+
+        it('should handle nested response format', async () => {
+            const mockFetch = createStaticMockFetch({
+                status: 200,
+                body: {
+                    data: {
+                        audio_info: { duration: 9336 },
+                        result: {
+                            additions: { duration: '9336' },
+                            text: 'Nested result text',
+                        },
+                    },
+                },
+            });
+
+            const client = new QiniuAI({
+                apiKey: 'sk-test',
+                adapter: mockFetch.adapter,
+            });
+
+            const result = await client.asr.transcribe({
+                audio: { format: 'mp3', url: 'https://example.com/audio.mp3' },
+            });
+
+            expect(result.text).toBe('Nested result text');
+            expect(result.duration).toBe(9336);
         });
     });
 });

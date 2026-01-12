@@ -29,3 +29,7 @@ coverage/
 *.tmp
 *.temp
 .npmrc
+
+# Local verification (ignored)
+local-tests/
+local-reports/
