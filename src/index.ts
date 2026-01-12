@@ -55,7 +55,15 @@ export type { PollerOptions, PollResult } from './lib/poller';
 export type { ImageGenerationRequest, ImageTaskResponse, WaitOptions as ImageWaitOptions, ImageModel } from './modules/image';
 
 // Module types - Video
-export type { VideoGenerationRequest, VideoTaskResponse, WaitOptions as VideoWaitOptions, VideoModel } from './modules/video';
+export type {
+    VideoGenerationRequest,
+    VideoTaskResponse,
+    WaitOptions as VideoWaitOptions,
+    VideoModel,
+    FrameInput,
+    KlingImageListItem,
+    VideoReference,
+} from './modules/video';
 
 // Module types - Tools
 export type { WebSearchRequest, WebSearchResult } from './modules/tools';

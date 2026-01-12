@@ -232,13 +232,84 @@ for await (const chunk of stream) {
 - `get(id: string): Promise<VideoTaskResponse>`
 - `waitForCompletion(id: string, options?: WaitOptions): Promise<VideoTaskResponse>`
 
+**First & Last Frame Video Generation:**
+
+The SDK provides a unified `frames` parameter that works across all models (Kling, Veo):
+
+```typescript
+// Kling first/last frame (multi-frame generation)
+const klingTask = await client.video.create({
+  model: 'kling-video-o1',
+  prompt: '视频连贯在一起',
+  frames: {
+    first: { url: 'https://example.com/start.jpg' },
+    last: { url: 'https://example.com/end.jpg' }
+  },
+  size: '1920x1080',
+  mode: 'pro'
+});
+
+// Veo first/last frame
+const veoTask = await client.video.create({
+  model: 'veo-2.0-generate-001',
+  prompt: 'A cat jumping from chair to table',
+  frames: {
+    first: { url: 'https://example.com/cat-chair.jpg' },
+    last: { url: 'https://example.com/cat-table.jpg' }
+  },
+  generate_audio: true
+});
+
+// Wait for completion (works with both Kling and Veo)
+const result = await client.video.waitForCompletion(veoTask.id);
+console.log(result.task_result?.videos[0].url);
+```
+
+**Video Reference Generation (Kling):**
+
+```typescript
+const task = await client.video.create({
+  model: 'kling-video-o1',
+  prompt: '融合视频风格生成新内容',
+  video_list: [{
+    video_url: 'https://example.com/reference.mp4',
+    refer_type: 'base',
+    keep_original_sound: 'yes'
+  }]
+});
+```
+
+**Kling Native Parameters:**
+
+For backward compatibility, you can also use Kling's native parameters directly:
+
+```typescript
+// Using image_list directly (kling-video-o1)
+const task = await client.video.create({
+  model: 'kling-video-o1',
+  prompt: '...',
+  image_list: [
+    { image: 'https://...', type: 'first_frame' },
+    { image: 'https://...', type: 'end_frame' }
+  ]
+});
+
+// Using image_tail (kling-v2-5-turbo)
+const task = await client.video.create({
+  model: 'kling-v2-5-turbo',
+  prompt: '...',
+  input_reference: 'https://example.com/start.jpg',
+  image_tail: 'https://example.com/end.jpg'
+});
+```
+
 #### `client.sys`
 
 - `search(params: WebSearchRequest): Promise<WebSearchResult[]>`
 
 ### Advanced Usage: Generic API Access
 
-For features not yet fully wrapped in modules (like OCR, TTS, or advanced Video parameters like `lastFrame`), use the generic `post` and `get` methods.
+For features not yet fully wrapped in modules (like OCR or TTS), use the generic `post` and `get` methods.
 
 **OCR (Optical Character Recognition):**
 
@@ -260,20 +331,6 @@ const voices = await client.get<any[]>('/voice/list');
 const res = await client.post<any>('/voice/tts', {
   request: { text: 'Hello world' },
   audio: { voice_type: 'qiniu_zh_female_xxx' }
-});
-```
-
-**Veo Video Generation (First & Last Frame):**
-
-```typescript
-// Veo models require a specific structure for first/last frame
-const veoTask = await client.post<{ id: string }>('/v1/videos/generations', {
-  model: 'veo-2.0-generate-001',
-  instances: [{
-    prompt: "A video of a cat jumping",
-    image: { gcsUri: "gs://..." },     // First frame
-    lastFrame: { gcsUri: "gs://..." }  // Last frame
-  }]
 });
 ```
 
