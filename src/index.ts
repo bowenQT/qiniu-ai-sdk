@@ -52,7 +52,16 @@ export { pollUntilComplete, createPoller } from './lib/poller';
 export type { PollerOptions, PollResult } from './lib/poller';
 
 // Module types - Image
-export type { ImageGenerationRequest, ImageTaskResponse, WaitOptions as ImageWaitOptions, ImageModel } from './modules/image';
+export type {
+    ImageGenerationRequest,
+    ImageTaskResponse,
+    WaitOptions as ImageWaitOptions,
+    ImageModel,
+    ImageEditRequest,
+    ImageEditResponse,
+    ImageConfig,
+    ImageReference,
+} from './modules/image';
 
 // Module types - Video
 export type {
@@ -63,6 +72,7 @@ export type {
     FrameInput,
     KlingImageListItem,
     VideoReference,
+    VideoRemixRequest,
 } from './modules/video';
 
 // Module types - Tools
@@ -78,7 +88,7 @@ export type { AsrRequest, AsrResponse, AudioFormat, WordTiming } from './modules
 export type { TtsRequest, TtsResponse, TtsEncoding, TtsStreamOptions, Voice } from './modules/tts';
 
 // Module types - Account
-export type { UsageQuery, UsageResponse, UsageByModel } from './modules/account';
+export type { UsageQuery, UsageResponse, UsageModelStat, UsageItem, UsageCategory, UsageValue } from './modules/account';
 
 // Module types - Admin
 export type { CreateKeysRequest, ApiKey } from './modules/admin';

@@ -65,6 +65,21 @@ export interface VideoReference {
 }
 
 /**
+ * Video remix request parameters
+ */
+export interface VideoRemixRequest {
+    model?: VideoModel;
+    prompt?: string;
+    negative_prompt?: string;
+    duration?: '5' | '10' | number;
+    aspect_ratio?: '16:9' | '1:1' | '9:16';
+    size?: string;
+    mode?: 'std' | 'pro';
+    cfg_scale?: number;
+    [key: string]: unknown;
+}
+
+/**
  * Video generation request parameters
  * Supports Kling, Veo, Sora, and other models with smart adaptation
  */
@@ -121,6 +136,12 @@ export interface VideoGenerationRequest {
     // === Veo specific parameters ===
     /** Generate audio for the video (Veo only) */
     generate_audio?: boolean;
+    /** Output resolution (Veo 3 only) */
+    resolution?: '720p' | '1080p';
+    /** Seed for deterministic output (Veo only) */
+    seed?: number;
+    /** Number of samples to generate (Veo only, 1-4) */
+    sample_count?: number;
     /** Person generation control (Veo only) */
     person_generation?: 'allow_adult' | 'dont_allow';
 }
@@ -216,6 +237,8 @@ interface VeoPayload {
         durationSeconds?: number;
         aspectRatio?: string;
         sampleCount?: number;
+        resolution?: string;
+        seed?: number;
         negativePrompt?: string;
         personGeneration?: string;
     };
@@ -253,10 +276,71 @@ function isVeoModel(model: string): boolean {
 }
 
 /**
+ * Infer MIME type from URL, data URL, or base64 content.
+ */
+function inferMimeType(input?: string): FrameInput['mimeType'] | undefined {
+    if (!input) return undefined;
+
+    const lower = input.toLowerCase();
+    if (lower.startsWith('data:image/')) {
+        const match = lower.match(/^data:(image\/[a-z0-9.+-]+);/);
+        if (match) {
+            return match[1] as FrameInput['mimeType'];
+        }
+    }
+
+    const urlPart = lower.split('?')[0];
+    if (urlPart.endsWith('.jpg') || urlPart.endsWith('.jpeg')) return 'image/jpeg';
+    if (urlPart.endsWith('.png')) return 'image/png';
+    if (urlPart.endsWith('.webp')) return 'image/webp';
+
+    const raw = lower.includes('base64,') ? input.split('base64,').pop() || '' : input;
+    try {
+        let bytes: Uint8Array | null = null;
+        if (typeof Buffer !== 'undefined') {
+            bytes = new Uint8Array(Buffer.from(raw, 'base64').subarray(0, 16));
+        } else if (typeof atob !== 'undefined') {
+            const decoded = atob(raw.slice(0, 32));
+            bytes = new Uint8Array(decoded.length);
+            for (let i = 0; i < decoded.length; i++) {
+                bytes[i] = decoded.charCodeAt(i);
+            }
+        }
+        if (bytes) {
+            if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+                return 'image/png';
+            }
+            if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+                return 'image/jpeg';
+            }
+            if (
+                bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+                bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+            ) {
+                return 'image/webp';
+            }
+        }
+    } catch {
+        return undefined;
+    }
+
+    return undefined;
+}
+
+function withFallbackMimeType(input?: string, mimeType?: FrameInput['mimeType']): FrameInput['mimeType'] | undefined {
+    if (mimeType) return mimeType;
+    if (!input) return undefined;
+    return inferMimeType(input) || 'image/png';
+}
+
+/**
  * Infer task type from task ID prefix
  */
 function inferTaskType(id: string): 'veo' | 'kling' | 'generic' {
     if (id.startsWith('videos-')) {
+        return 'veo';
+    }
+    if (id.startsWith('chatvideo-')) {
         return 'veo';
     }
     if (id.startsWith('qvideo-')) {
@@ -270,13 +354,13 @@ function inferTaskType(id: string): 'veo' | 'kling' | 'generic' {
  */
 function frameInputToVeoImage(frame: FrameInput): { uri?: string; bytesBase64Encoded?: string; mimeType?: string } | undefined {
     if (frame.gcsUri) {
-        return { uri: frame.gcsUri, mimeType: frame.mimeType };
+        return { uri: frame.gcsUri, mimeType: withFallbackMimeType(frame.gcsUri, frame.mimeType) };
     }
     if (frame.url) {
-        return { uri: frame.url, mimeType: frame.mimeType };
+        return { uri: frame.url, mimeType: withFallbackMimeType(frame.url, frame.mimeType) };
     }
     if (frame.base64) {
-        return { bytesBase64Encoded: frame.base64, mimeType: frame.mimeType };
+        return { bytesBase64Encoded: frame.base64, mimeType: withFallbackMimeType(frame.base64, frame.mimeType) };
     }
     return undefined;
 }
@@ -293,9 +377,15 @@ function transformToVeoPayload(params: VideoGenerationRequest): VeoPayload {
     if (params.frames?.first) {
         instance.image = frameInputToVeoImage(params.frames.first);
     } else if (params.image_url) {
-        instance.image = { uri: params.image_url };
+        instance.image = {
+            uri: params.image_url,
+            mimeType: withFallbackMimeType(params.image_url),
+        };
     } else if (params.image) {
-        instance.image = { bytesBase64Encoded: params.image };
+        instance.image = {
+            bytesBase64Encoded: params.image,
+            mimeType: withFallbackMimeType(params.image),
+        };
     }
 
     // Handle last frame
@@ -316,6 +406,15 @@ function transformToVeoPayload(params: VideoGenerationRequest): VeoPayload {
     }
     if (params.aspect_ratio) {
         parameters.aspectRatio = params.aspect_ratio;
+    }
+    if (params.resolution) {
+        parameters.resolution = params.resolution;
+    }
+    if (params.seed !== undefined) {
+        parameters.seed = params.seed;
+    }
+    if (params.sample_count !== undefined) {
+        parameters.sampleCount = params.sample_count;
     }
     if (params.negative_prompt) {
         parameters.negativePrompt = params.negative_prompt;
@@ -467,12 +566,12 @@ export class Video {
 
             logger.debug('Video create (Veo adapter)', {
                 model: params.model,
-                endpoint: '/v1/videos/generations',
+                endpoint: '/videos/generations',
                 hasFirstFrame: !!veoPayload.instances[0].image,
                 hasLastFrame: !!veoPayload.instances[0].lastFrame,
             });
 
-            return this.client.post<{ id: string }>('/v1/videos/generations', veoPayload);
+            return this.client.post<{ id: string }>('/videos/generations', veoPayload);
         }
 
         // Kling and other models use standard endpoint
@@ -498,15 +597,25 @@ export class Video {
         const taskType = inferTaskType(id);
 
         if (taskType === 'veo') {
-            logger.debug('Video get (Veo endpoint)', { id, endpoint: `/v1/videos/generations/${id}` });
+            logger.debug('Video get (Veo endpoint)', { id, endpoint: `/videos/generations/${id}` });
 
-            const raw = await this.client.get<VeoRawResponse>(`/v1/videos/generations/${id}`);
+            const raw = await this.client.get<VeoRawResponse>(`/videos/generations/${id}`);
             return normalizeVeoResponse(raw);
         }
 
         // Kling and generic models
         logger.debug('Video get (Standard endpoint)', { id, endpoint: `/videos/${id}` });
         return this.client.get<VideoTaskResponse>(`/videos/${id}`);
+    }
+
+    /**
+     * Remix an existing video task.
+     */
+    async remix(id: string, params: VideoRemixRequest): Promise<{ id: string }> {
+        if (!id || !id.trim()) {
+            throw new Error('Video id is required');
+        }
+        return this.client.post<{ id: string }>(`/videos/${encodeURIComponent(id)}/remix`, params);
     }
 
     /**

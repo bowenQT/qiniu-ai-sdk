@@ -149,10 +149,28 @@ interface TtsApiResponse {
     };
 }
 
+interface TtsApiPayload {
+    audio: {
+        voice_type: string;
+        encoding: TtsEncoding;
+        speed_ratio?: number;
+        volume?: number;
+        pitch?: number;
+    };
+    request: {
+        text: string;
+    };
+}
+
 interface VoiceListResponse {
     voices?: Voice[];
     data?: Voice[];
     result?: Voice[];
+}
+
+function isNativeWebSocket(impl: typeof WebSocket): boolean {
+    const maybeWs = impl as unknown as { Server?: unknown; WebSocketServer?: unknown };
+    return !maybeWs.Server && !maybeWs.WebSocketServer;
 }
 
 export class Tts {
@@ -171,6 +189,37 @@ export class Tts {
             .replace(/\/v1$/, '');
         // Store API key for WebSocket auth (extracted from client)
         this.apiKey = (client as any).apiKey || '';
+    }
+
+    private async resolveWebSocketImpl(): Promise<{
+        WebSocketImpl: typeof WebSocket;
+        supportsHeaders: boolean;
+        preferBinary: boolean;
+    }> {
+        const hasGlobal = typeof WebSocket !== 'undefined';
+        const isNode = typeof process !== 'undefined' && !!process.versions?.node;
+
+        if (isNode) {
+            try {
+                const wsModule = await import('ws');
+                const wsImpl = (wsModule as { default?: typeof WebSocket }).default || (wsModule as unknown as typeof WebSocket);
+                return { WebSocketImpl: wsImpl, supportsHeaders: true, preferBinary: true };
+            } catch {
+                throw new Error(
+                    'WebSocket implementation "ws" is required in Node.js for TTS streaming. ' +
+                    'Install it with: npm install ws'
+                );
+            }
+        }
+
+        if (hasGlobal) {
+            return { WebSocketImpl: WebSocket, supportsHeaders: false, preferBinary: false };
+        }
+
+        throw new Error(
+            'WebSocket is not available in this environment. ' +
+            'For Node.js, install the "ws" package and assign it to globalThis.WebSocket'
+        );
     }
 
     /**
@@ -239,18 +288,22 @@ export class Tts {
             throw new Error('pitch must be between -1.0 and 1.0');
         }
 
-        const requestBody = {
-            text: params.text,
-            voice_type: params.voice_type,
-            encoding: params.encoding || 'mp3',
-            ...(params.speed_ratio !== undefined ? { speed_ratio: params.speed_ratio } : {}),
-            ...(params.volume !== undefined ? { volume: params.volume } : {}),
-            ...(params.pitch !== undefined ? { pitch: params.pitch } : {}),
+        const requestBody: TtsApiPayload = {
+            audio: {
+                voice_type: params.voice_type,
+                encoding: params.encoding || 'mp3',
+                ...(params.speed_ratio !== undefined ? { speed_ratio: params.speed_ratio } : {}),
+                ...(params.volume !== undefined ? { volume: params.volume } : {}),
+                ...(params.pitch !== undefined ? { pitch: params.pitch } : {}),
+            },
+            request: {
+                text: params.text,
+            },
         };
 
         logger.debug('TTS synthesize request', {
             voice_type: params.voice_type,
-            encoding: requestBody.encoding,
+            encoding: requestBody.audio.encoding,
             textLength: params.text.length,
         });
 
@@ -301,13 +354,7 @@ export class Tts {
             throw new Error('voice_type is required');
         }
 
-        // Check for WebSocket availability
-        if (typeof WebSocket === 'undefined') {
-            throw new Error(
-                'WebSocket is not available in this environment. ' +
-                'For Node.js, install the "ws" package and assign it to globalThis.WebSocket'
-            );
-        }
+        const wsImplInfo = await this.resolveWebSocketImpl();
 
         const wsUrl = `${this.wsBaseUrl}/v1/voice/tts`;
 
@@ -321,15 +368,21 @@ export class Tts {
         // Note: Node.js ws library supports headers option, browser WebSocket does not
         // For browser environments, consider using a server-side proxy
         const wsOptions: { headers?: Record<string, string> } = {};
-        if (this.apiKey) {
+        if (this.apiKey && wsImplInfo.supportsHeaders) {
             wsOptions.headers = {
                 'Authorization': `Bearer ${this.apiKey}`,
+            };
+        }
+        if (wsImplInfo.supportsHeaders) {
+            wsOptions.headers = {
+                ...wsOptions.headers,
+                'VoiceType': options.voice_type,
             };
         }
 
         // TypeScript: ws library accepts options as second parameter
         // Browser WebSocket ignores it, ws library uses it
-        const ws = new (WebSocket as any)(wsUrl, wsOptions);
+        const ws = new (wsImplInfo.WebSocketImpl as any)(wsUrl, wsOptions);
 
         // Create a queue to handle async message delivery
         const messageQueue: (Uint8Array | Error | 'done')[] = [];
@@ -359,13 +412,21 @@ export class Tts {
 
                 // Send initial configuration message
                 const initMessage = JSON.stringify({
-                    text,
-                    voice_type: options.voice_type,
-                    encoding: options.encoding || 'mp3',
-                    speed_ratio: options.speed_ratio ?? 1.0,
-                    volume: options.volume ?? 1.0,
-                });
-                ws.send(initMessage);
+                    audio: {
+                        voice_type: options.voice_type,
+                        encoding: options.encoding || 'mp3',
+                        speed_ratio: options.speed_ratio ?? 1.0,
+                        volume: options.volume ?? 1.0,
+                    },
+                    request: {
+                        text,
+                    },
+                } as TtsApiPayload);
+                if (wsImplInfo.preferBinary && typeof Buffer !== 'undefined') {
+                    ws.send(Buffer.from(initMessage));
+                } else {
+                    ws.send(initMessage);
+                }
 
                 resolve();
             };
@@ -378,46 +439,105 @@ export class Tts {
             };
         });
 
+        const tryParseFrame = (textPayload: string): TtsWebSocketFrame | null => {
+            const trimmed = textPayload.trim();
+            if (!trimmed.startsWith('{')) {
+                return null;
+            }
+            try {
+                const parsed = JSON.parse(trimmed) as TtsWebSocketFrame;
+                if (typeof parsed.sequence === 'number') {
+                    return parsed;
+                }
+            } catch {
+                return null;
+            }
+            return null;
+        };
+
+        const handleFrame = (frame: TtsWebSocketFrame) => {
+            if (frame.error) {
+                enqueueMessage(new Error(frame.error));
+                return;
+            }
+
+            if (frame.sequence < 0) {
+                logger.debug('TTS stream ended', { sequence: frame.sequence });
+                enqueueMessage('done');
+                return;
+            }
+
+            if (frame.data) {
+                const binaryString = atob(frame.data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                enqueueMessage(bytes);
+            }
+        };
+
+        const decodeBytesToText = (bytes: Uint8Array): string => {
+            if (typeof TextDecoder !== 'undefined') {
+                return new TextDecoder().decode(bytes);
+            }
+            if (typeof Buffer !== 'undefined') {
+                return Buffer.from(bytes).toString('utf8');
+            }
+            return '';
+        };
+
         ws.onmessage = (event: MessageEvent) => {
             try {
-                // Handle both string (JSON) and binary data
                 if (typeof event.data === 'string') {
-                    const frame = JSON.parse(event.data) as TtsWebSocketFrame;
+                    const frame = tryParseFrame(event.data);
+                    if (frame) {
+                        handleFrame(frame);
+                    }
+                    return;
+                }
 
-                    if (frame.error) {
-                        enqueueMessage(new Error(frame.error));
+                if (event.data instanceof ArrayBuffer) {
+                    const bytes = new Uint8Array(event.data);
+                    const frame = tryParseFrame(decodeBytesToText(bytes));
+                    if (frame) {
+                        handleFrame(frame);
                         return;
                     }
+                    enqueueMessage(bytes);
+                    return;
+                }
 
-                    // Check for end of stream
-                    if (frame.sequence < 0) {
-                        logger.debug('TTS stream ended', { sequence: frame.sequence });
-                        enqueueMessage('done');
+                if (typeof Buffer !== 'undefined' && Buffer.isBuffer(event.data)) {
+                    const bytes = new Uint8Array(event.data);
+                    const frame = tryParseFrame(event.data.toString('utf8'));
+                    if (frame) {
+                        handleFrame(frame);
                         return;
                     }
+                    enqueueMessage(bytes);
+                    return;
+                }
 
-                    // Decode base64 audio data
-                    if (frame.data) {
-                        const binaryString = atob(frame.data);
-                        const bytes = new Uint8Array(binaryString.length);
-                        for (let i = 0; i < binaryString.length; i++) {
-                            bytes[i] = binaryString.charCodeAt(i);
+                if (event.data instanceof Uint8Array) {
+                    const frame = tryParseFrame(decodeBytesToText(event.data));
+                    if (frame) {
+                        handleFrame(frame);
+                        return;
+                    }
+                    enqueueMessage(event.data);
+                    return;
+                }
+
+                if (event.data instanceof Blob) {
+                    event.data.arrayBuffer().then((buffer: ArrayBuffer) => {
+                        const bytes = new Uint8Array(buffer);
+                        const frame = tryParseFrame(decodeBytesToText(bytes));
+                        if (frame) {
+                            handleFrame(frame);
+                            return;
                         }
                         enqueueMessage(bytes);
-                    }
-                } else if (event.data instanceof ArrayBuffer) {
-                    // Direct binary data (browser)
-                    enqueueMessage(new Uint8Array(event.data));
-                } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer(event.data)) {
-                    // Node.js Buffer (ws library returns Buffer by default)
-                    enqueueMessage(new Uint8Array(event.data));
-                } else if (event.data instanceof Uint8Array) {
-                    // Already Uint8Array
-                    enqueueMessage(event.data);
-                } else if (event.data instanceof Blob) {
-                    // Handle Blob (browser)
-                    event.data.arrayBuffer().then((buffer: ArrayBuffer) => {
-                        enqueueMessage(new Uint8Array(buffer));
                     });
                 }
             } catch (parseError) {

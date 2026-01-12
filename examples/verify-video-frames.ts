@@ -108,6 +108,9 @@ const veoFramesRequest: VideoGenerationRequest = {
         last: { url: 'https://example.com/cat-table.jpg' },
     },
     generate_audio: true,
+    resolution: '720p',
+    seed: 12345,
+    sample_count: 2,
     person_generation: 'allow_adult',
 };
 console.log('✅ VideoGenerationRequest compiles with Veo params');
@@ -142,7 +145,7 @@ const testModels = [
 
 for (const model of testModels) {
     const isVeo = isVeoModel(model);
-    const endpoint = isVeo ? '/v1/videos/generations' : '/videos';
+    const endpoint = isVeo ? '/videos/generations' : '/videos';
     console.log(`  ${model.padEnd(30)} → ${endpoint}`);
 }
 console.log('✅ Model routing logic works correctly');
@@ -154,6 +157,7 @@ console.log('\n[Test 9] Task ID type inference');
 
 function inferTaskType(id: string): 'veo' | 'kling' | 'generic' {
     if (id.startsWith('videos-')) return 'veo';
+    if (id.startsWith('chatvideo-')) return 'veo';
     if (id.startsWith('qvideo-')) return 'kling';
     return 'generic';
 }
@@ -167,7 +171,7 @@ const testIds = [
 for (const id of testIds) {
     const type = inferTaskType(id);
     const getEndpoint = type === 'veo'
-        ? `/v1/videos/generations/${id}`
+        ? `/videos/generations/${id}`
         : `/videos/${id}`;
     console.log(`  ${id.substring(0, 30).padEnd(30)} → ${type.padEnd(8)} → GET ${getEndpoint.substring(0, 35)}...`);
 }

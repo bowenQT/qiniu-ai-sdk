@@ -105,6 +105,22 @@ interface AsrApiResponse {
     words?: WordTiming[];
     confidence?: number;
     data?: {
+        audio_info?: {
+            duration?: number;
+        };
+        result?: {
+            text?: string;
+            transcript?: string;
+            content?: string;
+            words?: WordTiming[];
+            additions?: {
+                duration?: string;
+            };
+            duration?: number;
+            duration_ms?: number;
+            language?: string;
+            confidence?: number;
+        };
         text?: string;
         content?: string;
         transcript?: string;
@@ -120,6 +136,9 @@ interface AsrApiResponse {
         transcript?: string;
         duration?: number;
         duration_ms?: number;
+        additions?: {
+            duration?: string;
+        };
         language?: string;
         words?: WordTiming[];
         confidence?: number;
@@ -208,7 +227,7 @@ export class Asr {
             hasUrl: !!params.audio.url,
         });
 
-        const response = await this.client.post<AsrApiResponse>('/asr', requestBody);
+        const response = await this.client.post<AsrApiResponse>('/voice/asr', requestBody);
 
         // Normalize response format
         return this.normalizeResponse(response, logger);
@@ -221,11 +240,25 @@ export class Asr {
         // Try different response structures
         const data = response.data || response.result || response;
 
-        const text = data.text || data.content || data.transcript || '';
-        const duration = data.duration_ms ?? data.duration ?? 0;
-        const language = data.language;
-        const words = data.words;
-        const confidence = data.confidence;
+        const nestedResult = (data as AsrApiResponse['data'])?.result || (response.result as AsrApiResponse['result']);
+
+        const text = data.text || data.content || data.transcript ||
+            nestedResult?.text || nestedResult?.content || nestedResult?.transcript || '';
+
+        const additionsDuration = nestedResult?.additions?.duration;
+        const additionsDurationMs = additionsDuration ? parseInt(additionsDuration, 10) : undefined;
+
+        const duration = data.duration_ms ??
+            data.duration ??
+            (data as AsrApiResponse['data'])?.audio_info?.duration ??
+            nestedResult?.duration_ms ??
+            nestedResult?.duration ??
+            additionsDurationMs ??
+            0;
+
+        const language = data.language || nestedResult?.language;
+        const words = data.words || nestedResult?.words;
+        const confidence = data.confidence ?? nestedResult?.confidence;
 
         if (!text) {
             logger.warn('ASR response has no text', { response });

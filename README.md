@@ -223,13 +223,38 @@ for await (const chunk of stream) {
 #### `client.image`
 
 - `create(params: ImageGenerationRequest): Promise<{ task_id: string }>`
+- `edit(params: ImageEditRequest): Promise<ImageEditResponse>`
 - `get(taskId: string): Promise<ImageTaskResponse>`
 - `waitForCompletion(taskId: string, options?: WaitOptions): Promise<ImageTaskResponse>`
+
+**Image Edit (Kling/Gemini):**
+
+```typescript
+// Kling multi-image edit
+const editTask = await client.image.edit({
+  model: 'kling-v1',
+  prompt: 'Make it watercolor style',
+  image_reference: 'subject',
+  subject_image_list: [{ image: 'https://example.com/subject.jpg', image_type: 'subject' }],
+  scene_image: { image: 'https://example.com/scene.jpg', image_type: 'scene' },
+  style_image: { image: 'https://example.com/style.jpg', image_type: 'style' },
+});
+
+// Gemini edit
+const geminiEdit = await client.image.edit({
+  model: 'gemini-3.0-pro-image-preview',
+  prompt: 'Add a sunset sky',
+  image_url: 'https://example.com/input.png',
+  image_config: { aspect_ratio: '16:9', image_size: '2K' },
+  mask: 'base64-mask-data',
+});
+```
 
 #### `client.video`
 
 - `create(params: VideoGenerationRequest): Promise<{ id: string }>`
 - `get(id: string): Promise<VideoTaskResponse>`
+- `remix(id: string, params: VideoRemixRequest): Promise<{ id: string }>`
 - `waitForCompletion(id: string, options?: WaitOptions): Promise<VideoTaskResponse>`
 
 **First & Last Frame Video Generation:**
@@ -257,7 +282,10 @@ const veoTask = await client.video.create({
     first: { url: 'https://example.com/cat-chair.jpg' },
     last: { url: 'https://example.com/cat-table.jpg' }
   },
-  generate_audio: true
+  generate_audio: true,
+  resolution: '720p',
+  seed: 12345,
+  sample_count: 1
 });
 
 // Wait for completion (works with both Kling and Veo)
@@ -303,13 +331,81 @@ const task = await client.video.create({
 });
 ```
 
+**Video Remix (Sora):**
+
+```typescript
+const remixTask = await client.video.remix('videos-123...', {
+  prompt: 'Make it cinematic',
+});
+console.log(remixTask.id);
+```
+
+#### `client.ocr`
+
+- `detect(params: OcrRequest): Promise<OcrResponse>`
+
+**OCR Example:**
+
+```typescript
+const ocrResult = await client.ocr.detect({
+  url: 'https://static.qiniu.com/ai-inference/example-resources/ocr-example.png',
+});
+console.log(ocrResult.text);
+```
+
+#### `client.asr`
+
+- `transcribe(params: AsrRequest): Promise<AsrResponse>`
+
+**ASR Example:**
+
+```typescript
+const asrResult = await client.asr.transcribe({
+  audio: {
+    format: 'mp3',
+    url: 'https://static.qiniu.com/ai-inference/example-resources/example.mp3',
+  },
+});
+console.log(asrResult.text);
+```
+
+#### `client.account`
+
+- `usage(params: UsageQuery): Promise<UsageResponse>`
+
+**Account Usage Example (API Key):**
+
+```typescript
+const usage = await client.account.usage({
+  granularity: 'day',
+  start: '2024-01-01T00:00:00+08:00',
+  end: '2024-01-31T23:59:59+08:00',
+});
+console.log(usage.data.length);
+```
+
+**Account Usage Example (AK/SK):**
+
+```typescript
+const usage = await client.account.usage({
+  granularity: 'day',
+  start: '2024-01-01T00:00:00+08:00',
+  end: '2024-01-31T23:59:59+08:00',
+  auth: {
+    accessKey: 'your-ak',
+    secretKey: 'your-sk',
+  },
+});
+console.log(usage.data.length);
+```
+
 #### `client.sys`
 
 - `search(params: WebSearchRequest): Promise<WebSearchResult[]>`
 
 ### Advanced Usage: Generic API Access
 
-For features not yet fully wrapped in modules (like OCR or TTS), use the generic `post` and `get` methods.
+For features not yet fully wrapped in modules, use the generic `post` and `get` methods.
 
 **OCR (Optical Character Recognition):**
 
