@@ -1,3 +1,4 @@
+import type { VideoModel as CatalogVideoModel } from '../../models';
 import { IQiniuClient } from '../../lib/types';
 import { pollUntilComplete } from '../../lib/poller';
 
@@ -8,22 +9,7 @@ import { pollUntilComplete } from '../../lib/poller';
 /**
  * Supported video generation models
  */
-export type VideoModel =
-    | 'kling-video-o1'
-    | 'kling-v2-1'
-    | 'kling-v2-5-turbo'
-    | 'kling-v1-6'
-    | 'vidu-2.0'
-    | 'vidu-2.5'
-    // Veo models
-    | 'veo-2.0-generate-001'
-    | 'veo-3.0-generate-001'
-    | 'veo-3.0-fast-generate-001'
-    | 'veo-3.0-generate-preview'
-    | 'veo-3.0-fast-generate-preview'
-    | 'veo-3.1-generate-preview'
-    | 'veo-3.1-fast-generate-preview'
-    | (string & {}); // Allow other strings for forward compatibility
+export type VideoModel = CatalogVideoModel | (string & {}); // Allow other strings for forward compatibility
 
 /**
  * Universal frame input - supports multiple sources

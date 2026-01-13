@@ -72,6 +72,32 @@ for await (const chunk of stream) {
 }
 ```
 
+## Vercel AI SDK Adapter
+
+Use the adapter to integrate with the Vercel AI SDK (`streamText`, `generateText`).
+
+```typescript
+import { createQiniu } from '@bowenqt/qiniu-ai-sdk/adapter';
+import { streamText } from 'ai';
+
+const qiniu = createQiniu({
+  apiKey: process.env.QINIU_API_KEY || process.env.OPENAI_API_KEY,
+});
+
+const { textStream } = await streamText({
+  model: qiniu.languageModel('gemini-2.5-flash'),
+  prompt: 'Introduce Qiniu Cloud in one sentence.',
+});
+
+for await (const text of textStream) {
+  process.stdout.write(text);
+}
+```
+
+Notes:
+- If you already have a `QiniuAI` client, pass it via `createQiniu({ client })`.
+- You can override `baseUrl` using `createQiniu({ baseUrl })` or `QINIU_BASE_URL`.
+
 ## API Reference
 
 ### Client Initialization

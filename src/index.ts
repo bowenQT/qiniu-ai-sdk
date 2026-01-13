@@ -11,6 +11,22 @@ export {
     timingMiddleware,
 } from './client';
 
+// Model catalog
+export {
+    CHAT_MODELS,
+    IMAGE_MODELS,
+    VIDEO_MODELS,
+    MODEL_CATALOG,
+} from './models';
+
+export type {
+    ChatModel,
+    ImageModel as ImageModelType,
+    VideoModel as VideoModelType,
+    Model,
+    ModelInfo,
+} from './models';
+
 export type {
     QiniuAIOptions,
     Logger,

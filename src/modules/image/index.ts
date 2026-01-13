@@ -1,20 +1,11 @@
+import type { ImageModel as CatalogImageModel } from '../../models';
 import { IQiniuClient } from '../../lib/types';
 import { pollUntilComplete } from '../../lib/poller';
 
 /**
  * Supported image generation models
  */
-export type ImageModel =
-    | 'kling-v1'
-    | 'kling-v1-5'
-    | 'kling-v2'
-    | 'flux-1.1-pro'
-    | 'flux-1.1-ultra'
-    | 'flux-1.1-dev'
-    | 'flux-1.1-schnell'
-    | 'ideogram-v3'
-    | 'recraft-v3'
-    | (string & {}); // Allow other strings for forward compatibility
+export type ImageModel = CatalogImageModel | (string & {}); // Allow other strings for forward compatibility
 
 export interface ImageReference {
     /** Image URL or base64 data */

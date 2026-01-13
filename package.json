@@ -15,6 +15,16 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.mjs"
       }
+    },
+    "./adapter": {
+      "require": {
+        "types": "./dist/adapter/index.d.ts",
+        "default": "./dist/adapter/index.js"
+      },
+      "import": {
+        "types": "./dist/adapter/index.d.ts",
+        "default": "./dist/adapter/index.mjs"
+      }
     }
   },
   "files": [
@@ -56,9 +66,13 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "dependencies": {
+    "@ai-sdk/provider": "^2.0.0-canary.14"
+  },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.0.16",
+    "ai": "^5.0.0-canary.24",
     "typescript": "^5.0.0",
     "vitest": "^4.0.16"
   }

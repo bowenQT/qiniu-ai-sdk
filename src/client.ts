@@ -10,15 +10,15 @@ import {
     headersMiddleware,
     timingMiddleware,
 } from './lib/middleware';
-import { Chat } from './modules/chat';
-import { Image } from './modules/image';
-import { Video } from './modules/video';
-import { Tools } from './modules/tools';
-import { Ocr } from './modules/ocr';
-import { Asr } from './modules/asr';
-import { Tts } from './modules/tts';
-import { Account } from './modules/account';
-import { Admin } from './modules/admin';
+import { Chat } from './modules/chat/index';
+import { Image } from './modules/image/index';
+import { Video } from './modules/video/index';
+import { Tools } from './modules/tools/index';
+import { Ocr } from './modules/ocr/index';
+import { Asr } from './modules/asr/index';
+import { Tts } from './modules/tts/index';
+import { Account } from './modules/account/index';
+import { Admin } from './modules/admin/index';
 
 export interface QiniuAIOptions {
     apiKey: string; // The Sk-xxxx key
