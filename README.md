@@ -21,6 +21,14 @@ TypeScript SDK for Qiniu Cloud AI Token API.
 npm install @bowenqt/qiniu-ai-sdk
 ```
 
+### Installation for Adapter Users
+
+The Vercel AI SDK adapter is optional. Install the peer dependencies when you use it:
+
+```bash
+npm install @bowenqt/qiniu-ai-sdk @ai-sdk/provider ai
+```
+
 ## Quick Start
 
 ```typescript
@@ -70,6 +78,68 @@ const stream = await client.chat.createStream({
 for await (const chunk of stream) {
   process.stdout.write(chunk.choices[0]?.delta?.content || '');
 }
+```
+
+## Advanced Usage
+
+### StreamAccumulator (Manual Streaming)
+
+```typescript
+import { QiniuAI, createStreamAccumulator, accumulateDelta } from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({ apiKey: 'Sk-xxx' });
+const stream = client.chat.createStream({
+  model: 'gemini-2.5-flash',
+  messages: [{ role: 'user', content: 'Explain streaming in one sentence.' }],
+});
+
+const acc = createStreamAccumulator();
+for await (const chunk of stream) {
+  const delta = chunk.choices[0]?.delta;
+  if (delta) {
+    accumulateDelta(acc, delta);
+  }
+}
+console.log(acc.content);
+```
+
+### parseSSEStream (Custom SSE Parsing)
+
+```typescript
+import { parseSSEStream } from '@bowenqt/qiniu-ai-sdk';
+
+const response = await fetch('https://api.qnaigc.com/v1/chat/completions', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${process.env.QINIU_API_KEY}`,
+  },
+  body: JSON.stringify({
+    model: 'gemini-2.5-flash',
+    messages: [{ role: 'user', content: 'Hello!' }],
+    stream: true,
+  }),
+});
+
+for await (const chunk of parseSSEStream(response)) {
+  console.log(chunk);
+}
+```
+
+### createPoller (Custom Async Polling)
+
+```typescript
+import { createPoller } from '@bowenqt/qiniu-ai-sdk';
+
+const poller = createPoller({
+  intervalMs: 2000,
+  timeoutMs: 60000,
+  isTerminal: (result) => result.status === 'succeed' || result.status === 'failed',
+  getStatus: (id) => client.video.get(id),
+});
+
+const result = await poller.poll('task-id');
+console.log(result.result);
 ```
 
 ## Vercel AI SDK Adapter

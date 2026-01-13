@@ -40,9 +40,24 @@ export type {
 
 // Error types
 export { APIError } from './lib/request';
+export { AIError, ToolExecutionError, MaxStepsExceededError } from './lib/errors';
 
 // Shared types
 export * from './lib/types';
+
+// Message helpers
+export { appendMessages, truncateHistory } from './lib/messages';
+export type { TruncateOptions } from './lib/messages';
+
+// Native generateText
+export { generateText, serializeToolResult } from './ai/generate-text';
+export type {
+    GenerateTextOptions,
+    GenerateTextResult,
+    StepResult,
+    Tool,
+    ToolResult,
+} from './ai/generate-text';
 
 // Module types - Chat (including new streaming types)
 export type {

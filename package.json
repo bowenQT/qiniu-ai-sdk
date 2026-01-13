@@ -1,6 +1,6 @@
 {
   "name": "@bowenqt/qiniu-ai-sdk",
-  "version": "0.5.0",
+  "version": "0.8.0",
   "description": "TypeScript SDK for Qiniu Cloud AI Token API - Chat, Image, Video generation and more",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -24,6 +24,16 @@
       "import": {
         "types": "./dist/adapter/index.d.ts",
         "default": "./dist/adapter/index.mjs"
+      }
+    },
+    "./ai-tools": {
+      "require": {
+        "types": "./dist/ai-tools/index.d.ts",
+        "default": "./dist/ai-tools/index.js"
+      },
+      "import": {
+        "types": "./dist/ai-tools/index.d.ts",
+        "default": "./dist/ai-tools/index.mjs"
       }
     }
   },
@@ -66,14 +76,25 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "dependencies": {
-    "@ai-sdk/provider": "^2.0.0-canary.14"
+  "peerDependencies": {
+    "@ai-sdk/provider": "^2.0.0",
+    "zod": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@ai-sdk/provider": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@ai-sdk/provider": "^2.0.0-canary.14",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.0.16",
     "ai": "^5.0.0-canary.24",
     "typescript": "^5.0.0",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.16",
+    "zod": "^3.24.1"
   }
 }
