@@ -126,3 +126,16 @@ export interface IQiniuClient {
     getLogger(): Logger;
     getBaseUrl(): string;
 }
+
+/** Compaction info returned in GenerateTextResult */
+export interface CompactionInfo {
+    /** Whether compaction occurred */
+    occurred: boolean;
+    /** Skills dropped during compaction */
+    droppedSkills: string[];
+    /** Number of messages dropped */
+    droppedMessages: number;
+    /** Recommendation for reducing context */
+    recommendation?: string;
+}
+
