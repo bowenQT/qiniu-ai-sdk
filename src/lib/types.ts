@@ -58,6 +58,7 @@ export interface ResponseFormat {
     type: 'text' | 'json_object' | 'json_schema';
     json_schema?: {
         name: string;
+        description?: string;
         strict?: boolean;
         schema: Record<string, unknown>;
     };

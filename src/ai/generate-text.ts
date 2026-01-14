@@ -257,8 +257,8 @@ function isZodSchema(obj: unknown): boolean {
 
 /**
  * Simple Zod to JSON Schema conversion (subset for tool parameters)
- * Supports: ZodString, ZodNumber, ZodBoolean, ZodArray, ZodEnum, ZodObject, ZodOptional, ZodNullable, ZodDefault
- * Unsupported types (union, literal, tuple, effects, map, set, etc.) will emit a warning and return {}
+ * Supports: ZodString, ZodNumber, ZodBoolean, ZodArray, ZodEnum, ZodLiteral, ZodUnion, ZodObject, ZodOptional, ZodNullable, ZodDefault
+ * Unsupported types (tuple, effects, map, set, etc.) will emit a warning and return {}
  */
 function zodToJsonSchemaSimple(schema: unknown, path = 'root'): Record<string, unknown> {
     const def = (schema as { _def?: { typeName?: string;[key: string]: unknown } })._def;

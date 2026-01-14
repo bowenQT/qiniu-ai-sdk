@@ -126,9 +126,9 @@ export function convertResponseFormat(responseFormat?: {
                 type: 'json_schema',
                 json_schema: {
                     name: responseFormat.name || 'response',
+                    description: responseFormat.description,
                     strict: true,
                     schema: responseFormat.schema as Record<string, unknown>,
-                    // Note: description is not part of OpenAI spec but preserved for future compatibility
                 },
             };
         }

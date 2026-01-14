@@ -445,5 +445,32 @@ describe('generateText - Phase 5 Tests', () => {
                 status: 499,
             });
         });
+
+        it('should throw TIMEOUT error when request times out (not cancelled)', async () => {
+            const adapter = {
+                fetch: vi.fn().mockImplementation(async () => {
+                    // Simulate timeout - abort triggered by timeout controller, not external signal
+                    const error = new Error('The operation was aborted');
+                    error.name = 'AbortError';
+                    throw error;
+                }),
+            };
+
+            const client = new QiniuAI({ apiKey: 'sk-test', adapter, timeout: 100 });
+
+            await expect(
+                generateText({
+                    client,
+                    model: 'test-model',
+                    prompt: 'Test',
+                    // No abortSignal - so abort must be from timeout
+                    responseFormat: { type: 'json_object' },
+                })
+            ).rejects.toMatchObject({
+                message: 'Request timed out',
+                code: 'TIMEOUT',
+                status: 408,
+            });
+        });
     });
 });
