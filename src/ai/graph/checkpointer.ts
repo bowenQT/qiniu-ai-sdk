@@ -1,0 +1,246 @@
+/**
+ * Checkpointer - State persistence for Graph execution.
+ * 
+ * Provides save/load capabilities for resumable agent sessions.
+ */
+
+import type { AgentState } from '../internal-types';
+
+/**
+ * Checkpoint metadata.
+ */
+export interface CheckpointMetadata {
+    /** Unique checkpoint ID */
+    id: string;
+    /** Thread ID for grouping checkpoints */
+    threadId: string;
+    /** Creation timestamp */
+    createdAt: number;
+    /** Step count at checkpoint */
+    stepCount: number;
+    /** Optional user-provided metadata */
+    custom?: Record<string, unknown>;
+}
+
+/**
+ * Stored checkpoint data.
+ */
+export interface Checkpoint {
+    metadata: CheckpointMetadata;
+    /** Serialized state (JSON) */
+    state: SerializedAgentState;
+}
+
+/**
+ * Serialized agent state (JSON-safe).
+ * Note: Tools Map is converted to Record, non-serializable fields stripped.
+ */
+export interface SerializedAgentState {
+    messages: Array<{
+        role: string;
+        content: unknown;
+        tool_calls?: unknown[];
+        tool_call_id?: string;
+        _meta?: {
+            skillId?: string;
+            droppable?: boolean;
+        };
+    }>;
+    stepCount: number;
+    maxSteps: number;
+    done: boolean;
+    output: string;
+    reasoning: string;
+    finishReason: string | null;
+    usage?: {
+        prompt_tokens: number;
+        completion_tokens: number;
+        total_tokens: number;
+    };
+}
+
+/**
+ * Checkpointer interface.
+ */
+export interface Checkpointer {
+    /**
+     * Save a checkpoint.
+     */
+    save(
+        threadId: string,
+        state: AgentState,
+        custom?: Record<string, unknown>
+    ): Promise<CheckpointMetadata>;
+
+    /**
+     * Load the latest checkpoint for a thread.
+     */
+    load(threadId: string): Promise<Checkpoint | null>;
+
+    /**
+     * List all checkpoints for a thread.
+     */
+    list(threadId: string): Promise<CheckpointMetadata[]>;
+
+    /**
+     * Delete a checkpoint.
+     */
+    delete(checkpointId: string): Promise<boolean>;
+
+    /**
+     * Clear all checkpoints for a thread.
+     */
+    clear(threadId: string): Promise<number>;
+}
+
+/**
+ * In-memory checkpointer implementation.
+ * Suitable for testing and short-lived sessions.
+ */
+export class MemoryCheckpointer implements Checkpointer {
+    private readonly checkpoints = new Map<string, Checkpoint>();
+    private readonly maxItems: number;
+
+    constructor(options?: { maxItems?: number }) {
+        this.maxItems = options?.maxItems ?? 100;
+    }
+
+    async save(
+        threadId: string,
+        state: AgentState,
+        custom?: Record<string, unknown>
+    ): Promise<CheckpointMetadata> {
+        const id = `ckpt_${threadId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+        const metadata: CheckpointMetadata = {
+            id,
+            threadId,
+            createdAt: Date.now(),
+            stepCount: state.stepCount,
+            custom,
+        };
+
+        const serialized = this.serializeState(state);
+
+        this.checkpoints.set(id, {
+            metadata,
+            state: serialized,
+        });
+
+        // Cleanup old checkpoints if over limit
+        await this.cleanup();
+
+        return metadata;
+    }
+
+    async load(threadId: string): Promise<Checkpoint | null> {
+        // Find latest checkpoint for thread
+        let latest: Checkpoint | null = null;
+
+        for (const checkpoint of this.checkpoints.values()) {
+            if (checkpoint.metadata.threadId === threadId) {
+                if (!latest || checkpoint.metadata.createdAt > latest.metadata.createdAt) {
+                    latest = checkpoint;
+                }
+            }
+        }
+
+        return latest;
+    }
+
+    async list(threadId: string): Promise<CheckpointMetadata[]> {
+        const result: CheckpointMetadata[] = [];
+
+        for (const checkpoint of this.checkpoints.values()) {
+            if (checkpoint.metadata.threadId === threadId) {
+                result.push(checkpoint.metadata);
+            }
+        }
+
+        return result.sort((a, b) => b.createdAt - a.createdAt);
+    }
+
+    async delete(checkpointId: string): Promise<boolean> {
+        return this.checkpoints.delete(checkpointId);
+    }
+
+    async clear(threadId: string): Promise<number> {
+        let count = 0;
+
+        for (const [id, checkpoint] of this.checkpoints) {
+            if (checkpoint.metadata.threadId === threadId) {
+                this.checkpoints.delete(id);
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /**
+     * Serialize agent state to JSON-safe format.
+     * Strips non-serializable fields (abortSignal, tools Map).
+     */
+    private serializeState(state: AgentState): SerializedAgentState {
+        return {
+            messages: state.messages.map(msg => ({
+                role: msg.role,
+                content: msg.content,
+                tool_calls: msg.tool_calls,
+                tool_call_id: msg.tool_call_id,
+                _meta: msg._meta,
+            })),
+            stepCount: state.stepCount,
+            maxSteps: state.maxSteps,
+            done: state.done,
+            output: state.output,
+            reasoning: state.reasoning,
+            finishReason: state.finishReason,
+            usage: state.usage,
+        };
+    }
+
+    /**
+     * Cleanup old checkpoints to stay under maxItems.
+     */
+    private async cleanup(): Promise<void> {
+        if (this.checkpoints.size <= this.maxItems) {
+            return;
+        }
+
+        // Sort by creation time (oldest first)
+        const sorted = Array.from(this.checkpoints.entries())
+            .sort((a, b) => a[1].metadata.createdAt - b[1].metadata.createdAt);
+
+        // Delete oldest until under limit
+        const toDelete = sorted.slice(0, this.checkpoints.size - this.maxItems);
+        for (const [id] of toDelete) {
+            this.checkpoints.delete(id);
+        }
+    }
+}
+
+/**
+ * Deserialize checkpoint state back to AgentState.
+ * Note: Tools must be re-provided, abortSignal reset to undefined.
+ */
+export function deserializeCheckpoint(
+    checkpoint: Checkpoint,
+    tools?: Map<string, any>
+): AgentState {
+    const s = checkpoint.state;
+
+    return {
+        messages: s.messages as any,
+        skills: [], // Skills reconstructed from messages with _meta
+        tools: tools ?? new Map(),
+        stepCount: s.stepCount,
+        maxSteps: s.maxSteps,
+        done: s.done,
+        output: s.output,
+        reasoning: s.reasoning,
+        finishReason: s.finishReason,
+        usage: s.usage,
+        abortSignal: undefined,
+    };
+}

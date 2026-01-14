@@ -73,7 +73,7 @@ export async function executeTools(
                 abortSignal: context.abortSignal,
             };
 
-            const result = await tool.execute(args, execContext);
+            const result = await tool.execute(args);
 
             results.push({
                 toolCallId: call.id,

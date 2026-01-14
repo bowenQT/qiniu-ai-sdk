@@ -440,3 +440,171 @@ function parseToolArguments(payload: string): unknown {
         return payload;
     }
 }
+
+// ============================================================================
+// G2/G4: Graph-based generateText implementation
+// ============================================================================
+
+import { AgentGraph, type AgentGraphOptions, type AgentGraphResult } from './agent-graph';
+import type { RegisteredTool } from '../lib/tool-registry';
+import type { Skill } from '../modules/skills';
+
+/**
+ * Extended options for graph-based generation.
+ */
+export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
+    /** Skills to inject into the conversation */
+    skills?: Skill[];
+    /** Event handler for node entry */
+    onNodeEnter?: (nodeName: string) => void;
+    /** Event handler for node exit */
+    onNodeExit?: (nodeName: string) => void;
+}
+
+/**
+ * Extended result with graph-specific information.
+ */
+export interface GenerateTextWithGraphResult extends GenerateTextResult {
+    /** Graph execution details */
+    graphInfo?: {
+        nodesVisited: string[];
+        skillsInjected: string[];
+    };
+}
+
+/**
+ * Generate text using the AgentGraph runtime.
+ * 
+ * Benefits over generateText:
+ * - Skills injection with automatic compaction
+ * - Node-level event hooks (onNodeEnter/onNodeExit)
+ * - Consistent event ordering (text→tool_call→tool_result)
+ * - JSON mode non-streaming fallback
+ * 
+ * @example
+ * ```typescript
+ * const result = await generateTextWithGraph({
+ *   client,
+ *   model: 'deepseek-v3',
+ *   messages: [{ role: 'user', content: 'Hello' }],
+ *   skills: [await skillLoader.load('my-skill')],
+ *   onStepFinish: (step) => console.log(step),
+ * });
+ * ```
+ */
+export async function generateTextWithGraph(
+    options: GenerateTextWithGraphOptions
+): Promise<GenerateTextWithGraphResult> {
+    const {
+        client,
+        model,
+        tools,
+        skills,
+        maxSteps = 10,
+        onStepFinish,
+        onNodeEnter,
+        onNodeExit,
+        abortSignal,
+        temperature,
+        topP,
+        maxTokens,
+        responseFormat,
+        toolChoice,
+    } = options;
+
+    // Normalize messages
+    const messages = normalizeMessages(options);
+
+    // Convert tools to RegisteredTool format
+    const registeredTools: Record<string, RegisteredTool> = {};
+    if (tools) {
+        for (const [name, tool] of Object.entries(tools)) {
+            registeredTools[name] = {
+                name,
+                description: tool.description || '',
+                parameters: {
+                    type: 'object',
+                    properties: tool.parameters || {},
+                },
+                source: { type: 'user', namespace: 'generateText' },
+                execute: tool.execute
+                    ? async (args: Record<string, unknown>) => {
+                        const context: ToolExecutionContext = {
+                            toolCallId: '',
+                            messages,
+                            abortSignal,
+                        };
+                        return tool.execute!(args, context);
+                    }
+                    : undefined,
+            };
+        }
+    }
+
+    // Track nodes visited
+    const nodesVisited: string[] = [];
+
+    // Create AgentGraph
+    const graph = new AgentGraph({
+        client,
+        model,
+        tools: registeredTools,
+        skills,
+        maxSteps,
+        temperature,
+        topP,
+        maxTokens,
+        responseFormat,
+        toolChoice,
+        abortSignal,
+        events: {
+            onStepFinish: (step) => {
+                if (onStepFinish) {
+                    // Convert internal StepResult to public StepResult
+                    const publicStep: StepResult = {
+                        type: step.type,
+                        content: step.content,
+                        reasoning: step.reasoning,
+                        toolCalls: step.toolCalls,
+                        toolResults: step.toolResults?.map(r => ({
+                            toolCallId: r.toolCallId,
+                            result: r.result,
+                        })),
+                    };
+                    onStepFinish(publicStep);
+                }
+            },
+            onNodeEnter: (nodeName) => {
+                nodesVisited.push(nodeName);
+                onNodeEnter?.(nodeName);
+            },
+            onNodeExit: onNodeExit,
+        },
+    });
+
+    // Execute graph
+    const graphResult = await graph.invoke(messages);
+
+    // Build result
+    return {
+        text: graphResult.text,
+        reasoning: graphResult.reasoning,
+        steps: graphResult.steps.map(s => ({
+            type: s.type,
+            content: s.content,
+            reasoning: s.reasoning,
+            toolCalls: s.toolCalls,
+            toolResults: s.toolResults?.map(r => ({
+                toolCallId: r.toolCallId,
+                result: r.result,
+            })),
+        })),
+        usage: graphResult.usage,
+        finishReason: graphResult.finishReason,
+        graphInfo: {
+            nodesVisited,
+            skillsInjected: skills?.map(s => s.name) || [],
+        },
+    };
+}
+

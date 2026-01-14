@@ -36,7 +36,7 @@ export class SkillLoader {
     constructor(config: SkillLoaderConfig) {
         this.config = {
             skillsDir: config.skillsDir,
-            allowedExtensions: config.allowedExtensions ?? DEFAULT_SKILL_CONFIG.allowedExtensions,
+            allowedExtensions: config.allowedExtensions ?? [...DEFAULT_SKILL_CONFIG.allowedExtensions],
             maxFileSize: config.maxFileSize ?? DEFAULT_SKILL_CONFIG.maxFileSize,
             maxReferenceDepth: config.maxReferenceDepth ?? DEFAULT_SKILL_CONFIG.maxReferenceDepth,
         };
