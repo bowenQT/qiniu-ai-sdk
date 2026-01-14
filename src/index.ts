@@ -128,3 +128,44 @@ export type { UsageQuery, UsageResponse, UsageModelStat, UsageItem, UsageCategor
 
 // Module types - Admin
 export type { CreateKeysRequest, ApiKey } from './modules/admin';
+
+// ============================================================================
+// Agent SDK v7 - Skills, MCP, Graph, Checkpointer
+// ============================================================================
+
+// generateTextWithGraph
+export { generateTextWithGraph } from './ai/generate-text';
+export type { GenerateTextWithGraphOptions, GenerateTextWithGraphResult } from './ai/generate-text';
+
+// AgentGraph
+export { AgentGraph } from './ai/agent-graph';
+export type { AgentGraphOptions, AgentGraphResult } from './ai/agent-graph';
+
+// Internal types (for advanced users)
+export type { InternalMessage, AgentState, StepResult as GraphStepResult, AgentGraphEvents } from './ai/internal-types';
+export { stripMeta, isDroppable, getSkillId } from './ai/internal-types';
+
+// Skills
+export { SkillLoader } from './modules/skills';
+export type { Skill } from './modules/skills';
+
+// MCP
+export { MCPClient, adaptMCPToolsToRegistry, getAllMCPToolsAsRegistered } from './modules/mcp';
+export type { MCPClientConfig, MCPServerConfig } from './modules/mcp';
+
+// Checkpointer
+export { MemoryCheckpointer, deserializeCheckpoint } from './ai/graph/checkpointer';
+export type { Checkpointer, Checkpoint, CheckpointMetadata, SerializedAgentState } from './ai/graph/checkpointer';
+
+// Tool Registry
+export { ToolRegistry, ToolConflictError } from './lib/tool-registry';
+export type { RegisteredTool, ToolSource, ToolSourceType, ToolParameters, ToolRegistryConfig, ConflictStrategy } from './lib/tool-registry';
+
+// Graph (for advanced users)
+export { StateGraph, END, MaxGraphStepsError } from './ai/graph';
+export type { NodeFunction, EdgeResolver, CompiledGraph, InvokeOptions, StateGraphConfig } from './ai/graph';
+
+// Memory Node
+export { compactMessages, buildToolPairs, ContextOverflowError } from './ai/nodes/memory-node';
+export type { CompactionResult, CompactionConfig, ToolPair, InjectedSkill } from './ai/nodes';
+

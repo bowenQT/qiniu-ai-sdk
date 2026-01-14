@@ -13,6 +13,9 @@ TypeScript SDK for Qiniu Cloud AI Token API.
 - 📋 **JSON Mode** - Structured output with `response_format`
 - 🔌 **Vercel AI SDK Adapter** - Drop-in replacement for Vercel AI SDK
 - 📦 **TypeScript First** - Full type definitions included
+- 🧠 **Skills** - Markdown-based agent knowledge injection (v7)
+- 🔗 **MCP Client** - Model Context Protocol stdio transport (v7)
+- 💾 **Checkpointer** - Save/restore conversation state (v7)
 
 ## Requirements
 
@@ -236,6 +239,122 @@ try {
   }
 }
 ```
+
+## Agent SDK v7 (New!)
+
+Phase 2 introduces advanced agentic capabilities with Skills injection, MCP integration, and Graph-based execution.
+
+### generateTextWithGraph
+
+Extended version of `generateText` with Skills and Graph events:
+
+```typescript
+import { QiniuAI, generateTextWithGraph, SkillLoader } from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY });
+
+// Load skills
+const loader = new SkillLoader({ skillsDir: './skills' });
+const skills = await loader.loadAll();
+
+const result = await generateTextWithGraph({
+  client,
+  model: 'deepseek-v3',
+  messages: [{ role: 'user', content: 'Help me with Git' }],
+  skills, // Injected into system prompt
+  onStepFinish: (step) => console.log(step.type, step.content),
+  onNodeEnter: (node) => console.log(`Entering: ${node}`),
+});
+
+console.log(result.text);
+console.log(result.graphInfo?.skillsInjected); // ['git-workflow', ...]
+```
+
+### Skills
+
+Load and inject agent skills (Markdown-based knowledge):
+
+```typescript
+import { SkillLoader } from '@bowenqt/qiniu-ai-sdk';
+
+const loader = new SkillLoader({
+  skillsDir: './skills',
+  maxFileSize: 64 * 1024, // 64KB limit
+  allowedExtensions: ['.md', '.txt'],
+});
+
+// Load single skill
+const skill = await loader.load('git-workflow');
+console.log(skill.name, skill.tokenCount);
+
+// Load all skills (sorted by name)
+const allSkills = await loader.loadAll();
+```
+
+Skill format (SKILL.md):
+```markdown
+---
+name: git-workflow
+description: Git best practices
+---
+
+# Git Workflow
+
+Always use conventional commits...
+```
+
+### MCP Client (stdio)
+
+Connect to Model Context Protocol servers:
+
+```typescript
+import { MCPClient } from '@bowenqt/qiniu-ai-sdk';
+
+const mcpClient = new MCPClient({
+  servers: [
+    {
+      name: 'github',
+      transport: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-github'],
+      token: process.env.GITHUB_TOKEN, // → MCP_BEARER_TOKEN env
+    },
+  ],
+});
+
+await mcpClient.connect();
+const tools = mcpClient.getAllTools();
+console.log(tools.map(t => t.name));
+
+// Use tools with generateText
+const registeredTools = adaptMCPToolsToRegistry(tools, 'github', mcpClient);
+```
+
+> **Note**: Bearer token is injected via `MCP_BEARER_TOKEN` environment variable for stdio transport.
+
+### Checkpointer
+
+Save and restore conversation state:
+
+```typescript
+import { MemoryCheckpointer, deserializeCheckpoint } from '@bowenqt/qiniu-ai-sdk';
+
+const checkpointer = new MemoryCheckpointer({ maxItems: 100 });
+
+// Save checkpoint
+const metadata = await checkpointer.save('thread-123', agentState);
+
+// Load latest checkpoint
+const checkpoint = await checkpointer.load('thread-123');
+if (checkpoint) {
+  const restored = deserializeCheckpoint(checkpoint, toolsMap);
+  // Resume from restored state
+}
+
+// List all checkpoints
+const list = await checkpointer.list('thread-123');
+```
+
 
 ## Vercel AI SDK Adapter
 
