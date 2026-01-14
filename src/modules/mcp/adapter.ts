@@ -59,7 +59,8 @@ export function getServerTools(
 
 /**
  * Get all tools from all connected MCP servers.
- * Tools are deduplicated and properly namespaced.
+ * Tools are collected per-server and concatenated; actual deduplication
+ * happens in ToolRegistry via priority/conflict resolution.
  */
 export function getAllMCPToolsAsRegistered(
     client: MCPClient

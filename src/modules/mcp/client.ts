@@ -93,11 +93,17 @@ export class MCPClient {
 
         try {
             // Spawn process
-            const { command, args = [], env = {} } = conn.config;
+            const { command, args = [], env = {}, token } = conn.config;
+
+            // Inject bearer token via env if configured
+            const processEnv = { ...process.env, ...env };
+            if (token) {
+                processEnv.MCP_BEARER_TOKEN = token;
+            }
 
             conn.process = spawn(command, args, {
                 stdio: ['pipe', 'pipe', 'pipe'],
-                env: { ...process.env, ...env },
+                env: processEnv,
             });
 
             // Handle stdout (JSON-RPC responses)

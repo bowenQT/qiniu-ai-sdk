@@ -38,14 +38,18 @@ export interface PredictResult {
  * Correctly consumes the streaming generator and extracts the final result.
  */
 export async function predict(options: PredictOptions): Promise<PredictResult> {
-    const { client, model, messages, tools, abortSignal, ...rest } = options;
+    const { client, model, messages, tools, abortSignal, temperature, topP, maxTokens, responseFormat, toolChoice } = options;
 
-    // Build request
+    // Build request with explicit field mapping (camelCase -> snake_case for API)
     const request: ChatCompletionRequest = {
         model,
         messages,
         stream: true,
-        ...rest,
+        temperature,
+        top_p: topP,
+        max_tokens: maxTokens,
+        response_format: responseFormat,
+        tool_choice: toolChoice,
     };
 
     // Add tools if provided
