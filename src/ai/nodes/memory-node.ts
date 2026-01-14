@@ -2,13 +2,15 @@
  * Memory Node - Context Compaction with deterministic fallback.
  * 
  * Fallback order:
- * 1. Drop low-priority skills
+ * 1. Drop low-priority skill messages (_meta.droppable)
  * 2. Drop oldest unprotected messages
  * 3. Throw ContextOverflowError
  */
 
 import type { ChatMessage } from '../../lib/types';
 import type { CompactionResult, CompactionConfig, ToolPair, InjectedSkill } from './types';
+import type { InternalMessage } from '../internal-types';
+import { isDroppable, getSkillId } from '../internal-types';
 
 /** Context overflow error */
 export class ContextOverflowError extends Error {
@@ -24,10 +26,12 @@ export class ContextOverflowError extends Error {
 
 /**
  * Compact messages to fit within token budget.
- * Implements deterministic fallback: skills → old messages → error
+ * Implements deterministic fallback: droppable skills → old messages → error
+ * 
+ * Key feature: recognizes _meta.droppable messages (skill-injected) for selective removal.
  */
 export function compactMessages(
-    messages: ChatMessage[],
+    messages: InternalMessage[],
     config: CompactionConfig,
     injectedSkills: InjectedSkill[] = [],
 ): CompactionResult {
@@ -41,7 +45,7 @@ export function compactMessages(
     };
 
     // Check if compaction needed
-    let currentTokens = config.estimateTokens(result.messages);
+    let currentTokens = config.estimateTokens(result.messages as ChatMessage[]);
     if (currentTokens <= config.maxTokens) {
         return result;
     }
@@ -49,15 +53,15 @@ export function compactMessages(
     result.occurred = true;
 
     // Build tool pairs (must be kept together)
-    const { toolPairs, orphanCalls } = buildToolPairs(messages);
+    const { toolPairs, orphanCalls } = buildToolPairs(result.messages as ChatMessage[]);
     result.orphanToolCalls = orphanCalls;
 
-    // Identify protected indices (system, tool pairs)
+    // Identify protected indices
     const protectedIndices = new Set<number>();
 
-    // All system messages are protected
-    messages.forEach((msg, idx) => {
-        if (msg.role === 'system') {
+    // Non-droppable system messages are protected
+    result.messages.forEach((msg, idx) => {
+        if (msg.role === 'system' && !isDroppable(msg)) {
             protectedIndices.add(idx);
         }
     });
@@ -71,43 +75,73 @@ export function compactMessages(
     }
 
     // Last user message is protected
-    for (let i = messages.length - 1; i >= 0; i--) {
-        if (messages[i].role === 'user') {
+    for (let i = result.messages.length - 1; i >= 0; i--) {
+        if (result.messages[i].role === 'user') {
             protectedIndices.add(i);
             break;
         }
     }
 
-    // Step 1: Drop skills (lowest priority first)
-    if (injectedSkills.length > 0 && currentTokens > config.maxTokens) {
-        const sortedSkills = [...injectedSkills].sort((a, b) => b.priority - a.priority);
+    // Step 1: Drop droppable skill messages (lowest priority first)
+    // Collect all droppable messages with their skill IDs
+    const droppableIndices: { idx: number; skillId: string; tokens: number }[] = [];
 
-        for (const skill of sortedSkills) {
-            if (currentTokens <= config.maxTokens) break;
+    result.messages.forEach((msg, idx) => {
+        if (isDroppable(msg)) {
+            const skillId = getSkillId(msg);
+            if (skillId) {
+                droppableIndices.push({
+                    idx,
+                    skillId,
+                    tokens: estimateSingleMessageTokens(msg as ChatMessage),
+                });
+            }
+        }
+    });
 
-            // Remove skill content from messages
-            result.droppedSkills.push(skill.name);
-            currentTokens -= skill.tokenCount;
+    // Sort by priority (using injectedSkills order) - lowest priority first
+    const skillPriorityMap = new Map<string, number>();
+    injectedSkills.forEach((skill, i) => skillPriorityMap.set(skill.name, i));
+
+    droppableIndices.sort((a, b) => {
+        const priorityA = skillPriorityMap.get(a.skillId) ?? 0;
+        const priorityB = skillPriorityMap.get(b.skillId) ?? 0;
+        return priorityA - priorityB; // Lower priority (earlier in list) dropped first
+    });
+
+    // Drop droppable messages until under budget
+    const indicesToRemove = new Set<number>();
+
+    for (const { idx, skillId, tokens } of droppableIndices) {
+        if (currentTokens <= config.maxTokens) break;
+
+        indicesToRemove.add(idx);
+        currentTokens -= tokens;
+
+        if (!result.droppedSkills.includes(skillId)) {
+            result.droppedSkills.push(skillId);
         }
     }
 
-    // Step 2: Drop oldest unprotected messages
-    const messagesToDrop: number[] = [];
-
+    // Step 2: Drop oldest unprotected non-skill messages
     for (let i = 0; i < result.messages.length && currentTokens > config.maxTokens; i++) {
-        if (!protectedIndices.has(i)) {
-            messagesToDrop.push(i);
-            currentTokens -= estimateSingleMessageTokens(result.messages[i]);
+        if (!protectedIndices.has(i) && !indicesToRemove.has(i) && !isDroppable(result.messages[i])) {
+            indicesToRemove.add(i);
+            currentTokens -= estimateSingleMessageTokens(result.messages[i] as ChatMessage);
         }
     }
 
-    if (messagesToDrop.length > 0) {
-        result.messages = result.messages.filter((_, idx) => !messagesToDrop.includes(idx));
-        result.droppedMessages = messagesToDrop.length;
+    // Apply removals
+    if (indicesToRemove.size > 0) {
+        const droppedSkillCount = droppableIndices.filter(d => indicesToRemove.has(d.idx)).length;
+        const droppedNonSkillCount = indicesToRemove.size - droppedSkillCount;
+
+        result.messages = result.messages.filter((_, idx) => !indicesToRemove.has(idx));
+        result.droppedMessages = droppedNonSkillCount;
     }
 
     // Step 3: Check if still over budget
-    currentTokens = config.estimateTokens(result.messages);
+    currentTokens = config.estimateTokens(result.messages as ChatMessage[]);
     if (currentTokens > config.maxTokens) {
         result.recommendation = `Reduce system prompt or decrease skill count. Current: ${currentTokens}, Max: ${config.maxTokens}`;
         throw new ContextOverflowError(
@@ -171,7 +205,9 @@ export function buildToolPairs(messages: ChatMessage[]): {
 function estimateSingleMessageTokens(message: ChatMessage): number {
     const content = typeof message.content === 'string'
         ? message.content
-        : message.content.map(p => p.text ?? '').join('');
+        : Array.isArray(message.content)
+            ? message.content.map(p => p.text ?? '').join('')
+            : '';
 
     // Rough estimate: ~4 chars per token
     return Math.ceil(content.length / 4) + 10; // +10 for role/metadata
