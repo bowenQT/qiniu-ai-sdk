@@ -179,6 +179,7 @@ function convertToolResultMessages(message: LanguageModelV2Message): ChatMessage
         const content = stringifyToolResult(part);
         toolMessages.push({
             role: 'tool',
+            tool_call_id: part.toolCallId,
             content,
             name: part.toolName,
         });

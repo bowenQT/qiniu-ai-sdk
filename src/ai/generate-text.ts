@@ -254,10 +254,16 @@ async function consumeStream(
                 .join('');
         }
 
+        // Apply fallback IDs to tool calls (same as streaming path)
+        const toolCalls = (message?.tool_calls || []).map((tc, index) => ({
+            ...tc,
+            id: tc.id || `toolcall-${index}`,
+        }));
+
         return {
             content,
             reasoningContent: '',
-            toolCalls: message?.tool_calls || [],
+            toolCalls,
             finishReason: choice?.finish_reason || null,
             usage: response.usage,
         };

@@ -41,7 +41,7 @@ export class QiniuChatModel implements LanguageModelV2 {
         };
     }> {
         const request = this.buildChatRequest(options);
-        const response = await this.client.chat.create(request);
+        const response = await this.client.chat.create(request, { signal: options.abortSignal });
         const choice = response.choices[0];
 
         const content: LanguageModelV2Content[] = [];
