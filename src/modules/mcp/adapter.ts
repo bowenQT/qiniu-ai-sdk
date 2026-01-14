@@ -46,25 +46,33 @@ export function adaptMCPToolsToRegistry(
 }
 
 /**
- * Get all tools from MCP client as RegisteredTools.
+ * Get all tools from a specific MCP server.
+ * Each server maintains its own tool list.
+ */
+export function getServerTools(
+    client: MCPClient,
+    serverName: string
+): RegisteredTool[] {
+    const tools = client.getServerTools(serverName);
+    return adaptMCPToolsToRegistry(tools, serverName, client);
+}
+
+/**
+ * Get all tools from all connected MCP servers.
+ * Tools are deduplicated and properly namespaced.
  */
 export function getAllMCPToolsAsRegistered(
-    client: MCPClient,
-    serverNames: string[]
+    client: MCPClient
 ): RegisteredTool[] {
     const allTools: RegisteredTool[] = [];
+    const serverNames = client.getConnectedServerNames();
 
     // Sort server names for deterministic order
     const sorted = [...serverNames].sort();
 
     for (const serverName of sorted) {
-        const tools = client.getAllTools().filter(t =>
-            // Filter tools by server (if we had server info)
-            true
-        );
-
-        const adapted = adaptMCPToolsToRegistry(tools, serverName, client);
-        allTools.push(...adapted);
+        const serverTools = getServerTools(client, serverName);
+        allTools.push(...serverTools);
     }
 
     return allTools;

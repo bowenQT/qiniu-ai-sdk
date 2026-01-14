@@ -199,6 +199,30 @@ export class MCPClient {
     }
 
     /**
+     * Get tools for a specific server.
+     */
+    getServerTools(serverName: string): MCPToolDefinition[] {
+        const conn = this.connections.get(serverName);
+        if (!conn || conn.state !== 'connected') {
+            return [];
+        }
+        return conn.tools;
+    }
+
+    /**
+     * Get names of all connected servers.
+     */
+    getConnectedServerNames(): string[] {
+        const names: string[] = [];
+        for (const [name, conn] of this.connections) {
+            if (conn.state === 'connected') {
+                names.push(name);
+            }
+        }
+        return names.sort();
+    }
+
+    /**
      * Initialize connection (MCP handshake).
      */
     private async initialize(serverName: string): Promise<void> {

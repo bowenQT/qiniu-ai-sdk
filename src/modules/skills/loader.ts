@@ -64,9 +64,9 @@ export class SkillLoader {
             throw new SkillNotFoundError(skillName);
         }
 
-        // Validate skill directory is within root
+        // Validate skill directory is within root using safe boundary check
         const resolvedSkillDir = fs.realpathSync(skillDir);
-        if (!resolvedSkillDir.startsWith(this.resolvedSkillsDir)) {
+        if (!this.isWithinRoot(resolvedSkillDir, this.resolvedSkillsDir)) {
             throw new SkillSecurityError('Skill directory escape detected', skillName);
         }
 
@@ -134,8 +134,8 @@ export class SkillLoader {
             throw new SkillSecurityError(`File not found: ${filePath}`, filePath);
         }
 
-        // Root check
-        if (!resolvedPath.startsWith(rootDir)) {
+        // Root check using safe boundary
+        if (!this.isWithinRoot(resolvedPath, rootDir)) {
             throw new SkillSecurityError('Path escape detected', filePath);
         }
 
@@ -233,5 +233,24 @@ export class SkillLoader {
         }
 
         return baseTokens;
+    }
+
+    /**
+     * Safe boundary check for path containment.
+     * Uses path.relative to avoid prefix bypass attacks.
+     */
+    private isWithinRoot(targetPath: string, rootDir: string): boolean {
+        // Ensure both paths are normalized and absolute
+        const normalizedRoot = path.resolve(rootDir) + path.sep;
+        const normalizedTarget = path.resolve(targetPath);
+
+        // Check if target starts with root + separator
+        // This prevents /root-malicious from matching /root
+        if (normalizedTarget === path.resolve(rootDir)) {
+            return true;
+        }
+
+        // Use startsWith with separator boundary
+        return normalizedTarget.startsWith(normalizedRoot);
     }
 }
