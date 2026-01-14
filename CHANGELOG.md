@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0
+
+- Added `image.generate` and `image.waitForResult` to unify sync/async image responses.
+- Added image usage types and response normalization for Gemini/Kling differences.
+- Deprecated `image.create` and `image.waitForCompletion` in favor of unified APIs.
+
 ## 0.8.0
 
 - Added native `generateText` with tool-call loop, reasoning capture, and step tracking.

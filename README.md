@@ -46,12 +46,12 @@ const chat = await client.chat.create({
 console.log(chat.choices[0].message.content);
 
 // Image generation (async)
-const imageTask = await client.image.create({
+const imageResult = await client.image.generate({
   model: 'kling-v1',
   prompt: 'A futuristic city',
 });
-const imageResult = await client.image.waitForCompletion(imageTask.task_id);
-console.log(imageResult.data?.[0].url);
+const imageFinal = await client.image.waitForResult(imageResult);
+console.log(imageFinal.data?.[0].url || imageFinal.data?.[0].b64_json);
 
 // Video generation (async)
 const videoTask = await client.video.create({
@@ -318,10 +318,14 @@ for await (const chunk of stream) {
 
 #### `client.image`
 
-- `create(params: ImageGenerationRequest): Promise<{ task_id: string }>`
+- `generate(params: ImageGenerationRequest): Promise<ImageCreateResult>`
+- `waitForResult(result: ImageCreateResult, options?: WaitOptions): Promise<ImageGenerateResult>`
+- `create(params: ImageGenerationRequest): Promise<{ task_id: string }>` (deprecated)
 - `edit(params: ImageEditRequest): Promise<ImageEditResponse>`
 - `get(taskId: string): Promise<ImageTaskResponse>`
-- `waitForCompletion(taskId: string, options?: WaitOptions): Promise<ImageTaskResponse>`
+- `waitForCompletion(taskId: string, options?: WaitOptions): Promise<ImageTaskResponse>` (deprecated)
+
+Note: For sync models (Gemini), `waitForResult` returns `status: 'succeed'` set by the SDK when data is returned.
 
 **Image Edit (Kling/Gemini):**
 
@@ -528,7 +532,7 @@ const res = await client.post<any>('/voice/tts', {
 
 ### Wait Options
 
-For `waitForCompletion` methods:
+For `waitForCompletion` and `waitForResult` methods:
 
 ```typescript
 interface WaitOptions {
@@ -564,7 +568,11 @@ const controller = new AbortController();
 setTimeout(() => controller.abort(), 10000);
 
 try {
-  const result = await client.image.waitForCompletion(taskId, {
+  const createResult = await client.image.generate({
+    model: 'kling-v2',
+    prompt: 'A cute cat',
+  });
+  const result = await client.image.waitForResult(createResult, {
     signal: controller.signal,
   });
 } catch (error) {

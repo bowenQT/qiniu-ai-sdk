@@ -86,6 +86,11 @@ export type { PollerOptions, PollResult } from './lib/poller';
 export type {
     ImageGenerationRequest,
     ImageTaskResponse,
+    ImageCreateResult,
+    ImageGenerateResult,
+    ImageUsage,
+    SyncImageResponse,
+    AsyncImageResponse,
     WaitOptions as ImageWaitOptions,
     ImageModel,
     ImageEditRequest,

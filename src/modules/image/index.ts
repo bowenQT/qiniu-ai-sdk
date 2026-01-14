@@ -91,6 +91,51 @@ export interface ImageTaskResponse {
     quantity?: number;
 }
 
+export interface ImageUsage {
+    total_tokens: number;
+    input_tokens: number;
+    output_tokens: number;
+    input_tokens_details?: {
+        text_tokens: number;
+        image_tokens: number;
+    };
+}
+
+export interface SyncImageResponse {
+    isSync: true;
+    created: number;
+    data: { index: number; b64_json: string }[];
+    output_format: 'png' | 'jpeg';
+    usage?: ImageUsage;
+}
+
+export interface AsyncImageResponse {
+    isSync: false;
+    task_id: string;
+}
+
+export type ImageCreateResult = SyncImageResponse | AsyncImageResponse;
+
+export interface ImageGenerateResult {
+    task_id?: string;
+    created?: number;
+    /**
+     * Task status:
+     * - Async models: real status returned by the service
+     * - Sync models: SDK sets it to 'succeed' when data is returned
+     */
+    status: 'succeed' | 'failed';
+    status_message?: string;
+    data: {
+        index: number;
+        url?: string;
+        b64_json?: string;
+    }[];
+    output_format?: 'png' | 'jpeg';
+    usage?: ImageUsage;
+    isSync: boolean;
+}
+
 export interface WaitOptions {
     intervalMs?: number;
     timeoutMs?: number;
@@ -109,9 +154,28 @@ export class Image {
 
     /**
      * Create an image generation task
+     *
+     * @deprecated Use generate() for unified sync/async handling.
      */
     async create(params: ImageGenerationRequest): Promise<{ task_id: string }> {
-        return this.client.post<{ task_id: string }>('/images/generations', params);
+        const response = await this.client.post<unknown>('/images/generations', params);
+        const result = response as Record<string, unknown>;
+        if (!result.task_id || typeof result.task_id !== 'string') {
+            throw new Error(
+                'This model returns synchronous results without task_id. ' +
+                'Please use image.generate() instead of image.create() for unified handling.'
+            );
+        }
+
+        return { task_id: result.task_id };
+    }
+
+    /**
+     * Unified image generation API for both sync and async models.
+     */
+    async generate(params: ImageGenerationRequest): Promise<ImageCreateResult> {
+        const response = await this.client.post<unknown>('/images/generations', params);
+        return normalizeCreateResponse(response);
     }
 
     /**
@@ -147,6 +211,8 @@ export class Image {
 
     /**
      * Poll for completion with retry and cancellation support
+     *
+     * @deprecated Use waitForResult() for unified sync/async handling.
      */
     async waitForCompletion(taskId: string, options: WaitOptions = {}): Promise<ImageTaskResponse> {
         const {
@@ -177,4 +243,53 @@ export class Image {
 
         return result;
     }
+
+    /**
+     * Wait for a unified image generation result.
+     */
+    async waitForResult(result: ImageCreateResult, options: WaitOptions = {}): Promise<ImageGenerateResult> {
+        if (result.isSync) {
+            return {
+                created: result.created,
+                status: 'succeed',
+                data: result.data,
+                output_format: result.output_format,
+                usage: result.usage,
+                isSync: true,
+            };
+        }
+
+        const taskResult = await this.waitForCompletion(result.task_id, options);
+        return {
+            task_id: taskResult.task_id,
+            created: taskResult.created,
+            status: taskResult.status === 'failed' ? 'failed' : 'succeed',
+            status_message: taskResult.status_message,
+            data: taskResult.data || [],
+            isSync: false,
+        };
+    }
+}
+
+function normalizeCreateResponse(response: unknown): ImageCreateResult {
+    const res = response as Record<string, unknown>;
+
+    if (res.task_id && typeof res.task_id === 'string') {
+        return {
+            isSync: false,
+            task_id: res.task_id,
+        };
+    }
+
+    if (res.data && Array.isArray(res.data)) {
+        return {
+            isSync: true,
+            data: res.data as { index: number; b64_json: string }[],
+            created: typeof res.created === 'number' ? res.created : 0,
+            output_format: (res.output_format as 'png' | 'jpeg') || 'png',
+            usage: res.usage as ImageUsage | undefined,
+        };
+    }
+
+    throw new Error('Unexpected image generation response format');
 }

@@ -86,11 +86,11 @@ import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
-const task = await client.image.create({
+const result = await client.image.generate({
   model: 'kling-v2',
   prompt: 'A futuristic city at sunset',
 });
 
-const result = await client.image.waitForCompletion(task.task_id);
-console.log(result.data?.[0]?.url);
+const finalResult = await client.image.waitForResult(result);
+console.log(finalResult.data?.[0]?.url || finalResult.data?.[0]?.b64_json);
 ```
