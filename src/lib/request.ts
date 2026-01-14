@@ -211,12 +211,22 @@ export async function request<T>(
             }
 
             if (error instanceof Error && error.name === 'AbortError') {
-                logger.error('HTTP Timeout', {
-                    requestId: req.requestId,
-                    timeout: req.timeout,
-                    duration,
-                });
-                throw new APIError('Request timed out', 408, 'TIMEOUT', req.requestId);
+                // Distinguish between user cancellation and timeout
+                const wasCancelled = externalSignal?.aborted;
+                if (wasCancelled) {
+                    logger.info('HTTP Request cancelled', {
+                        requestId: req.requestId,
+                        duration,
+                    });
+                    throw new APIError('Request cancelled', 499, 'CANCELLED', req.requestId);
+                } else {
+                    logger.error('HTTP Timeout', {
+                        requestId: req.requestId,
+                        timeout: req.timeout,
+                        duration,
+                    });
+                    throw new APIError('Request timed out', 408, 'TIMEOUT', req.requestId);
+                }
             }
 
             logger.error('HTTP Error (Network)', {

@@ -222,10 +222,86 @@ function buildChatRequest(params: {
             function: {
                 name,
                 description: tool.description,
-                parameters: tool.parameters ?? {},
+                parameters: convertToolParameters(tool.parameters),
             },
         })) : undefined,
     };
+}
+
+/**
+ * Convert tool parameters, auto-detecting and converting Zod schemas
+ */
+function convertToolParameters(parameters: unknown): Record<string, unknown> {
+    if (!parameters) {
+        return {};
+    }
+
+    // Enhanced duck-typing for Zod schema detection
+    if (isZodSchema(parameters)) {
+        return zodToJsonSchemaSimple(parameters);
+    }
+
+    return parameters as Record<string, unknown>;
+}
+
+/**
+ * Check if an object is a Zod schema using robust duck-typing
+ */
+function isZodSchema(obj: unknown): boolean {
+    if (obj == null || typeof obj !== 'object') {
+        return false;
+    }
+    const def = (obj as { _def?: { typeName?: string } })._def;
+    return def != null && typeof def.typeName === 'string' && def.typeName.startsWith('Zod');
+}
+
+/**
+ * Simple Zod to JSON Schema conversion (subset for tool parameters)
+ */
+function zodToJsonSchemaSimple(schema: unknown): Record<string, unknown> {
+    const def = (schema as { _def?: { typeName?: string;[key: string]: unknown } })._def;
+    const typeName = def?.typeName;
+
+    switch (typeName) {
+        case 'ZodString':
+            return { type: 'string' };
+        case 'ZodNumber':
+            return { type: 'number' };
+        case 'ZodBoolean':
+            return { type: 'boolean' };
+        case 'ZodArray':
+            return { type: 'array', items: zodToJsonSchemaSimple((def as { type: unknown }).type) };
+        case 'ZodEnum':
+            return { type: 'string', enum: (def as { values: unknown[] }).values };
+        case 'ZodObject': {
+            const shapeSource = def?.shape as (() => Record<string, unknown>) | Record<string, unknown>;
+            const shape = typeof shapeSource === 'function' ? shapeSource() : shapeSource || {};
+            const properties: Record<string, unknown> = {};
+            const required: string[] = [];
+
+            for (const [key, value] of Object.entries(shape)) {
+                const innerDef = (value as { _def?: { typeName?: string; innerType?: unknown } })._def;
+                const isOptional = innerDef?.typeName === 'ZodOptional' || innerDef?.typeName === 'ZodDefault';
+                const inner = isOptional ? innerDef?.innerType : value;
+                properties[key] = zodToJsonSchemaSimple(inner);
+                if (!isOptional) {
+                    required.push(key);
+                }
+            }
+
+            const result: Record<string, unknown> = { type: 'object', properties };
+            if (required.length) {
+                result.required = required;
+            }
+            return result;
+        }
+        case 'ZodOptional':
+        case 'ZodNullable':
+        case 'ZodDefault':
+            return zodToJsonSchemaSimple((def as { innerType: unknown }).innerType);
+        default:
+            return {};
+    }
 }
 
 async function consumeStream(

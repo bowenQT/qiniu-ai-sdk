@@ -293,4 +293,104 @@ describe('generateText - Phase 5 Tests', () => {
             expect(toolResultMsg?.tool_call_id).toBe('toolcall-0');
         });
     });
+
+    describe('Zod Schema Auto-Conversion', () => {
+        it('should auto-convert Zod schema to JSON Schema in tool parameters', async () => {
+            const chunks = [
+                buildChunk({ content: 'Done' }, null),
+                buildChunk({}, 'stop'),
+            ];
+
+            let capturedBody: Record<string, unknown> | null = null;
+            const adapter = {
+                fetch: vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+                    capturedBody = JSON.parse(init.body as string);
+                    return createSSEResponse(chunks);
+                }),
+            };
+
+            // Create a mock Zod-like schema (duck-typed)
+            const mockZodSchema = {
+                _def: {
+                    typeName: 'ZodObject',
+                    shape: () => ({
+                        city: { _def: { typeName: 'ZodString' } },
+                        unit: {
+                            _def: {
+                                typeName: 'ZodOptional',
+                                innerType: {
+                                    _def: { typeName: 'ZodString', values: ['c', 'f'] },
+                                },
+                            },
+                        },
+                    }),
+                },
+            };
+
+            const client = new QiniuAI({ apiKey: 'sk-test', adapter });
+            await generateText({
+                client,
+                model: 'test-model',
+                prompt: 'Get weather',
+                tools: {
+                    getWeather: {
+                        description: 'Get weather for a city',
+                        parameters: mockZodSchema as unknown as Record<string, unknown>,
+                        execute: async () => ({ temp: 25 }),
+                    },
+                },
+            });
+
+            const tools = capturedBody!.tools as Array<{ function: { parameters: unknown } }>;
+            expect(tools).toHaveLength(1);
+
+            const params = tools[0].function.parameters as Record<string, unknown>;
+            expect(params.type).toBe('object');
+            expect(params.properties).toBeDefined();
+            expect((params.properties as Record<string, unknown>).city).toEqual({ type: 'string' });
+            // city should be required (not optional)
+            expect((params.required as string[])).toContain('city');
+            // unit should NOT be required (it's optional)
+            expect((params.required as string[])).not.toContain('unit');
+        });
+
+        it('should pass through plain JSON Schema without conversion', async () => {
+            const chunks = [
+                buildChunk({ content: 'Done' }, null),
+                buildChunk({}, 'stop'),
+            ];
+
+            let capturedBody: Record<string, unknown> | null = null;
+            const adapter = {
+                fetch: vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+                    capturedBody = JSON.parse(init.body as string);
+                    return createSSEResponse(chunks);
+                }),
+            };
+
+            const plainJsonSchema = {
+                type: 'object',
+                properties: {
+                    query: { type: 'string' },
+                },
+                required: ['query'],
+            };
+
+            const client = new QiniuAI({ apiKey: 'sk-test', adapter });
+            await generateText({
+                client,
+                model: 'test-model',
+                prompt: 'Search',
+                tools: {
+                    search: {
+                        parameters: plainJsonSchema,
+                        execute: async () => [],
+                    },
+                },
+            });
+
+            const tools = capturedBody!.tools as Array<{ function: { parameters: unknown } }>;
+            expect(tools[0].function.parameters).toEqual(plainJsonSchema);
+        });
+    });
 });
