@@ -1,4 +1,4 @@
-import type { ChatCompletionRequest, ChatMessage, ContentPart, ToolCall } from '../lib/types';
+import type { ChatCompletionRequest, ChatMessage, ContentPart, ToolCall, ResponseFormat } from '../lib/types';
 import type {
     LanguageModelV2FilePart,
     LanguageModelV2FinishReason,
@@ -103,6 +103,34 @@ export function convertToolChoice(choice?: LanguageModelV2ToolChoice): ChatCompl
     }
 
     return undefined;
+}
+
+/**
+ * Convert Vercel AI SDK responseFormat to SDK response_format
+ * Vercel uses { type: 'json' } while SDK uses { type: 'json_object' }
+ */
+export function convertResponseFormat(responseFormat?: { type: string; schema?: unknown }): ResponseFormat | undefined {
+    if (!responseFormat) {
+        return undefined;
+    }
+
+    // Vercel AI SDK uses 'json' while OpenAI spec uses 'json_object'
+    if (responseFormat.type === 'json') {
+        if (responseFormat.schema) {
+            return {
+                type: 'json_schema',
+                json_schema: {
+                    name: 'response',
+                    strict: true,
+                    schema: responseFormat.schema as Record<string, unknown>,
+                },
+            };
+        }
+        return { type: 'json_object' };
+    }
+
+    // Pass through other types (text, json_object, json_schema)
+    return responseFormat as ResponseFormat;
 }
 
 function convertAssistantOrUserMessage(message: LanguageModelV2Message): {

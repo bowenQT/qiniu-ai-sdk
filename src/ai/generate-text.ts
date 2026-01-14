@@ -1,5 +1,5 @@
 import type { QiniuAI } from '../client';
-import type { ChatCompletionRequest, ChatMessage, ToolCall } from '../lib/types';
+import type { ChatCompletionRequest, ChatMessage, ToolCall, ResponseFormat } from '../lib/types';
 import type { StreamResult } from '../modules/chat';
 import { MaxStepsExceededError, ToolExecutionError } from '../lib/errors';
 
@@ -38,6 +38,16 @@ export interface GenerateTextOptions {
     maxSteps?: number;
     onStepFinish?: (step: StepResult) => void;
     abortSignal?: AbortSignal;
+    /** Temperature for sampling (0-2) */
+    temperature?: number;
+    /** Top-p sampling */
+    topP?: number;
+    /** Maximum output tokens */
+    maxTokens?: number;
+    /** Response format for structured output (JSON mode) */
+    responseFormat?: ResponseFormat;
+    /** Tool choice strategy */
+    toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
 }
 
 export interface GenerateTextResult {
@@ -60,17 +70,31 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
         maxSteps = 1,
         onStepFinish,
         abortSignal,
+        temperature,
+        topP,
+        maxTokens,
+        responseFormat,
+        toolChoice,
     } = options;
 
     const messages = normalizeMessages(options);
     const steps: StepResult[] = [];
-    let accumulatedText = '';
+    let lastNonToolText = '';  // Only capture text from non-tool-call steps
     let accumulatedReasoning = '';
     let usage: GenerateTextResult['usage'];
     let finishReason: GenerateTextResult['finishReason'] = null;
 
     for (let stepIndex = 0; stepIndex < maxSteps; stepIndex += 1) {
-        const request = buildChatRequest({ model, messages, tools });
+        const request = buildChatRequest({
+            model,
+            messages,
+            tools,
+            temperature,
+            topP,
+            maxTokens,
+            responseFormat,
+            toolChoice,
+        });
         const streamResult = await consumeStream(client, request, abortSignal);
 
         if (streamResult.usage) {
@@ -80,8 +104,9 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
             finishReason = streamResult.finishReason;
         }
 
-        if (streamResult.content) {
-            accumulatedText += streamResult.content;
+        // Only accumulate text if not ending with tool_calls (avoid intermediate speech)
+        if (streamResult.finishReason !== 'tool_calls' && streamResult.content) {
+            lastNonToolText = streamResult.content;
         }
         if (streamResult.reasoningContent) {
             accumulatedReasoning += streamResult.reasoningContent;
@@ -101,7 +126,7 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
 
         if (!streamResult.toolCalls.length || !tools) {
             return {
-                text: accumulatedText,
+                text: lastNonToolText || streamResult.content,
                 reasoning: accumulatedReasoning || undefined,
                 steps,
                 usage,
@@ -124,6 +149,12 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
         }));
         steps.push(...toolResultSteps);
 
+        // Write back assistant message with tool_calls before tool results
+        messages.push({
+            role: 'assistant',
+            content: streamResult.content || '',
+            tool_calls: streamResult.toolCalls,
+        });
         messages.push(...toolResultsToMessages(streamResult.toolCalls, toolResults));
     }
 
@@ -170,12 +201,22 @@ function buildChatRequest(params: {
     model: string;
     messages: ChatMessage[];
     tools?: Record<string, Tool>;
+    temperature?: number;
+    topP?: number;
+    maxTokens?: number;
+    responseFormat?: ResponseFormat;
+    toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
 }): ChatCompletionRequest {
-    const { model, messages, tools } = params;
+    const { model, messages, tools, temperature, topP, maxTokens, responseFormat, toolChoice } = params;
 
     return {
         model,
         messages,
+        temperature,
+        top_p: topP,
+        max_tokens: maxTokens,
+        response_format: responseFormat,
+        tool_choice: toolChoice,
         tools: tools ? Object.entries(tools).map(([name, tool]) => ({
             type: 'function',
             function: {
@@ -192,6 +233,37 @@ async function consumeStream(
     request: ChatCompletionRequest,
     abortSignal?: AbortSignal
 ): Promise<StreamResult> {
+    // JSON mode may not support streaming, use non-streaming to ensure complete JSON output
+    const isJsonMode = request.response_format?.type === 'json_object'
+        || request.response_format?.type === 'json_schema';
+
+    if (isJsonMode) {
+        // Use non-streaming API for JSON mode to avoid incomplete JSON
+        const response = await client.chat.create(request, { signal: abortSignal });
+        const choice = response.choices[0];
+        const message = choice?.message;
+
+        // Extract content from message
+        let content = '';
+        if (typeof message?.content === 'string') {
+            content = message.content;
+        } else if (Array.isArray(message?.content)) {
+            content = message.content
+                .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+                .map((part) => part.text)
+                .join('');
+        }
+
+        return {
+            content,
+            reasoningContent: '',
+            toolCalls: message?.tool_calls || [],
+            finishReason: choice?.finish_reason || null,
+            usage: response.usage,
+        };
+    }
+
+    // Default: use streaming API
     const stream = client.chat.createStream(request, { signal: abortSignal });
     let finalResult: StreamResult | undefined;
 
@@ -217,6 +289,7 @@ function toolResultsToMessages(toolCalls: ToolCall[], results: ToolResult[]): Ch
         const result = results.find((entry) => entry.toolCallId === toolCall.id);
         return {
             role: 'tool',
+            tool_call_id: toolCall.id,
             name: toolCall.function.name,
             content: result?.result ?? '',
         };

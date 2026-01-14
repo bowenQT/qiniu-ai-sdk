@@ -188,8 +188,8 @@ export function accumulateDelta(
             const existing = acc.toolCalls.get(tc.index);
             if (existing) {
                 // Update existing tool call
-                // Backfill id and type if they arrive in later chunks
-                if (tc.id && !existing.id) {
+                // Allow real id to overwrite empty/fallback id
+                if (tc.id && (!existing.id || existing.id.startsWith('toolcall-'))) {
                     existing.id = tc.id;
                 }
                 if (tc.type && existing.type !== tc.type) {
@@ -217,4 +217,23 @@ export function accumulateDelta(
     }
 
     return acc;
+}
+
+/**
+ * Finalize tool calls from accumulator, generating stable fallback IDs.
+ * Should be called only once when the stream is complete.
+ */
+export function finalizeToolCalls(acc: StreamAccumulator): Array<{
+    id: string;
+    type: 'function';
+    function: {
+        name: string;
+        arguments: string;
+    };
+}> {
+    return Array.from(acc.toolCalls.entries()).map(([index, tc]) => ({
+        id: tc.id || `toolcall-${index}`,
+        type: tc.type,
+        function: tc.function,
+    }));
 }

@@ -15,6 +15,8 @@ export interface RequestOptions {
     timeout?: number;
     headers?: Record<string, string>;
     requestId?: string;
+    /** AbortSignal for request cancellation (non-streaming requests) */
+    signal?: AbortSignal;
 }
 
 export interface RequestContext {
@@ -102,6 +104,17 @@ export async function request<T>(
     const executeRequest = async (req: MiddlewareRequest): Promise<MiddlewareResponse> => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), req.timeout);
+
+        // Merge external signal with internal timeout controller
+        const externalSignal = options.signal;
+        const onExternalAbort = () => controller.abort();
+        if (externalSignal) {
+            if (externalSignal.aborted) {
+                controller.abort();
+            } else {
+                externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+            }
+        }
 
         try {
             const response = await adapter.fetch(req.url, {
@@ -215,6 +228,10 @@ export async function request<T>(
             throw error;
         } finally {
             clearTimeout(timeoutId);
+            // Cleanup external signal listener to prevent memory leaks
+            if (externalSignal && !externalSignal.aborted) {
+                externalSignal.removeEventListener('abort', onExternalAbort);
+            }
         }
     };
 

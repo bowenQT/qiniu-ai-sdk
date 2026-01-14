@@ -5,6 +5,8 @@ export interface ChatMessage {
     content: string | ContentPart[];
     name?: string;
     tool_calls?: ToolCall[];
+    /** Required for tool role messages to match the corresponding tool_call */
+    tool_call_id?: string;
 }
 
 export interface ContentPart {
@@ -47,6 +49,18 @@ export interface ChatCompletionRequest {
         };
     }[];
     tool_choice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
+    /** Controls the output format (JSON mode) */
+    response_format?: ResponseFormat;
+}
+
+/** Response format configuration for structured output */
+export interface ResponseFormat {
+    type: 'text' | 'json_object' | 'json_schema';
+    json_schema?: {
+        name: string;
+        strict?: boolean;
+        schema: Record<string, unknown>;
+    };
 }
 
 export interface ChatCompletionResponse {

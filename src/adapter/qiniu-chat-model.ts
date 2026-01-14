@@ -1,7 +1,7 @@
 import type { QiniuAI } from '../client';
 import type { ChatCompletionChunk, ChatCompletionRequest, ChatCompletionResponse, ToolCall } from '../lib/types';
 import type { StreamResult } from '../modules/chat';
-import { convertPromptToMessages, convertTools, convertToolChoice, mapFinishReason } from './convert-prompt';
+import { convertPromptToMessages, convertTools, convertToolChoice, convertResponseFormat, mapFinishReason } from './convert-prompt';
 import { generatorToReadableStream } from './utils';
 import type {
     LanguageModelV2,
@@ -85,6 +85,7 @@ export class QiniuChatModel implements LanguageModelV2 {
             frequency_penalty: options.frequencyPenalty,
             tools: convertTools(options.tools),
             tool_choice: convertToolChoice(options.toolChoice),
+            response_format: convertResponseFormat(options.responseFormat),
         };
     }
 
