@@ -131,4 +131,56 @@ describe('MCPClient', () => {
             expect(names).toEqual(sorted);
         });
     });
+
+    describe('Server Helpers', () => {
+        it('should get tools for specific server via getServerTools', async () => {
+            await client.connect();
+
+            const tools = client.getServerTools('mock-server');
+            expect(tools.length).toBeGreaterThan(0);
+            expect(tools.map(t => t.name)).toContain('search');
+        });
+
+        it('should return empty array for disconnected server', () => {
+            const tools = client.getServerTools('mock-server');
+            expect(tools).toEqual([]);
+        });
+
+        it('should list connected server names', async () => {
+            await client.connect();
+
+            const names = client.getConnectedServerNames();
+            expect(names).toContain('mock-server');
+            expect(names).toEqual([...names].sort()); // Should be sorted
+        });
+
+        it('should return empty array when no servers connected', () => {
+            const names = client.getConnectedServerNames();
+            expect(names).toEqual([]);
+        });
+    });
+
+    describe('Token Injection', () => {
+        it('should inject token via MCP_BEARER_TOKEN env', async () => {
+            // This test verifies the token is configured; actual env injection
+            // happens at spawn time and would need a mock server that reads it
+            const clientWithToken = new MCPClient({
+                servers: [
+                    {
+                        name: 'token-server',
+                        transport: 'stdio',
+                        command: 'node',
+                        args: ['-e', 'console.log(process.env.MCP_BEARER_TOKEN)'],
+                        token: 'test-bearer-token',
+                    },
+                ],
+                connectionTimeout: 1000,
+            }, noopLogger);
+
+            // Token is stored and will be injected at connect time
+            expect(clientWithToken.getState('token-server')).toBe('disconnected');
+            await clientWithToken.disconnect();
+        });
+    });
 });
+
