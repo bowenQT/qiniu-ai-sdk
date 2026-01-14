@@ -109,7 +109,12 @@ export function convertToolChoice(choice?: LanguageModelV2ToolChoice): ChatCompl
  * Convert Vercel AI SDK responseFormat to SDK response_format
  * Vercel uses { type: 'json' } while SDK uses { type: 'json_object' }
  */
-export function convertResponseFormat(responseFormat?: { type: string; schema?: unknown }): ResponseFormat | undefined {
+export function convertResponseFormat(responseFormat?: {
+    type: string;
+    schema?: unknown;
+    name?: string;
+    description?: string;
+}): ResponseFormat | undefined {
     if (!responseFormat) {
         return undefined;
     }
@@ -120,9 +125,10 @@ export function convertResponseFormat(responseFormat?: { type: string; schema?: 
             return {
                 type: 'json_schema',
                 json_schema: {
-                    name: 'response',
+                    name: responseFormat.name || 'response',
                     strict: true,
                     schema: responseFormat.schema as Record<string, unknown>,
+                    // Note: description is not part of OpenAI spec but preserved for future compatibility
                 },
             };
         }

@@ -393,4 +393,57 @@ describe('generateText - Phase 5 Tests', () => {
             expect(tools[0].function.parameters).toEqual(plainJsonSchema);
         });
     });
+
+    describe('Cancellation vs Timeout', () => {
+        it('should throw CANCELLED error when abortSignal is triggered', async () => {
+            const controller = new AbortController();
+
+            const adapter = {
+                fetch: vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+                    // Check if already aborted
+                    if (init.signal?.aborted) {
+                        const error = new Error('The operation was aborted');
+                        error.name = 'AbortError';
+                        throw error;
+                    }
+                    // Wait and check for abort
+                    return new Promise((resolve, reject) => {
+                        const timeout = setTimeout(() => {
+                            resolve(new Response(JSON.stringify({
+                                id: 'chat-1',
+                                object: 'chat.completion',
+                                choices: [{ message: { content: 'done' }, finish_reason: 'stop' }],
+                            }), { status: 200 }));
+                        }, 1000);
+
+                        init.signal?.addEventListener('abort', () => {
+                            clearTimeout(timeout);
+                            const error = new Error('The operation was aborted');
+                            error.name = 'AbortError';
+                            reject(error);
+                        });
+                    });
+                }),
+            };
+
+            const client = new QiniuAI({ apiKey: 'sk-test', adapter });
+
+            // Abort after a short delay
+            setTimeout(() => controller.abort(), 50);
+
+            await expect(
+                generateText({
+                    client,
+                    model: 'test-model',
+                    prompt: 'Test',
+                    abortSignal: controller.signal,
+                    responseFormat: { type: 'json_object' }, // Use JSON mode for non-streaming
+                })
+            ).rejects.toMatchObject({
+                message: 'Request cancelled',
+                code: 'CANCELLED',
+                status: 499,
+            });
+        });
+    });
 });

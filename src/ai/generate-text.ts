@@ -257,8 +257,10 @@ function isZodSchema(obj: unknown): boolean {
 
 /**
  * Simple Zod to JSON Schema conversion (subset for tool parameters)
+ * Supports: ZodString, ZodNumber, ZodBoolean, ZodArray, ZodEnum, ZodObject, ZodOptional, ZodNullable, ZodDefault
+ * Unsupported types (union, literal, tuple, effects, map, set, etc.) will emit a warning and return {}
  */
-function zodToJsonSchemaSimple(schema: unknown): Record<string, unknown> {
+function zodToJsonSchemaSimple(schema: unknown, path = 'root'): Record<string, unknown> {
     const def = (schema as { _def?: { typeName?: string;[key: string]: unknown } })._def;
     const typeName = def?.typeName;
 
@@ -270,9 +272,21 @@ function zodToJsonSchemaSimple(schema: unknown): Record<string, unknown> {
         case 'ZodBoolean':
             return { type: 'boolean' };
         case 'ZodArray':
-            return { type: 'array', items: zodToJsonSchemaSimple((def as { type: unknown }).type) };
+            return { type: 'array', items: zodToJsonSchemaSimple((def as { type: unknown }).type, `${path}[]`) };
         case 'ZodEnum':
             return { type: 'string', enum: (def as { values: unknown[] }).values };
+        case 'ZodLiteral': {
+            const value = (def as { value: unknown }).value;
+            const valueType = typeof value;
+            if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') {
+                return { type: valueType, const: value };
+            }
+            return { const: value };
+        }
+        case 'ZodUnion': {
+            const options = (def as { options: unknown[] }).options;
+            return { anyOf: options.map((opt, i) => zodToJsonSchemaSimple(opt, `${path}.union[${i}]`)) };
+        }
         case 'ZodObject': {
             const shapeSource = def?.shape as (() => Record<string, unknown>) | Record<string, unknown>;
             const shape = typeof shapeSource === 'function' ? shapeSource() : shapeSource || {};
@@ -283,7 +297,7 @@ function zodToJsonSchemaSimple(schema: unknown): Record<string, unknown> {
                 const innerDef = (value as { _def?: { typeName?: string; innerType?: unknown } })._def;
                 const isOptional = innerDef?.typeName === 'ZodOptional' || innerDef?.typeName === 'ZodDefault';
                 const inner = isOptional ? innerDef?.innerType : value;
-                properties[key] = zodToJsonSchemaSimple(inner);
+                properties[key] = zodToJsonSchemaSimple(inner, `${path}.${key}`);
                 if (!isOptional) {
                     required.push(key);
                 }
@@ -298,8 +312,15 @@ function zodToJsonSchemaSimple(schema: unknown): Record<string, unknown> {
         case 'ZodOptional':
         case 'ZodNullable':
         case 'ZodDefault':
-            return zodToJsonSchemaSimple((def as { innerType: unknown }).innerType);
+            return zodToJsonSchemaSimple((def as { innerType: unknown }).innerType, path);
         default:
+            // Warn about unsupported types
+            if (typeName && typeName.startsWith('Zod')) {
+                console.warn(
+                    `[qiniu-ai-sdk] Unsupported Zod type "${typeName}" at path "${path}". ` +
+                    `Consider using zodToJsonSchema from '@bowenqt/qiniu-ai-sdk/ai-tools' for full Zod support.`
+                );
+            }
             return {};
     }
 }
