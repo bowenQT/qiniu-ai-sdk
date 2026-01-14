@@ -1,5 +1,5 @@
 import { IQiniuClient, ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChunk, ChatDelta, ToolCallDelta } from '../../lib/types';
-import { parseSSEStream, createStreamAccumulator, accumulateDelta, StreamAccumulator } from '../../lib/sse';
+import { parseSSEStream, createStreamAccumulator, accumulateDelta, finalizeToolCalls, StreamAccumulator } from '../../lib/sse';
 
 /**
  * Options for streaming chat completion
@@ -42,15 +42,22 @@ export class Chat {
 
     /**
      * Create a chat completion (non-streaming)
+     * @param params - Chat completion request parameters
+     * @param options - Optional request options including AbortSignal for cancellation
      */
-    async create(params: ChatCompletionRequest): Promise<ChatCompletionResponse> {
+    async create(
+        params: ChatCompletionRequest,
+        options?: { signal?: AbortSignal }
+    ): Promise<ChatCompletionResponse> {
         if (params.stream) {
             throw new Error(
                 'For streaming, use chat.createStream() instead. ' +
                 'The create() method only supports non-streaming requests.'
             );
         }
-        return this.client.post<ChatCompletionResponse>('/chat/completions', params);
+        return this.client.post<ChatCompletionResponse>('/chat/completions', params, undefined, {
+            signal: options?.signal,
+        });
     }
 
     /**
@@ -134,11 +141,11 @@ export class Chat {
             finishReason,
         });
 
-        // Return accumulated result
+        // Return accumulated result with finalized tool calls
         return {
             content: accumulator.content,
             reasoningContent: accumulator.reasoningContent,
-            toolCalls: Array.from(accumulator.toolCalls.values()),
+            toolCalls: finalizeToolCalls(accumulator),
             finishReason,
             usage,
         };

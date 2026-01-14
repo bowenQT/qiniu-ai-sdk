@@ -9,6 +9,9 @@ TypeScript SDK for Qiniu Cloud AI Token API.
 - 🎥 **Video Generation** - Kling, Sora, Veo models
 - 🔍 **Web Search** - Real-time web search API
 - ⏱️ **Built-in Polling** - Async task management with retry and cancellation
+- 🤖 **Agentic Layer** - Multi-step tool execution with `generateText`
+- 📋 **JSON Mode** - Structured output with `response_format`
+- 🔌 **Vercel AI SDK Adapter** - Drop-in replacement for Vercel AI SDK
 - 📦 **TypeScript First** - Full type definitions included
 
 ## Requirements
@@ -140,6 +143,98 @@ const poller = createPoller({
 
 const result = await poller.poll('task-id');
 console.log(result.result);
+```
+
+## Agentic Layer
+
+The SDK provides a high-level `generateText` function for multi-step tool execution:
+
+### Basic Tool Usage
+
+```typescript
+import { QiniuAI, generateText } from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+
+const result = await generateText({
+  client,
+  model: 'gemini-2.5-flash',
+  prompt: 'What is the weather in Beijing?',
+  tools: {
+    getWeather: {
+      description: 'Get weather for a city',
+      parameters: {
+        type: 'object',
+        properties: { city: { type: 'string' } },
+        required: ['city'],
+      },
+      execute: async ({ city }) => ({ temperature: 25, city }),
+    },
+  },
+  maxSteps: 3,
+});
+
+console.log(result.text);      // Final response
+console.log(result.steps);     // All intermediate steps
+console.log(result.toolCalls); // Tool calls from last step
+```
+
+### Zod Schema Support
+
+The SDK auto-converts Zod schemas to JSON Schema:
+
+```typescript
+import { z } from 'zod';
+
+const tools = {
+  calculate: {
+    description: 'Calculate math',
+    parameters: z.object({
+      operation: z.enum(['add', 'subtract', 'multiply']),
+      a: z.number(),
+      b: z.number(),
+    }),
+    execute: async ({ operation, a, b }) => {
+      if (operation === 'add') return a + b;
+      if (operation === 'subtract') return a - b;
+      return a * b;
+    },
+  },
+};
+```
+
+### JSON Mode (Structured Output)
+
+```typescript
+const result = await generateText({
+  client,
+  model: 'gemini-2.5-flash',
+  prompt: 'List 3 scientists as JSON array',
+  responseFormat: { type: 'json_object' },
+  temperature: 0,
+});
+
+const data = JSON.parse(result.text);
+```
+
+### Cancellation
+
+```typescript
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 5000);
+
+try {
+  const result = await generateText({
+    client,
+    model: 'gemini-2.5-flash',
+    prompt: 'Write a long essay...',
+    abortSignal: controller.signal,
+  });
+} catch (error) {
+  if (error.code === 'CANCELLED') {
+    console.log('Request cancelled');
+  }
+}
 ```
 
 ## Vercel AI SDK Adapter

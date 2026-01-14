@@ -1,5 +1,5 @@
 import type { QiniuAI } from '../client';
-import type { ChatCompletionRequest, ChatMessage, ToolCall } from '../lib/types';
+import type { ChatCompletionRequest, ChatMessage, ToolCall, ResponseFormat } from '../lib/types';
 import type { StreamResult } from '../modules/chat';
 import { MaxStepsExceededError, ToolExecutionError } from '../lib/errors';
 
@@ -38,6 +38,16 @@ export interface GenerateTextOptions {
     maxSteps?: number;
     onStepFinish?: (step: StepResult) => void;
     abortSignal?: AbortSignal;
+    /** Temperature for sampling (0-2) */
+    temperature?: number;
+    /** Top-p sampling */
+    topP?: number;
+    /** Maximum output tokens */
+    maxTokens?: number;
+    /** Response format for structured output (JSON mode) */
+    responseFormat?: ResponseFormat;
+    /** Tool choice strategy */
+    toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
 }
 
 export interface GenerateTextResult {
@@ -60,17 +70,31 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
         maxSteps = 1,
         onStepFinish,
         abortSignal,
+        temperature,
+        topP,
+        maxTokens,
+        responseFormat,
+        toolChoice,
     } = options;
 
     const messages = normalizeMessages(options);
     const steps: StepResult[] = [];
-    let accumulatedText = '';
+    let lastNonToolText = '';  // Only capture text from non-tool-call steps
     let accumulatedReasoning = '';
     let usage: GenerateTextResult['usage'];
     let finishReason: GenerateTextResult['finishReason'] = null;
 
     for (let stepIndex = 0; stepIndex < maxSteps; stepIndex += 1) {
-        const request = buildChatRequest({ model, messages, tools });
+        const request = buildChatRequest({
+            model,
+            messages,
+            tools,
+            temperature,
+            topP,
+            maxTokens,
+            responseFormat,
+            toolChoice,
+        });
         const streamResult = await consumeStream(client, request, abortSignal);
 
         if (streamResult.usage) {
@@ -80,8 +104,9 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
             finishReason = streamResult.finishReason;
         }
 
-        if (streamResult.content) {
-            accumulatedText += streamResult.content;
+        // Only accumulate text if not ending with tool_calls (avoid intermediate speech)
+        if (streamResult.finishReason !== 'tool_calls' && streamResult.content) {
+            lastNonToolText = streamResult.content;
         }
         if (streamResult.reasoningContent) {
             accumulatedReasoning += streamResult.reasoningContent;
@@ -101,7 +126,7 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
 
         if (!streamResult.toolCalls.length || !tools) {
             return {
-                text: accumulatedText,
+                text: lastNonToolText || streamResult.content,
                 reasoning: accumulatedReasoning || undefined,
                 steps,
                 usage,
@@ -124,6 +149,12 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
         }));
         steps.push(...toolResultSteps);
 
+        // Write back assistant message with tool_calls before tool results
+        messages.push({
+            role: 'assistant',
+            content: streamResult.content || '',
+            tool_calls: streamResult.toolCalls,
+        });
         messages.push(...toolResultsToMessages(streamResult.toolCalls, toolResults));
     }
 
@@ -170,21 +201,128 @@ function buildChatRequest(params: {
     model: string;
     messages: ChatMessage[];
     tools?: Record<string, Tool>;
+    temperature?: number;
+    topP?: number;
+    maxTokens?: number;
+    responseFormat?: ResponseFormat;
+    toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
 }): ChatCompletionRequest {
-    const { model, messages, tools } = params;
+    const { model, messages, tools, temperature, topP, maxTokens, responseFormat, toolChoice } = params;
 
     return {
         model,
         messages,
+        temperature,
+        top_p: topP,
+        max_tokens: maxTokens,
+        response_format: responseFormat,
+        tool_choice: toolChoice,
         tools: tools ? Object.entries(tools).map(([name, tool]) => ({
             type: 'function',
             function: {
                 name,
                 description: tool.description,
-                parameters: tool.parameters ?? {},
+                parameters: convertToolParameters(tool.parameters),
             },
         })) : undefined,
     };
+}
+
+/**
+ * Convert tool parameters, auto-detecting and converting Zod schemas
+ */
+function convertToolParameters(parameters: unknown): Record<string, unknown> {
+    if (!parameters) {
+        return {};
+    }
+
+    // Enhanced duck-typing for Zod schema detection
+    if (isZodSchema(parameters)) {
+        return zodToJsonSchemaSimple(parameters);
+    }
+
+    return parameters as Record<string, unknown>;
+}
+
+/**
+ * Check if an object is a Zod schema using robust duck-typing
+ */
+function isZodSchema(obj: unknown): boolean {
+    if (obj == null || typeof obj !== 'object') {
+        return false;
+    }
+    const def = (obj as { _def?: { typeName?: string } })._def;
+    return def != null && typeof def.typeName === 'string' && def.typeName.startsWith('Zod');
+}
+
+/**
+ * Simple Zod to JSON Schema conversion (subset for tool parameters)
+ * Supports: ZodString, ZodNumber, ZodBoolean, ZodArray, ZodEnum, ZodLiteral, ZodUnion, ZodObject, ZodOptional, ZodNullable, ZodDefault
+ * Unsupported types (tuple, effects, map, set, etc.) will emit a warning and return {}
+ */
+function zodToJsonSchemaSimple(schema: unknown, path = 'root'): Record<string, unknown> {
+    const def = (schema as { _def?: { typeName?: string;[key: string]: unknown } })._def;
+    const typeName = def?.typeName;
+
+    switch (typeName) {
+        case 'ZodString':
+            return { type: 'string' };
+        case 'ZodNumber':
+            return { type: 'number' };
+        case 'ZodBoolean':
+            return { type: 'boolean' };
+        case 'ZodArray':
+            return { type: 'array', items: zodToJsonSchemaSimple((def as { type: unknown }).type, `${path}[]`) };
+        case 'ZodEnum':
+            return { type: 'string', enum: (def as { values: unknown[] }).values };
+        case 'ZodLiteral': {
+            const value = (def as { value: unknown }).value;
+            const valueType = typeof value;
+            if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') {
+                return { type: valueType, const: value };
+            }
+            return { const: value };
+        }
+        case 'ZodUnion': {
+            const options = (def as { options: unknown[] }).options;
+            return { anyOf: options.map((opt, i) => zodToJsonSchemaSimple(opt, `${path}.union[${i}]`)) };
+        }
+        case 'ZodObject': {
+            const shapeSource = def?.shape as (() => Record<string, unknown>) | Record<string, unknown>;
+            const shape = typeof shapeSource === 'function' ? shapeSource() : shapeSource || {};
+            const properties: Record<string, unknown> = {};
+            const required: string[] = [];
+
+            for (const [key, value] of Object.entries(shape)) {
+                const innerDef = (value as { _def?: { typeName?: string; innerType?: unknown } })._def;
+                const isOptional = innerDef?.typeName === 'ZodOptional' || innerDef?.typeName === 'ZodDefault';
+                const inner = isOptional ? innerDef?.innerType : value;
+                properties[key] = zodToJsonSchemaSimple(inner, `${path}.${key}`);
+                if (!isOptional) {
+                    required.push(key);
+                }
+            }
+
+            const result: Record<string, unknown> = { type: 'object', properties };
+            if (required.length) {
+                result.required = required;
+            }
+            return result;
+        }
+        case 'ZodOptional':
+        case 'ZodNullable':
+        case 'ZodDefault':
+            return zodToJsonSchemaSimple((def as { innerType: unknown }).innerType, path);
+        default:
+            // Warn about unsupported types
+            if (typeName && typeName.startsWith('Zod')) {
+                console.warn(
+                    `[qiniu-ai-sdk] Unsupported Zod type "${typeName}" at path "${path}". ` +
+                    `Consider using zodToJsonSchema from '@bowenqt/qiniu-ai-sdk/ai-tools' for full Zod support.`
+                );
+            }
+            return {};
+    }
 }
 
 async function consumeStream(
@@ -192,6 +330,43 @@ async function consumeStream(
     request: ChatCompletionRequest,
     abortSignal?: AbortSignal
 ): Promise<StreamResult> {
+    // JSON mode may not support streaming, use non-streaming to ensure complete JSON output
+    const isJsonMode = request.response_format?.type === 'json_object'
+        || request.response_format?.type === 'json_schema';
+
+    if (isJsonMode) {
+        // Use non-streaming API for JSON mode to avoid incomplete JSON
+        const response = await client.chat.create(request, { signal: abortSignal });
+        const choice = response.choices[0];
+        const message = choice?.message;
+
+        // Extract content from message
+        let content = '';
+        if (typeof message?.content === 'string') {
+            content = message.content;
+        } else if (Array.isArray(message?.content)) {
+            content = message.content
+                .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+                .map((part) => part.text)
+                .join('');
+        }
+
+        // Apply fallback IDs to tool calls (same as streaming path)
+        const toolCalls = (message?.tool_calls || []).map((tc, index) => ({
+            ...tc,
+            id: tc.id || `toolcall-${index}`,
+        }));
+
+        return {
+            content,
+            reasoningContent: '',
+            toolCalls,
+            finishReason: choice?.finish_reason || null,
+            usage: response.usage,
+        };
+    }
+
+    // Default: use streaming API
     const stream = client.chat.createStream(request, { signal: abortSignal });
     let finalResult: StreamResult | undefined;
 
@@ -217,6 +392,7 @@ function toolResultsToMessages(toolCalls: ToolCall[], results: ToolResult[]): Ch
         const result = results.find((entry) => entry.toolCallId === toolCall.id);
         return {
             role: 'tool',
+            tool_call_id: toolCall.id,
             name: toolCall.function.name,
             content: result?.result ?? '',
         };

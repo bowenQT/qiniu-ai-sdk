@@ -15,6 +15,8 @@ export interface RequestOptions {
     timeout?: number;
     headers?: Record<string, string>;
     requestId?: string;
+    /** AbortSignal for request cancellation (non-streaming requests) */
+    signal?: AbortSignal;
 }
 
 export interface RequestContext {
@@ -102,6 +104,17 @@ export async function request<T>(
     const executeRequest = async (req: MiddlewareRequest): Promise<MiddlewareResponse> => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), req.timeout);
+
+        // Merge external signal with internal timeout controller
+        const externalSignal = options.signal;
+        const onExternalAbort = () => controller.abort();
+        if (externalSignal) {
+            if (externalSignal.aborted) {
+                controller.abort();
+            } else {
+                externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+            }
+        }
 
         try {
             const response = await adapter.fetch(req.url, {
@@ -198,12 +211,22 @@ export async function request<T>(
             }
 
             if (error instanceof Error && error.name === 'AbortError') {
-                logger.error('HTTP Timeout', {
-                    requestId: req.requestId,
-                    timeout: req.timeout,
-                    duration,
-                });
-                throw new APIError('Request timed out', 408, 'TIMEOUT', req.requestId);
+                // Distinguish between user cancellation and timeout
+                const wasCancelled = externalSignal?.aborted;
+                if (wasCancelled) {
+                    logger.info('HTTP Request cancelled', {
+                        requestId: req.requestId,
+                        duration,
+                    });
+                    throw new APIError('Request cancelled', 499, 'CANCELLED', req.requestId);
+                } else {
+                    logger.error('HTTP Timeout', {
+                        requestId: req.requestId,
+                        timeout: req.timeout,
+                        duration,
+                    });
+                    throw new APIError('Request timed out', 408, 'TIMEOUT', req.requestId);
+                }
             }
 
             logger.error('HTTP Error (Network)', {
@@ -215,6 +238,10 @@ export async function request<T>(
             throw error;
         } finally {
             clearTimeout(timeoutId);
+            // Cleanup external signal listener to prevent memory leaks
+            if (externalSignal && !externalSignal.aborted) {
+                externalSignal.removeEventListener('abort', onExternalAbort);
+            }
         }
     };
 
