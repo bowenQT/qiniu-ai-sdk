@@ -87,10 +87,9 @@ export interface StepResult {
 
 /**
  * Agent graph events.
+ * Note: onToken is not supported in Phase 2 (no token-level streaming).
  */
 export interface AgentGraphEvents {
-    /** Called for each token (not in JSON mode) */
-    onToken?: (token: string) => void;
     /** Called when a step completes */
     onStepFinish?: (step: StepResult) => void;
     /** Called when entering a node */

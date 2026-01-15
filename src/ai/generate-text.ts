@@ -446,7 +446,7 @@ function parseToolArguments(payload: string): unknown {
 // ============================================================================
 
 import { AgentGraph, type AgentGraphOptions, type AgentGraphResult } from './agent-graph';
-import type { RegisteredTool } from '../lib/tool-registry';
+import type { RegisteredTool, ToolParameters } from '../lib/tool-registry';
 import type { Skill } from '../modules/skills';
 
 /**
@@ -515,23 +515,32 @@ export async function generateTextWithGraph(
     // Normalize messages
     const messages = normalizeMessages(options);
 
+    // Track current messages for tool context (will be updated during execution)
+    let currentMessages = [...messages];
+
     // Convert tools to RegisteredTool format
+    // High fix: use convertToolParameters for Zod support and preserve required fields
     const registeredTools: Record<string, RegisteredTool> = {};
     if (tools) {
         for (const [name, tool] of Object.entries(tools)) {
+            // Convert parameters using same logic as generateText
+            const convertedParams = convertToolParameters(tool.parameters);
+
             registeredTools[name] = {
                 name,
                 description: tool.description || '',
                 parameters: {
                     type: 'object',
-                    properties: tool.parameters || {},
-                },
+                    properties: convertedParams.properties || convertedParams,
+                    required: convertedParams.required,
+                } as ToolParameters,
                 source: { type: 'user', namespace: 'generateText' },
                 execute: tool.execute
                     ? async (args: Record<string, unknown>) => {
+                        // Medium fix: use currentMessages instead of stale messages
                         const context: ToolExecutionContext = {
-                            toolCallId: '',
-                            messages,
+                            toolCallId: '', // Note: toolCallId comes from execute-node
+                            messages: currentMessages,
                             abortSignal,
                         };
                         return tool.execute!(args, context);

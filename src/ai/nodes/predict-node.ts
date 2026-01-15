@@ -130,8 +130,8 @@ async function predictNonStreaming(
     request: ChatCompletionRequest,
     abortSignal?: AbortSignal
 ): Promise<PredictResult> {
-    // Use non-streaming API
-    const response = await client.chat.create(request);
+    // Medium fix: pass abortSignal to create method
+    const response = await client.chat.create(request, { signal: abortSignal });
 
     const choice = response.choices?.[0];
     const message: ChatMessage = choice?.message || { role: 'assistant', content: '' };

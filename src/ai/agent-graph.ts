@@ -166,9 +166,10 @@ export class AgentGraph {
         this.steps.push(textStep);
         events?.onStepFinish?.(textStep);
 
-        // Check if done (no tool calls)
-        const hasToolCalls = result.message.tool_calls?.length ?? 0;
-        const isDone = result.finishReason !== 'tool_calls' || !hasToolCalls;
+        // Check if done - use hasToolCalls as primary gate
+        // High fix: finishReason can be null/missing, but tool_calls presence is reliable
+        const hasToolCalls = (result.message.tool_calls?.length ?? 0) > 0;
+        const isDone = !hasToolCalls;
 
         // Update state
         const newMessages: InternalMessage[] = [
