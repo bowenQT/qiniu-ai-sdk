@@ -23,6 +23,7 @@ import type {
     AgentGraphEvents,
 } from './internal-types';
 import { stripMeta } from './internal-types';
+import { getGlobalTracer } from '../lib/tracer';
 
 /** AgentGraph options */
 export interface AgentGraphOptions {
@@ -147,58 +148,75 @@ export class AgentGraph {
      * Execute the agent graph.
      */
     async invoke(messages: InternalMessage[]): Promise<AgentGraphResult> {
-        // Reset steps and compaction tracking
-        this.steps = [];
-        this.compactionOccurred = false;
-        this.droppedSkills = [];
-        this.droppedMessages = 0;
+        const tracer = getGlobalTracer();
 
-        // Build tools map
-        const toolsMap = new Map<string, RegisteredTool>();
-        if (this.options.tools) {
-            for (const [name, tool] of Object.entries(this.options.tools)) {
-                toolsMap.set(name, { ...tool, name });
+        return tracer.withSpan('agent_graph.invoke', async (span) => {
+            span.setAttribute('model', this.options.model);
+            span.setAttribute('max_steps', this.options.maxSteps ?? 10);
+            span.setAttribute('message_count', messages.length);
+
+            // Reset steps and compaction tracking
+            this.steps = [];
+            this.compactionOccurred = false;
+            this.droppedSkills = [];
+            this.droppedMessages = 0;
+
+            // Build tools map
+            const toolsMap = new Map<string, RegisteredTool>();
+            if (this.options.tools) {
+                for (const [name, tool] of Object.entries(this.options.tools)) {
+                    toolsMap.set(name, { ...tool, name });
+                }
             }
-        }
 
-        // Initialize state
-        const initialState: AgentState = {
-            messages: [...messages],
-            skills: [],
-            tools: toolsMap,
-            stepCount: 0,
-            maxSteps: this.options.maxSteps ?? 10,
-            done: false,
-            output: '',
-            reasoning: '',
-            finishReason: null,
-            abortSignal: this.options.abortSignal,
-        };
+            // Initialize state
+            const initialState: AgentState = {
+                messages: [...messages],
+                skills: [],
+                tools: toolsMap,
+                stepCount: 0,
+                maxSteps: this.options.maxSteps ?? 10,
+                done: false,
+                output: '',
+                reasoning: '',
+                finishReason: null,
+                abortSignal: this.options.abortSignal,
+            };
 
-        // Inject skills if provided
-        if (this.options.skills?.length) {
-            const injected = this.injectSkills(initialState.messages, this.options.skills);
-            initialState.messages = injected.messages;
-            initialState.skills = injected.skills;
-        }
+            // Inject skills if provided
+            if (this.options.skills?.length) {
+                const injected = this.injectSkills(initialState.messages, this.options.skills);
+                initialState.messages = injected.messages;
+                initialState.skills = injected.skills;
+                span.setAttribute('skills_injected', this.options.skills.length);
+            }
 
-        // Execute graph
-        const finalState = await this.graph.invoke(initialState, {
-            maxSteps: this.options.maxSteps ? this.options.maxSteps * 3 : 30,
+            // Execute graph
+            const finalState = await this.graph.invoke(initialState, {
+                maxSteps: this.options.maxSteps ? this.options.maxSteps * 3 : 30,
+            });
+
+            span.setAttribute('final_step_count', finalState.stepCount);
+            span.setAttribute('finish_reason', finalState.finishReason ?? 'unknown');
+            if (this.compactionOccurred) {
+                span.setAttribute('compaction_occurred', true);
+                span.setAttribute('dropped_skills', this.droppedSkills.length);
+                span.setAttribute('dropped_messages', this.droppedMessages);
+            }
+
+            return {
+                text: finalState.output,
+                reasoning: finalState.reasoning || undefined,
+                steps: this.steps,
+                usage: finalState.usage,
+                finishReason: finalState.finishReason,
+                compaction: this.compactionOccurred ? {
+                    occurred: true,
+                    droppedSkills: this.droppedSkills,
+                    droppedMessages: this.droppedMessages,
+                } : undefined,
+            };
         });
-
-        return {
-            text: finalState.output,
-            reasoning: finalState.reasoning || undefined,
-            steps: this.steps,
-            usage: finalState.usage,
-            finishReason: finalState.finishReason,
-            compaction: this.compactionOccurred ? {
-                occurred: true,
-                droppedSkills: this.droppedSkills,
-                droppedMessages: this.droppedMessages,
-            } : undefined,
-        };
     }
 
     /**

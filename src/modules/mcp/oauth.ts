@@ -93,9 +93,24 @@ export class PKCEFlow {
     /**
      * Start local callback server and wait for authorization code.
      * Returns the authorization code.
+     * @param options.port - Port to listen on (default: random)
+     * @param options.expectedState - Expected state parameter to validate (required for security)
+     * @param options.timeoutMs - Timeout in milliseconds (default: 300000 = 5 minutes)
      */
-    async waitForCallback(port: number = 0): Promise<{ code: string; state: string }> {
+    async waitForCallback(options: {
+        port?: number;
+        expectedState: string;
+        timeoutMs?: number;
+    }): Promise<{ code: string; state: string }> {
+        const { port = 0, expectedState, timeoutMs = 300000 } = options;
+
         return new Promise((resolve, reject) => {
+            // Setup timeout
+            const timeoutId = setTimeout(() => {
+                this.stopServer();
+                reject(new OAuthError(`Callback timeout after ${timeoutMs}ms`));
+            }, timeoutMs);
+
             this.server = http.createServer((req, res) => {
                 const url = new URL(req.url || '', `http://localhost:${port}`);
                 const code = url.searchParams.get('code');
@@ -106,6 +121,7 @@ export class PKCEFlow {
                 if (error) {
                     res.writeHead(400, { 'Content-Type': 'text/html' });
                     res.end(`<h1>Authorization Failed</h1><p>${errorDescription || error}</p>`);
+                    clearTimeout(timeoutId);
                     this.stopServer();
                     reject(new OAuthError(`Authorization failed: ${error}`, error, errorDescription || undefined));
                     return;
@@ -117,8 +133,19 @@ export class PKCEFlow {
                     return;
                 }
 
+                // Validate state (CSRF protection)
+                if (state !== expectedState) {
+                    res.writeHead(400, { 'Content-Type': 'text/html' });
+                    res.end('<h1>Invalid state parameter</h1>');
+                    clearTimeout(timeoutId);
+                    this.stopServer();
+                    reject(new OAuthError('State mismatch: possible CSRF attack', 'state_mismatch'));
+                    return;
+                }
+
                 res.writeHead(200, { 'Content-Type': 'text/html' });
                 res.end('<h1>Authorization Successful</h1><p>You can close this window.</p>');
+                clearTimeout(timeoutId);
                 this.stopServer();
                 resolve({ code, state });
             });
@@ -131,6 +158,7 @@ export class PKCEFlow {
             });
 
             this.server.on('error', (err) => {
+                clearTimeout(timeoutId);
                 reject(new OAuthError(`Callback server error: ${err.message}`));
             });
         });

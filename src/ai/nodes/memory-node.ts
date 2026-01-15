@@ -11,6 +11,7 @@ import type { ChatMessage } from '../../lib/types';
 import type { CompactionResult, CompactionConfig, ToolPair, InjectedSkill } from './types';
 import type { InternalMessage } from '../internal-types';
 import { isDroppable, getSkillId } from '../internal-types';
+import { estimateMessageTokens } from '../../lib/token-estimator';
 
 /** Context overflow error */
 export class ContextOverflowError extends Error {
@@ -93,7 +94,7 @@ export function compactMessages(
                 droppableIndices.push({
                     idx,
                     skillId,
-                    tokens: estimateSingleMessageTokens(msg as ChatMessage),
+                    tokens: estimateMessageTokens(msg as ChatMessage),
                 });
             }
         }
@@ -127,7 +128,7 @@ export function compactMessages(
     for (let i = 0; i < result.messages.length && currentTokens > config.maxTokens; i++) {
         if (!protectedIndices.has(i) && !indicesToRemove.has(i) && !isDroppable(result.messages[i])) {
             indicesToRemove.add(i);
-            currentTokens -= estimateSingleMessageTokens(result.messages[i] as ChatMessage);
+            currentTokens -= estimateMessageTokens(result.messages[i] as ChatMessage);
         }
     }
 
@@ -199,16 +200,4 @@ export function buildToolPairs(messages: ChatMessage[]): {
     return { toolPairs, orphanCalls };
 }
 
-/**
- * Estimate tokens for a single message.
- */
-function estimateSingleMessageTokens(message: ChatMessage): number {
-    const content = typeof message.content === 'string'
-        ? message.content
-        : Array.isArray(message.content)
-            ? message.content.map(p => p.text ?? '').join('')
-            : '';
 
-    // Rough estimate: ~4 chars per token
-    return Math.ceil(content.length / 4) + 10; // +10 for role/metadata
-}

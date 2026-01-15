@@ -149,13 +149,62 @@ export { stripMeta, isDroppable, getSkillId } from './ai/internal-types';
 export { SkillLoader } from './modules/skills';
 export type { Skill } from './modules/skills';
 
-// MCP
-export { MCPClient, adaptMCPToolsToRegistry, getAllMCPToolsAsRegistered } from './modules/mcp';
-export type { MCPClientConfig, MCPServerConfig } from './modules/mcp';
+// MCP (Phase 1 + Phase 3)
+export {
+    MCPClient,
+    MCPClientError,
+    adaptMCPToolsToRegistry,
+    getAllMCPToolsAsRegistered,
+    // Phase 3: HTTP Transport
+    MCPHttpTransport,
+    MCPHttpTransportError,
+    // Phase 3: OAuth
+    PKCEFlow,
+    DeviceCodeFlow,
+    OAuthError,
+    generateCodeVerifier,
+    generateCodeChallenge,
+    generateState,
+    refreshAccessToken,
+    // Phase 3: Token Store
+    MemoryTokenStore,
+    FileTokenStore,
+    TokenManager,
+} from './modules/mcp';
+export type {
+    MCPClientConfig,
+    MCPServerConfig,
+    MCPStdioServerConfig,
+    MCPHttpServerConfig,
+    MCPOAuthConfig,
+    MCPToolDefinition,
+    MCPToolResult,
+    MCPConnectionState,
+    MCPTransport,
+    TokenProvider,
+    OAuthTokens,
+    TokenStore,
+    FileTokenStoreConfig,
+} from './modules/mcp';
 
-// Checkpointer
-export { MemoryCheckpointer, deserializeCheckpoint } from './ai/graph/checkpointer';
-export type { Checkpointer, Checkpoint, CheckpointMetadata, SerializedAgentState } from './ai/graph/checkpointer';
+// Checkpointer (Phase 1 + Phase 3)
+export {
+    MemoryCheckpointer,
+    deserializeCheckpoint,
+    // Phase 3: Redis + Postgres
+    RedisCheckpointer,
+    PostgresCheckpointer,
+} from './ai/graph';
+export type {
+    Checkpointer,
+    Checkpoint,
+    CheckpointMetadata,
+    SerializedAgentState,
+    RedisClient,
+    RedisCheckpointerConfig,
+    PostgresClient,
+    PostgresCheckpointerConfig,
+} from './ai/graph';
 
 // Tool Registry
 export { ToolRegistry, ToolConflictError } from './lib/tool-registry';
