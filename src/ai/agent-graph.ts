@@ -240,129 +240,138 @@ export class AgentGraph {
      * Predict node - calls LLM.
      */
     private async predictNode(state: AgentState): Promise<Partial<AgentState>> {
+        const tracer = getGlobalTracer();
         const { events } = this.options;
 
-        // Notify node entry
-        events?.onNodeEnter?.('predict');
+        return tracer.withSpan('agent_graph.predict', async (span) => {
+            span.setAttribute('step_count', state.stepCount);
+            span.setAttribute('message_count', state.messages.length);
 
-        // Check step limit
-        if (state.stepCount >= state.maxSteps) {
+            // Notify node entry
+            events?.onNodeEnter?.('predict');
+
+            // Check step limit
+            if (state.stepCount >= state.maxSteps) {
+                events?.onNodeExit?.('predict');
+                return { done: true };
+            }
+
+            // Compact messages before prediction (if needed)
+            const compactedState = this.compactIfNeeded(state);
+
+            // Strip metadata before API call
+            const apiMessages = stripMeta(compactedState.messages);
+
+            // Execute prediction
+            const result = await predict({
+                client: this.options.client,
+                model: this.options.model,
+                messages: apiMessages,
+                tools: Array.from(state.tools.values()),
+                temperature: this.options.temperature,
+                topP: this.options.topP,
+                maxTokens: this.options.maxTokens,
+                responseFormat: this.options.responseFormat,
+                toolChoice: this.options.toolChoice,
+                abortSignal: state.abortSignal,
+            });
+
+            // Build step result
+            const textStep: StepResult = {
+                type: 'text',
+                content: result.message.content as string || '',
+                reasoning: result.reasoning,
+                toolCalls: result.message.tool_calls,
+            };
+            this.steps.push(textStep);
+            events?.onStepFinish?.(textStep);
+
+            // Check if done - use hasToolCalls as primary gate
+            // High fix: finishReason can be null/missing, but tool_calls presence is reliable
+            const hasToolCalls = (result.message.tool_calls?.length ?? 0) > 0;
+            const isDone = !hasToolCalls;
+
+            // Update state with compacted messages
+            const newMessages: InternalMessage[] = [
+                ...compactedState.messages,
+                { ...result.message },
+            ];
+
             events?.onNodeExit?.('predict');
-            return { done: true };
-        }
 
-        // Compact messages before prediction (if needed)
-        const compactedState = this.compactIfNeeded(state);
-
-        // Strip metadata before API call
-        const apiMessages = stripMeta(compactedState.messages);
-
-        // Execute prediction
-        const result = await predict({
-            client: this.options.client,
-            model: this.options.model,
-            messages: apiMessages,
-            tools: Array.from(state.tools.values()),
-            temperature: this.options.temperature,
-            topP: this.options.topP,
-            maxTokens: this.options.maxTokens,
-            responseFormat: this.options.responseFormat,
-            toolChoice: this.options.toolChoice,
-            abortSignal: state.abortSignal,
+            return {
+                messages: newMessages,
+                skills: compactedState.skills, // Preserve updated skill list
+                stepCount: state.stepCount + 1,
+                output: isDone ? (result.message.content as string || state.output) : state.output,
+                reasoning: (state.reasoning || '') + (result.reasoning || ''),
+                finishReason: result.finishReason,
+                usage: result.usage,
+                done: isDone,
+            };
         });
-
-        // Build step result
-        const textStep: StepResult = {
-            type: 'text',
-            content: result.message.content as string || '',
-            reasoning: result.reasoning,
-            toolCalls: result.message.tool_calls,
-        };
-        this.steps.push(textStep);
-        events?.onStepFinish?.(textStep);
-
-        // Check if done - use hasToolCalls as primary gate
-        // High fix: finishReason can be null/missing, but tool_calls presence is reliable
-        const hasToolCalls = (result.message.tool_calls?.length ?? 0) > 0;
-        const isDone = !hasToolCalls;
-
-        // Update state with compacted messages
-        const newMessages: InternalMessage[] = [
-            ...compactedState.messages,
-            { ...result.message },
-        ];
-
-        events?.onNodeExit?.('predict');
-
-        return {
-            messages: newMessages,
-            skills: compactedState.skills, // Preserve updated skill list
-            stepCount: state.stepCount + 1,
-            output: isDone ? (result.message.content as string || state.output) : state.output,
-            reasoning: (state.reasoning || '') + (result.reasoning || ''),
-            finishReason: result.finishReason,
-            usage: result.usage,
-            done: isDone,
-        };
     }
 
     /**
      * Execute node - runs tools.
      */
     private async executeNode(state: AgentState): Promise<Partial<AgentState>> {
+        const tracer = getGlobalTracer();
         const { events } = this.options;
 
-        // Notify node entry
-        events?.onNodeEnter?.('execute');
+        return tracer.withSpan('agent_graph.execute', async (span) => {
+            // Notify node entry
+            events?.onNodeEnter?.('execute');
 
-        // Get last message with tool calls
-        const lastMessage = state.messages[state.messages.length - 1];
-        const toolCalls = lastMessage.tool_calls;
+            // Get last message with tool calls
+            const lastMessage = state.messages[state.messages.length - 1];
+            const toolCalls = lastMessage.tool_calls;
 
-        if (!toolCalls?.length) {
-            events?.onNodeExit?.('execute');
-            return {};
-        }
-
-        // Create tool call steps
-        for (const tc of toolCalls) {
-            const callStep: StepResult = {
-                type: 'tool_call',
-                content: tc.function.arguments,
-                toolCalls: [tc],
-            };
-            this.steps.push(callStep);
-            events?.onStepFinish?.(callStep);
-        }
-
-        // Execute tools
-        const results = await executeTools(
-            toolCalls,
-            state.tools,
-            {
-                messages: stripMeta(state.messages),
-                abortSignal: state.abortSignal,
+            if (!toolCalls?.length) {
+                events?.onNodeExit?.('execute');
+                return {};
             }
-        );
 
-        // Create tool result steps and messages
-        const toolMessages = toolResultsToMessages(results);
+            // Create tool call steps
+            for (const tc of toolCalls) {
+                const callStep: StepResult = {
+                    type: 'tool_call',
+                    content: tc.function.arguments,
+                    toolCalls: [tc],
+                };
+                this.steps.push(callStep);
+                events?.onStepFinish?.(callStep);
+            }
 
-        for (const result of results) {
-            const resultStep: StepResult = {
-                type: 'tool_result',
-                content: result.result,
-                toolResults: [{ toolCallId: result.toolCallId, result: result.result }],
+            // Execute tools
+            const results = await executeTools(
+                toolCalls,
+                state.tools,
+                {
+                    messages: stripMeta(state.messages),
+                    abortSignal: state.abortSignal,
+                }
+            );
+
+            // Create tool result steps and messages
+            const toolMessages = toolResultsToMessages(results);
+
+            for (const result of results) {
+                const resultStep: StepResult = {
+                    type: 'tool_result',
+                    content: result.result,
+                    toolResults: [{ toolCallId: result.toolCallId, result: result.result }],
+                };
+                this.steps.push(resultStep);
+                events?.onStepFinish?.(resultStep);
+            }
+
+            events?.onNodeExit?.('execute');
+
+            return {
+                messages: [...state.messages, ...toolMessages.map(m => m as InternalMessage)],
             };
-            this.steps.push(resultStep);
-            events?.onStepFinish?.(resultStep);
-        }
-
-        events?.onNodeExit?.('execute');
-
-        return {
-            messages: [...state.messages, ...toolMessages.map(m => m as InternalMessage)],
-        };
+        });
     }
 
     /**

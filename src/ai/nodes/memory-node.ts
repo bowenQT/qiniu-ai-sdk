@@ -11,7 +11,6 @@ import type { ChatMessage } from '../../lib/types';
 import type { CompactionResult, CompactionConfig, ToolPair, InjectedSkill } from './types';
 import type { InternalMessage } from '../internal-types';
 import { isDroppable, getSkillId } from '../internal-types';
-import { estimateMessageTokens } from '../../lib/token-estimator';
 
 /** Context overflow error */
 export class ContextOverflowError extends Error {
@@ -94,7 +93,7 @@ export function compactMessages(
                 droppableIndices.push({
                     idx,
                     skillId,
-                    tokens: estimateMessageTokens(msg as ChatMessage),
+                    tokens: config.estimateTokens([msg as ChatMessage]),
                 });
             }
         }
@@ -128,7 +127,7 @@ export function compactMessages(
     for (let i = 0; i < result.messages.length && currentTokens > config.maxTokens; i++) {
         if (!protectedIndices.has(i) && !indicesToRemove.has(i) && !isDroppable(result.messages[i])) {
             indicesToRemove.add(i);
-            currentTokens -= estimateMessageTokens(result.messages[i] as ChatMessage);
+            currentTokens -= config.estimateTokens([result.messages[i] as ChatMessage]);
         }
     }
 

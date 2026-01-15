@@ -1,12 +1,13 @@
 /**
- * MCP Client with stdio transport.
- * Phase 1: Bearer token only, no OAuth.
+ * MCP Client with stdio and HTTP transport support.
+ * Phase 1: Bearer token, Phase 3: OAuth 2.0
  */
 
 import { spawn, type ChildProcess } from 'child_process';
 import type {
     MCPClientConfig,
     MCPServerConfig,
+    MCPHttpServerConfig,
     MCPToolDefinition,
     MCPToolResult,
     MCPConnectionState,
@@ -14,6 +15,7 @@ import type {
 import { DEFAULT_MCP_CONFIG } from './types';
 import type { Logger } from '../../lib/logger';
 import { noopLogger } from '../../lib/logger';
+import { MCPHttpTransport } from './http-transport';
 
 /** MCP Client error */
 export class MCPClientError extends Error {
@@ -26,7 +28,10 @@ export class MCPClientError extends Error {
 /** Server connection */
 interface ServerConnection {
     config: MCPServerConfig;
+    // Stdio transport
     process: ChildProcess | null;
+    // HTTP transport (Phase 3)
+    httpTransport: MCPHttpTransport | null;
     state: MCPConnectionState;
     tools: MCPToolDefinition[];
     requestId: number;
@@ -57,6 +62,7 @@ export class MCPClient {
             this.connections.set(server.name, {
                 config: server,
                 process: null,
+                httpTransport: null,
                 state: 'disconnected',
                 tools: [],
                 requestId: 0,
@@ -92,61 +98,76 @@ export class MCPClient {
         conn.state = 'connecting';
 
         try {
-            // Only stdio transport is currently implemented
-            if (conn.config.transport !== 'stdio') {
-                throw new MCPClientError(
-                    `Transport '${conn.config.transport}' not yet implemented. Use 'stdio'.`,
-                    serverName
-                );
+            if (conn.config.transport === 'http') {
+                // HTTP transport (Phase 3)
+                const httpConfig = conn.config as MCPHttpServerConfig;
+                conn.httpTransport = new MCPHttpTransport(httpConfig);
+
+                // Connect with timeout
+                await Promise.race([
+                    conn.httpTransport.connect(),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new MCPClientError('Connection timeout', serverName)), this.config.connectionTimeout)
+                    ),
+                ]);
+
+                // List tools via HTTP transport
+                conn.tools = await conn.httpTransport.listTools();
+                conn.state = 'connected';
+
+                this.logger.info('MCP HTTP server connected', {
+                    server: serverName,
+                    tools: conn.tools.length,
+                });
+            } else {
+                // Stdio transport (Phase 1)
+                const { command, args = [], env = {}, token } = conn.config;
+
+                // Inject bearer token via env if configured
+                const processEnv = { ...process.env, ...env };
+                if (token) {
+                    processEnv.MCP_BEARER_TOKEN = token;
+                }
+
+                conn.process = spawn(command, args, {
+                    stdio: ['pipe', 'pipe', 'pipe'],
+                    env: processEnv,
+                });
+
+                // Handle stdout (JSON-RPC responses)
+                conn.process.stdout?.on('data', (data: Buffer) => {
+                    this.handleData(serverName, data.toString());
+                });
+
+                // Handle stderr (logs)
+                conn.process.stderr?.on('data', (data: Buffer) => {
+                    this.logger.debug('MCP server stderr', { server: serverName, data: data.toString() });
+                });
+
+                // Handle exit
+                conn.process.on('exit', (code) => {
+                    this.logger.info('MCP server exited', { server: serverName, code });
+                    conn.state = 'disconnected';
+                    conn.process = null;
+                });
+
+                // Wait for connection with timeout
+                await Promise.race([
+                    this.initialize(serverName),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new MCPClientError('Connection timeout', serverName)), this.config.connectionTimeout)
+                    ),
+                ]);
+
+                // List tools
+                conn.tools = await this.listToolsInternal(serverName);
+                conn.state = 'connected';
+
+                this.logger.info('MCP server connected', {
+                    server: serverName,
+                    tools: conn.tools.length,
+                });
             }
-
-            // Spawn process (stdio transport)
-            const { command, args = [], env = {}, token } = conn.config;
-
-            // Inject bearer token via env if configured
-            const processEnv = { ...process.env, ...env };
-            if (token) {
-                processEnv.MCP_BEARER_TOKEN = token;
-            }
-
-            conn.process = spawn(command, args, {
-                stdio: ['pipe', 'pipe', 'pipe'],
-                env: processEnv,
-            });
-
-            // Handle stdout (JSON-RPC responses)
-            conn.process.stdout?.on('data', (data: Buffer) => {
-                this.handleData(serverName, data.toString());
-            });
-
-            // Handle stderr (logs)
-            conn.process.stderr?.on('data', (data: Buffer) => {
-                this.logger.debug('MCP server stderr', { server: serverName, data: data.toString() });
-            });
-
-            // Handle exit
-            conn.process.on('exit', (code) => {
-                this.logger.info('MCP server exited', { server: serverName, code });
-                conn.state = 'disconnected';
-                conn.process = null;
-            });
-
-            // Wait for connection with timeout
-            await Promise.race([
-                this.initialize(serverName),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new MCPClientError('Connection timeout', serverName)), this.config.connectionTimeout)
-                ),
-            ]);
-
-            // List tools
-            conn.tools = await this.listToolsInternal(serverName);
-            conn.state = 'connected';
-
-            this.logger.info('MCP server connected', {
-                server: serverName,
-                tools: conn.tools.length,
-            });
         } catch (error) {
             conn.state = 'error';
             throw error;
@@ -158,7 +179,12 @@ export class MCPClient {
      */
     async disconnect(): Promise<void> {
         for (const [name, conn] of this.connections) {
-            if (conn.process) {
+            if (conn.httpTransport) {
+                await conn.httpTransport.disconnect();
+                conn.httpTransport = null;
+                conn.state = 'disconnected';
+                this.logger.info('MCP HTTP server disconnected', { server: name });
+            } else if (conn.process) {
                 conn.process.kill();
                 conn.process = null;
                 conn.state = 'disconnected';
@@ -199,6 +225,12 @@ export class MCPClient {
             throw new MCPClientError(`Server not connected: ${serverName}`, serverName);
         }
 
+        // HTTP transport uses MCPHttpTransport
+        if (conn.httpTransport) {
+            return conn.httpTransport.executeTool(toolName, args);
+        }
+
+        // Stdio transport uses JSON-RPC
         return this.sendRequest(serverName, 'tools/call', {
             name: toolName,
             arguments: args,
