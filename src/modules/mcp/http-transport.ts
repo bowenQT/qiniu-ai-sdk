@@ -33,12 +33,10 @@ export class MCPHttpTransport {
     private client: Client | null = null;
     private transport: StreamableHTTPClientTransport | null = null;
     private readonly config: MCPHttpServerConfig;
-    private readonly tokenProvider?: TokenProvider;
     private connected = false;
 
-    constructor(config: MCPHttpServerConfig, tokenProvider?: TokenProvider) {
+    constructor(config: MCPHttpServerConfig) {
         this.config = config;
-        this.tokenProvider = tokenProvider;
     }
 
     /**
@@ -55,8 +53,8 @@ export class MCPHttpTransport {
         // Add bearer token if available
         if (this.config.token) {
             headers['Authorization'] = `Bearer ${this.config.token}`;
-        } else if (this.tokenProvider) {
-            const token = await this.tokenProvider();
+        } else if (this.config.tokenProvider) {
+            const token = await this.config.tokenProvider();
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
             }
