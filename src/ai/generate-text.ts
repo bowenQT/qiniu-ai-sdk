@@ -545,13 +545,19 @@ export async function generateTextWithGraph(
                 } as ToolParameters,
                 source: { type: 'user', namespace: 'generateText' },
                 execute: tool.execute
-                    ? async (args: Record<string, unknown>) => {
-                        // Medium fix: use currentMessages instead of stale messages
-                        const context: ToolExecutionContext = {
-                            toolCallId: '', // Note: toolCallId comes from execute-node
-                            messages: currentMessages,
-                            abortSignal,
-                        };
+                    ? async (args: Record<string, unknown>, execContext?: { toolCallId: string; messages: Array<{ role: string; content: unknown }>; abortSignal?: AbortSignal }) => {
+                        // Use context from execute-node (has real toolCallId), fallback to currentMessages
+                        const context: ToolExecutionContext = execContext
+                            ? {
+                                toolCallId: execContext.toolCallId,
+                                messages: execContext.messages as ChatMessage[],
+                                abortSignal: execContext.abortSignal,
+                            }
+                            : {
+                                toolCallId: '',
+                                messages: currentMessages,
+                                abortSignal,
+                            };
                         return tool.execute!(args, context);
                     }
                     : undefined,

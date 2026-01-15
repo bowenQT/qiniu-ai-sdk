@@ -25,13 +25,20 @@ export interface ToolParameters {
     required?: string[];
 }
 
+/** Tool execution context for registered tools */
+export interface RegisteredToolContext {
+    toolCallId: string;
+    messages: Array<{ role: string; content: unknown }>;
+    abortSignal?: AbortSignal;
+}
+
 /** Registered tool definition */
 export interface RegisteredTool {
     name: string;
     description: string;
     parameters: ToolParameters;
     source: ToolSource;
-    execute?: (args: Record<string, unknown>) => Promise<unknown>;
+    execute?: (args: Record<string, unknown>, context?: RegisteredToolContext) => Promise<unknown>;
 }
 
 /** Conflict resolution strategy */
