@@ -13,9 +13,11 @@ TypeScript SDK for Qiniu Cloud AI Token API.
 - 📋 **JSON Mode** - Structured output with `response_format`
 - 🔌 **Vercel AI SDK Adapter** - Drop-in replacement for Vercel AI SDK
 - 📦 **TypeScript First** - Full type definitions included
-- 🧠 **Skills** - Markdown-based agent knowledge injection (v7)
-- 🔗 **MCP Client** - Model Context Protocol stdio transport (v7)
-- 💾 **Checkpointer** - Save/restore conversation state (v7)
+- 🧠 **Skills** - Markdown-based agent knowledge injection 
+- 🔗 **MCP Client** - Model Context Protocol stdio + HTTP transport 
+- 🔐 **OAuth 2.0** - PKCE and Device Code flows for MCP HTTP 
+- 💾 **Checkpointer** - Save/restore state: Memory, Redis, PostgreSQL 
+- 📊 **Tracing** - OpenTelemetry integration with per-node spans 
 
 ## Requirements
 
@@ -240,7 +242,7 @@ try {
 }
 ```
 
-## Agent SDK v7 (New!)
+## Agent SDK (Agentic Layer)
 
 Phase 2 introduces advanced agentic capabilities with Skills injection, MCP integration, and Graph-based execution.
 
@@ -344,6 +346,57 @@ const registeredTools = adaptMCPToolsToRegistry(tools, 'github', mcpClient);
 
 > **Note**: Bearer token is injected via `MCP_BEARER_TOKEN` environment variable for stdio transport.
 
+### MCP Client (HTTP + OAuth 2.0)
+
+Connect to remote MCP servers with OAuth authentication:
+
+```typescript
+import { 
+  MCPClient, 
+  PKCEFlow, 
+  TokenManager, 
+  MemoryTokenStore 
+} from '@bowenqt/qiniu-ai-sdk';
+
+// Step 1: Obtain tokens via PKCE flow
+const oauthConfig = {
+  clientId: 'my-app',
+  scopes: ['mcp:read', 'mcp:write'],
+  authorizationUrl: 'https://auth.example.com/authorize',
+  tokenUrl: 'https://auth.example.com/token',
+};
+
+const pkceFlow = new PKCEFlow(oauthConfig);
+const state = generateState();
+const authUrl = pkceFlow.buildAuthorizationUrl('http://localhost:3000/callback', state);
+// Redirect user to authUrl...
+
+// After callback:
+const { code } = await pkceFlow.waitForCallback({ expectedState: state, timeoutMs: 300000 });
+const tokens = await pkceFlow.exchangeCode(code, 'http://localhost:3000/callback');
+
+// Step 2: Set up TokenManager
+const tokenManager = new TokenManager(new MemoryTokenStore(), oauthConfig);
+await tokenManager.setTokens(tokens);
+
+// Step 3: Connect with tokenProvider
+const mcpClient = new MCPClient({
+  servers: [
+    {
+      name: 'remote-server',
+      transport: 'http',
+      url: 'https://mcp.example.com/mcp',
+      tokenProvider: () => tokenManager.getAccessToken(),
+      oauth: oauthConfig, // Required: validates auth is configured
+    },
+  ],
+});
+
+await mcpClient.connect();
+```
+
+> **Note**: If `oauth` is configured without `token` or `tokenProvider`, MCPClient throws an error to prevent unauthenticated connections.
+
 ### Checkpointer
 
 Save and restore conversation state:
@@ -365,6 +418,47 @@ if (checkpoint) {
 
 // List all checkpoints
 const list = await checkpointer.list('thread-123');
+```
+
+### Redis/PostgreSQL Checkpointer
+
+For production persistence:
+
+```typescript
+import { RedisCheckpointer, PostgresCheckpointer } from '@bowenqt/qiniu-ai-sdk';
+
+// Redis (requires ioredis peer dependency)
+const redisCheckpointer = new RedisCheckpointer(redisClient, {
+  keyPrefix: 'chat:',
+  ttlSeconds: 86400, // 24 hours
+});
+
+// PostgreSQL (requires pg peer dependency)
+const pgCheckpointer = new PostgresCheckpointer(pgPool, {
+  tableName: 'checkpoints',
+  autoCreateTable: true,
+});
+```
+
+### Tracing (OpenTelemetry)
+
+Integrate with OpenTelemetry for distributed tracing:
+
+```typescript
+import { setGlobalTracer, OTelTracer, ConsoleTracer } from '@bowenqt/qiniu-ai-sdk';
+
+// Console tracer for development
+setGlobalTracer(new ConsoleTracer({ redactPII: true }));
+
+// OpenTelemetry tracer for production
+import { trace } from '@opentelemetry/api';
+const otelTracer = new OTelTracer(trace.getTracerProvider());
+setGlobalTracer(otelTracer);
+
+// AgentGraph automatically creates spans:
+// - agent_graph.invoke (top-level)
+// - agent_graph.predict (per LLM call)
+// - agent_graph.execute (per tool execution round)
 ```
 
 
