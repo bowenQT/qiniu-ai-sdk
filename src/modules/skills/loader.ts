@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { Skill, SkillLoaderConfig, SkillReference } from './types';
 import { DEFAULT_SKILL_CONFIG } from './types';
+import { defaultContentEstimator } from '../../lib/token-estimator';
 
 /** Security error for path/file violations */
 export class SkillSecurityError extends Error {
@@ -213,26 +214,10 @@ export class SkillLoader {
     }
 
     /**
-     * Estimate token count with CJK multiplier.
+     * Estimate token count using unified token-estimator.
      */
     private estimateTokens(text: string): number {
-        // Count CJK characters
-        const cjkPattern = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/g;
-        const cjkMatches = text.match(cjkPattern);
-        const cjkCount = cjkMatches?.length ?? 0;
-
-        // CJK ratio
-        const cjkRatio = cjkCount / text.length;
-
-        // Base estimate: ~4 chars per token
-        const baseTokens = Math.ceil(text.length / 4);
-
-        // Apply CJK multiplier if significant CJK content (>20%)
-        if (cjkRatio > 0.2) {
-            return Math.ceil(baseTokens * 1.5);
-        }
-
-        return baseTokens;
+        return defaultContentEstimator(text);
     }
 
     /**

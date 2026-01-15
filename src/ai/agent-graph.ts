@@ -368,8 +368,15 @@ export class AgentGraph {
 
             events?.onNodeExit?.('execute');
 
+            // Build new messages with tool results
+            const newMessages = [...state.messages, ...toolMessages.map(m => m as InternalMessage)];
+
+            // Compact after execute if needed (tool results can be large)
+            const postExecuteState = this.compactIfNeeded({ ...state, messages: newMessages });
+
             return {
-                messages: [...state.messages, ...toolMessages.map(m => m as InternalMessage)],
+                messages: postExecuteState.messages,
+                skills: postExecuteState.skills,
             };
         });
     }

@@ -51,7 +51,11 @@ export interface MCPHttpServerConfig extends MCPServerConfigBase {
     transport: 'http';
     /** MCP server URL (e.g., https://mcp.example.com/mcp) */
     url: string;
-    /** OAuth configuration (if server requires auth) */
+    /** Static bearer token for authentication */
+    token?: string;
+    /** Dynamic token provider (e.g., from TokenManager) */
+    tokenProvider?: () => Promise<string>;
+    /** OAuth configuration (for reference, use with TokenManager) */
     oauth?: MCPOAuthConfig;
     /** Custom headers */
     headers?: Record<string, string>;

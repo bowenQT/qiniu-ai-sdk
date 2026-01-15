@@ -101,6 +101,16 @@ export class MCPClient {
             if (conn.config.transport === 'http') {
                 // HTTP transport (Phase 3)
                 const httpConfig = conn.config as MCPHttpServerConfig;
+
+                // Validate authentication configuration
+                if (httpConfig.oauth && !httpConfig.token && !httpConfig.tokenProvider) {
+                    throw new MCPClientError(
+                        `OAuth configured for '${serverName}' but no token or tokenProvider provided. ` +
+                        'Use PKCEFlow/DeviceCodeFlow to obtain tokens first, then provide via token or tokenProvider.',
+                        serverName
+                    );
+                }
+
                 conn.httpTransport = new MCPHttpTransport(httpConfig);
 
                 // Connect with timeout
@@ -196,6 +206,7 @@ export class MCPClient {
     /**
      * Get all tools from all connected servers.
      * Sorted by server name, then tool name for deterministic order.
+     * Only returns tools from servers with state 'connected'.
      */
     getAllTools(): MCPToolDefinition[] {
         const allTools: Array<MCPToolDefinition & { server: string }> = [];
@@ -203,6 +214,8 @@ export class MCPClient {
         const serverNames = Array.from(this.connections.keys()).sort();
         for (const serverName of serverNames) {
             const conn = this.connections.get(serverName)!;
+            // Only include tools from connected servers
+            if (conn.state !== 'connected') continue;
             for (const tool of conn.tools) {
                 allTools.push({ ...tool, server: serverName });
             }
