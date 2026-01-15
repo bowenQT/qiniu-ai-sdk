@@ -18,6 +18,8 @@ export interface MessageMeta {
     droppable?: boolean;
     /** Original message index before injection */
     originalIndex?: number;
+    /** Skill priority for stable compaction (lower = drop first) */
+    priority?: number;
 }
 
 /**

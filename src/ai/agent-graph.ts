@@ -1,6 +1,8 @@
 /**
  * AgentGraph - High-level agent execution wrapper.
  * Encapsulates predict→execute→memory loop with event bridging.
+ *
+ * IMPORTANT: All compaction uses estimateMessageTokens from token-estimator.ts
  */
 
 import type { QiniuAI } from '../client';
@@ -10,6 +12,9 @@ import type { Skill } from '../modules/skills';
 import { StateGraph, END } from './graph';
 import { predict, type PredictResult } from './nodes/predict-node';
 import { executeTools, toolResultsToMessages, type ToolExecutionResult } from './nodes/execute-node';
+import { compactMessages, ContextOverflowError } from './nodes/memory-node';
+import type { CompactionConfig, CompactionResult } from './nodes/types';
+import { estimateMessageTokens, type TokenEstimatorConfig } from '../lib/token-estimator';
 import type {
     AgentState,
     InternalMessage,
@@ -28,7 +33,12 @@ export interface AgentGraphOptions {
     maxSteps?: number;
     temperature?: number;
     topP?: number;
+    /** Output token limit (sent to LLM) */
     maxTokens?: number;
+    /** Context token budget for compaction (default: no compaction) */
+    maxContextTokens?: number;
+    /** Token estimator configuration */
+    tokenEstimatorConfig?: TokenEstimatorConfig;
     responseFormat?: ResponseFormat;
     toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
     abortSignal?: AbortSignal;
@@ -42,6 +52,15 @@ export interface AgentGraphResult {
     steps: StepResult[];
     usage?: AgentState['usage'];
     finishReason: string | null;
+    /** Compaction information */
+    compaction?: {
+        /** Whether compaction occurred */
+        occurred: boolean;
+        /** Skills dropped during compaction */
+        droppedSkills: string[];
+        /** Number of messages dropped */
+        droppedMessages: number;
+    };
 }
 
 /**
@@ -51,6 +70,10 @@ export class AgentGraph {
     private readonly options: AgentGraphOptions;
     private readonly graph: ReturnType<typeof this.buildGraph>;
     private steps: StepResult[] = [];
+    /** Compaction tracking */
+    private compactionOccurred = false;
+    private droppedSkills: string[] = [];
+    private droppedMessages = 0;
 
     constructor(options: AgentGraphOptions) {
         this.options = options;
@@ -58,11 +81,77 @@ export class AgentGraph {
     }
 
     /**
+     * Compact messages if needed based on maxContextTokens.
+     * Uses estimateMessageTokens from token-estimator.ts for all estimation.
+     */
+    private compactIfNeeded(state: AgentState): AgentState {
+        const { maxContextTokens, tokenEstimatorConfig } = this.options;
+
+        // Skip if no budget specified
+        if (!maxContextTokens) {
+            return state;
+        }
+
+        // Build compaction config using estimateMessageTokens
+        const config: CompactionConfig = {
+            maxTokens: maxContextTokens,
+            estimateTokens: (msgs) => {
+                return msgs.reduce(
+                    (sum, msg) => sum + estimateMessageTokens(msg as any, tokenEstimatorConfig),
+                    0
+                );
+            },
+        };
+
+        // Get current skills from _meta
+        const currentSkills = this.getInjectedSkillsFromMessages(state.messages);
+
+        // Perform compaction
+        const result = compactMessages(state.messages, config, currentSkills);
+
+        // Track compaction results
+        if (result.occurred) {
+            this.compactionOccurred = true;
+            this.droppedSkills.push(...result.droppedSkills);
+            this.droppedMessages += result.droppedMessages;
+        }
+
+        return {
+            ...state,
+            messages: result.messages as InternalMessage[],
+            skills: this.getInjectedSkillsFromMessages(result.messages as InternalMessage[]),
+        };
+    }
+
+    /**
+     * Get injected skills from message _meta.
+     * Priority is derived from skill name ASCII order, not message order.
+     */
+    private getInjectedSkillsFromMessages(messages: InternalMessage[]): InjectedSkill[] {
+        const skills = messages
+            .map((msg, idx) => ({ msg, idx }))
+            .filter(({ msg }) => msg._meta?.skillId && msg._meta?.droppable)
+            .map(({ msg, idx }) => ({
+                name: msg._meta!.skillId!,
+                priority: msg._meta!.priority ?? 0,
+                messageIndex: idx,
+                tokenCount: estimateMessageTokens(msg as any, this.options.tokenEstimatorConfig),
+            }));
+
+        // Sort by name for stable priority
+        return skills.sort((a, b) => a.name.localeCompare(b.name))
+            .map((s, idx) => ({ ...s, priority: idx }));
+    }
+
+    /**
      * Execute the agent graph.
      */
     async invoke(messages: InternalMessage[]): Promise<AgentGraphResult> {
-        // Reset steps
+        // Reset steps and compaction tracking
         this.steps = [];
+        this.compactionOccurred = false;
+        this.droppedSkills = [];
+        this.droppedMessages = 0;
 
         // Build tools map
         const toolsMap = new Map<string, RegisteredTool>();
@@ -104,6 +193,11 @@ export class AgentGraph {
             steps: this.steps,
             usage: finalState.usage,
             finishReason: finalState.finishReason,
+            compaction: this.compactionOccurred ? {
+                occurred: true,
+                droppedSkills: this.droppedSkills,
+                droppedMessages: this.droppedMessages,
+            } : undefined,
         };
     }
 
@@ -139,8 +233,11 @@ export class AgentGraph {
             return { done: true };
         }
 
+        // Compact messages before prediction (if needed)
+        const compactedState = this.compactIfNeeded(state);
+
         // Strip metadata before API call
-        const apiMessages = stripMeta(state.messages);
+        const apiMessages = stripMeta(compactedState.messages);
 
         // Execute prediction
         const result = await predict({
@@ -171,9 +268,9 @@ export class AgentGraph {
         const hasToolCalls = (result.message.tool_calls?.length ?? 0) > 0;
         const isDone = !hasToolCalls;
 
-        // Update state
+        // Update state with compacted messages
         const newMessages: InternalMessage[] = [
-            ...state.messages,
+            ...compactedState.messages,
             { ...result.message },
         ];
 
@@ -181,6 +278,7 @@ export class AgentGraph {
 
         return {
             messages: newMessages,
+            skills: compactedState.skills, // Preserve updated skill list
             stepCount: state.stepCount + 1,
             output: isDone ? (result.message.content as string || state.output) : state.output,
             reasoning: (state.reasoning || '') + (result.reasoning || ''),

@@ -37,9 +37,13 @@ export interface ToolPair {
 
 /** Skill injection metadata */
 export interface InjectedSkill {
+    /** Skill name */
     name: string;
-    startIndex: number;
-    endIndex: number;
-    tokenCount: number;
+    /** Priority for compaction (lower = drop first) */
     priority: number;
+    /** Message index in messages array */
+    messageIndex: number;
+    /** Estimated token count */
+    tokenCount: number;
 }
+
