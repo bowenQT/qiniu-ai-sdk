@@ -169,3 +169,12 @@ export type { NodeFunction, EdgeResolver, CompiledGraph, InvokeOptions, StateGra
 export { compactMessages, buildToolPairs, ContextOverflowError } from './ai/nodes/memory-node';
 export type { CompactionResult, CompactionConfig, ToolPair, InjectedSkill } from './ai/nodes';
 
+// Token Estimator
+export {
+    createTokenEstimator,
+    defaultContentEstimator,
+    estimateMessageTokens,
+    estimateMessagesTokens,
+    DEFAULT_ESTIMATOR_CONFIG,
+} from './lib/token-estimator';
+export type { TokenEstimatorConfig, ContentEstimator, EstimableMessage } from './lib/token-estimator';
