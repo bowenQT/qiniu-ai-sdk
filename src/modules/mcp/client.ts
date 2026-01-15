@@ -92,7 +92,15 @@ export class MCPClient {
         conn.state = 'connecting';
 
         try {
-            // Spawn process
+            // Only stdio transport is currently implemented
+            if (conn.config.transport !== 'stdio') {
+                throw new MCPClientError(
+                    `Transport '${conn.config.transport}' not yet implemented. Use 'stdio'.`,
+                    serverName
+                );
+            }
+
+            // Spawn process (stdio transport)
             const { command, args = [], env = {}, token } = conn.config;
 
             // Inject bearer token via env if configured

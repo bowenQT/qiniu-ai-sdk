@@ -1,28 +1,66 @@
 /**
  * MCP (Model Context Protocol) Client types.
- * Phase 1: stdio transport + Bearer token only.
+ * Phase 1: stdio transport + Bearer token
+ * Phase 3: HTTP transport + OAuth 2.0
  */
 
 import type { ToolParameters } from '../../lib/tool-registry';
 
 /** MCP transport type */
-export type MCPTransport = 'stdio';
+export type MCPTransport = 'stdio' | 'http';
 
-/** MCP server configuration */
-export interface MCPServerConfig {
+/** OAuth 2.0 configuration for HTTP transport */
+export interface MCPOAuthConfig {
+    /** OAuth client ID */
+    clientId: string;
+    /** OAuth client secret (optional for public clients) */
+    clientSecret?: string;
+    /** Requested scopes */
+    scopes: string[];
+    /** Authorization endpoint URL (auto-discovered if not set) */
+    authorizationUrl?: string;
+    /** Token endpoint URL (auto-discovered if not set) */
+    tokenUrl?: string;
+    /** Device code endpoint for headless auth (optional) */
+    deviceCodeUrl?: string;
+    /** Redirect URI for auth code flow (default: random localhost port) */
+    redirectUri?: string;
+}
+
+/** Base MCP server configuration */
+export interface MCPServerConfigBase {
     /** Server name (unique identifier) */
     name: string;
-    /** Transport type */
-    transport: MCPTransport;
-    /** Command to execute (for stdio) */
+    /** Bearer token for authentication (legacy) */
+    token?: string;
+}
+
+/** Stdio transport configuration */
+export interface MCPStdioServerConfig extends MCPServerConfigBase {
+    transport: 'stdio';
+    /** Command to execute */
     command: string;
     /** Command arguments */
     args?: string[];
     /** Environment variables */
     env?: Record<string, string>;
-    /** Bearer token for authentication */
-    token?: string;
 }
+
+/** HTTP transport configuration */
+export interface MCPHttpServerConfig extends MCPServerConfigBase {
+    transport: 'http';
+    /** MCP server URL (e.g., https://mcp.example.com/mcp) */
+    url: string;
+    /** OAuth configuration (if server requires auth) */
+    oauth?: MCPOAuthConfig;
+    /** Custom headers */
+    headers?: Record<string, string>;
+    /** Request timeout in ms (default: 30000) */
+    timeout?: number;
+}
+
+/** Union type for server configuration */
+export type MCPServerConfig = MCPStdioServerConfig | MCPHttpServerConfig;
 
 /** MCP tool definition from server */
 export interface MCPToolDefinition {
@@ -56,4 +94,6 @@ export type MCPConnectionState = 'disconnected' | 'connecting' | 'connected' | '
 /** Default configuration */
 export const DEFAULT_MCP_CONFIG = {
     connectionTimeout: 30000, // 30s
+    httpTimeout: 30000, // 30s per request
 } as const;
+
