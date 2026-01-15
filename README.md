@@ -246,7 +246,7 @@ Phase 2 introduces advanced agentic capabilities with Skills injection, MCP inte
 
 ### generateTextWithGraph
 
-Extended version of `generateText` with Skills and Graph events:
+Extended version of `generateText` with Skills, context compaction, and Graph events:
 
 ```typescript
 import { QiniuAI, generateTextWithGraph, SkillLoader } from '@bowenqt/qiniu-ai-sdk';
@@ -262,13 +262,25 @@ const result = await generateTextWithGraph({
   model: 'deepseek-v3',
   messages: [{ role: 'user', content: 'Help me with Git' }],
   skills, // Injected into system prompt
+  maxContextTokens: 32000, // Automatic context compaction
   onStepFinish: (step) => console.log(step.type, step.content),
   onNodeEnter: (node) => console.log(`Entering: ${node}`),
 });
 
 console.log(result.text);
 console.log(result.graphInfo?.skillsInjected); // ['git-workflow', ...]
+
+// Check if compaction occurred
+if (result.graphInfo?.compaction?.occurred) {
+  console.log('Dropped skills:', result.graphInfo.compaction.droppedSkills);
+}
 ```
+
+**Context Compaction**: When `maxContextTokens` is set, the SDK automatically:
+- Estimates tokens using CJK-aware algorithm (1.5x weight for Chinese/Japanese/Korean)
+- Drops low-priority skills first when context exceeds budget
+- Preserves tool call/result pairs (never orphaned)
+- Reports dropped content in `graphInfo.compaction`
 
 ### Skills
 
