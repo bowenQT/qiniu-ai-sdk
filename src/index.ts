@@ -178,3 +178,19 @@ export {
     DEFAULT_ESTIMATOR_CONFIG,
 } from './lib/token-estimator';
 export type { TokenEstimatorConfig, ContentEstimator, EstimableMessage } from './lib/token-estimator';
+
+// Tracer (Observability)
+export {
+    NoopTracer,
+    ConsoleTracer,
+    setGlobalTracer,
+    getGlobalTracer,
+    redactContent,
+    redactAttributes,
+    DEFAULT_TRACER_CONFIG,
+    PRODUCTION_TRACER_CONFIG,
+} from './lib/tracer';
+export type { Span, Tracer, TracerConfig } from './lib/tracer';
+
+// OTel Tracer (optional)
+export { OTelTracer } from './lib/otel-tracer';
