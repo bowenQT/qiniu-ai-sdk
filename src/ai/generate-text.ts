@@ -455,6 +455,8 @@ import type { Skill } from '../modules/skills';
 export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
     /** Skills to inject into the conversation */
     skills?: Skill[];
+    /** Context token budget for compaction */
+    maxContextTokens?: number;
     /** Event handler for node entry */
     onNodeEnter?: (nodeName: string) => void;
     /** Event handler for node exit */
@@ -469,6 +471,12 @@ export interface GenerateTextWithGraphResult extends GenerateTextResult {
     graphInfo?: {
         nodesVisited: string[];
         skillsInjected: string[];
+        /** Compaction information */
+        compaction?: {
+            occurred: boolean;
+            droppedSkills: string[];
+            droppedMessages: number;
+        };
     };
 }
 
@@ -501,6 +509,7 @@ export async function generateTextWithGraph(
         tools,
         skills,
         maxSteps = 10,
+        maxContextTokens,
         onStepFinish,
         onNodeEnter,
         onNodeExit,
@@ -560,6 +569,7 @@ export async function generateTextWithGraph(
         tools: registeredTools,
         skills,
         maxSteps,
+        maxContextTokens, // Pass through for compaction
         temperature,
         topP,
         maxTokens,
@@ -613,6 +623,7 @@ export async function generateTextWithGraph(
         graphInfo: {
             nodesVisited,
             skillsInjected: skills?.map(s => s.name) || [],
+            compaction: graphResult.compaction,
         },
     };
 }
