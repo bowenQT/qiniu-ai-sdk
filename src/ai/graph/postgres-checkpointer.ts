@@ -1,0 +1,202 @@
+/**
+ * PostgreSQL Checkpointer implementation.
+ * Requires pg as a peer dependency.
+ *
+ * @example
+ * ```typescript
+ * import { Pool } from 'pg';
+ * import { PostgresCheckpointer } from '@bowenqt/qiniu-ai-sdk';
+ *
+ * const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+ * const checkpointer = new PostgresCheckpointer(pool, { tableName: 'checkpoints' });
+ *
+ * // Create table (run once)
+ * await checkpointer.createTable();
+ * ```
+ */
+
+import type { AgentState } from '../internal-types';
+import type { Checkpoint, CheckpointMetadata, Checkpointer, SerializedAgentState } from './checkpointer';
+
+/** Postgres client interface (compatible with pg Pool) */
+export interface PostgresClient {
+    query<T = unknown>(text: string, values?: unknown[]): Promise<{ rows: T[] }>;
+}
+
+/** Postgres checkpointer configuration */
+export interface PostgresCheckpointerConfig {
+    /** Table name (default: 'qiniu_checkpoints') */
+    tableName?: string;
+    /** Schema name (default: 'public') */
+    schema?: string;
+}
+
+/**
+ * PostgreSQL-based checkpointer.
+ * Uses pg-compatible client interface.
+ */
+export class PostgresCheckpointer implements Checkpointer {
+    private readonly client: PostgresClient;
+    private readonly tableName: string;
+    private readonly schema: string;
+
+    constructor(client: PostgresClient, config: PostgresCheckpointerConfig = {}) {
+        this.client = client;
+        this.tableName = config.tableName ?? 'qiniu_checkpoints';
+        this.schema = config.schema ?? 'public';
+    }
+
+    private get table(): string {
+        return `"${this.schema}"."${this.tableName}"`;
+    }
+
+    /**
+     * Create the checkpoints table if it doesn't exist.
+     * Run this during application setup.
+     */
+    async createTable(): Promise<void> {
+        await this.client.query(`
+            CREATE TABLE IF NOT EXISTS ${this.table} (
+                id TEXT PRIMARY KEY,
+                thread_id TEXT NOT NULL,
+                created_at BIGINT NOT NULL,
+                step_count INTEGER NOT NULL,
+                custom JSONB,
+                state JSONB NOT NULL,
+                created_at_ts TIMESTAMP DEFAULT NOW()
+            )
+        `);
+
+        await this.client.query(`
+            CREATE INDEX IF NOT EXISTS idx_${this.tableName}_thread_id 
+            ON ${this.table} (thread_id)
+        `);
+
+        await this.client.query(`
+            CREATE INDEX IF NOT EXISTS idx_${this.tableName}_created_at 
+            ON ${this.table} (created_at DESC)
+        `);
+    }
+
+    async save(
+        threadId: string,
+        state: AgentState,
+        custom?: Record<string, unknown>
+    ): Promise<CheckpointMetadata> {
+        const id = `ckpt_${threadId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const createdAt = Date.now();
+
+        const metadata: CheckpointMetadata = {
+            id,
+            threadId,
+            createdAt,
+            stepCount: state.stepCount,
+            custom,
+        };
+
+        const serializedState = this.serializeState(state);
+
+        await this.client.query(
+            `INSERT INTO ${this.table} (id, thread_id, created_at, step_count, custom, state) 
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [id, threadId, createdAt, state.stepCount, JSON.stringify(custom ?? {}), JSON.stringify(serializedState)]
+        );
+
+        return metadata;
+    }
+
+    async load(threadId: string): Promise<Checkpoint | null> {
+        interface Row {
+            id: string;
+            thread_id: string;
+            created_at: string;
+            step_count: number;
+            custom: Record<string, unknown>;
+            state: SerializedAgentState;
+        }
+
+        const result = await this.client.query<Row>(
+            `SELECT id, thread_id, created_at, step_count, custom, state 
+             FROM ${this.table} 
+             WHERE thread_id = $1 
+             ORDER BY created_at DESC 
+             LIMIT 1`,
+            [threadId]
+        );
+
+        if (result.rows.length === 0) return null;
+
+        const row = result.rows[0];
+        return {
+            metadata: {
+                id: row.id,
+                threadId: row.thread_id,
+                createdAt: Number(row.created_at),
+                stepCount: row.step_count,
+                custom: row.custom,
+            },
+            state: row.state,
+        };
+    }
+
+    async list(threadId: string): Promise<CheckpointMetadata[]> {
+        interface Row {
+            id: string;
+            thread_id: string;
+            created_at: string;
+            step_count: number;
+            custom: Record<string, unknown>;
+        }
+
+        const result = await this.client.query<Row>(
+            `SELECT id, thread_id, created_at, step_count, custom 
+             FROM ${this.table} 
+             WHERE thread_id = $1 
+             ORDER BY created_at DESC`,
+            [threadId]
+        );
+
+        return result.rows.map(row => ({
+            id: row.id,
+            threadId: row.thread_id,
+            createdAt: Number(row.created_at),
+            stepCount: row.step_count,
+            custom: row.custom,
+        }));
+    }
+
+    async delete(checkpointId: string): Promise<boolean> {
+        const result = await this.client.query(
+            `DELETE FROM ${this.table} WHERE id = $1`,
+            [checkpointId]
+        );
+        return (result as { rowCount?: number }).rowCount === 1;
+    }
+
+    async clear(threadId: string): Promise<number> {
+        const result = await this.client.query(
+            `DELETE FROM ${this.table} WHERE thread_id = $1`,
+            [threadId]
+        );
+        return (result as { rowCount?: number }).rowCount ?? 0;
+    }
+
+    private serializeState(state: AgentState): SerializedAgentState {
+        return {
+            messages: state.messages.map(msg => ({
+                role: msg.role,
+                content: msg.content,
+                tool_calls: msg.tool_calls,
+                tool_call_id: msg.tool_call_id,
+                _meta: msg._meta,
+            })),
+            stepCount: state.stepCount,
+            maxSteps: state.maxSteps,
+            done: state.done,
+            output: state.output,
+            reasoning: state.reasoning,
+            finishReason: state.finishReason,
+            usage: state.usage,
+        };
+    }
+}
