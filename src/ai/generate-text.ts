@@ -3,7 +3,6 @@ import type { ChatCompletionRequest, ChatMessage, ToolCall, ResponseFormat } fro
 import type { StreamResult } from '../modules/chat';
 import { MaxStepsExceededError, ToolExecutionError } from '../lib/errors';
 import type { Checkpointer } from './graph/checkpointer';
-import { deserializeCheckpoint } from './graph/checkpointer';
 
 export interface ToolExecutionContext {
     toolCallId: string;
@@ -542,8 +541,15 @@ export async function generateTextWithGraph(
     if (checkpointer && threadId && resumeFromCheckpoint) {
         const checkpoint = await checkpointer.load(threadId);
         if (checkpoint) {
-            // Extract messages from checkpoint (tools will be re-injected by graph)
-            resumedMessages = checkpoint.state.messages as ChatMessage[];
+            // Extract historical messages and append new input
+            const historicalMessages = checkpoint.state.messages as ChatMessage[];
+            const newMessages = normalizeMessages(options);
+            // Only append new messages if there are any (avoid duplicating history)
+            if (newMessages.length > 0) {
+                resumedMessages = [...historicalMessages, ...newMessages];
+            } else {
+                resumedMessages = historicalMessages;
+            }
         }
     }
 
