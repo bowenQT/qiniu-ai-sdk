@@ -62,6 +62,8 @@ export interface AgentGraphResult {
         /** Number of messages dropped */
         droppedMessages: number;
     };
+    /** Final agent state (for checkpointing) */
+    state: AgentState;
 }
 
 /**
@@ -215,6 +217,7 @@ export class AgentGraph {
                     droppedSkills: this.droppedSkills,
                     droppedMessages: this.droppedMessages,
                 } : undefined,
+                state: finalState,
             };
         });
     }

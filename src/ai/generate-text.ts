@@ -2,6 +2,8 @@ import type { QiniuAI } from '../client';
 import type { ChatCompletionRequest, ChatMessage, ToolCall, ResponseFormat } from '../lib/types';
 import type { StreamResult } from '../modules/chat';
 import { MaxStepsExceededError, ToolExecutionError } from '../lib/errors';
+import type { Checkpointer } from './graph/checkpointer';
+import { deserializeCheckpoint } from './graph/checkpointer';
 
 export interface ToolExecutionContext {
     toolCallId: string;
@@ -461,6 +463,12 @@ export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
     onNodeEnter?: (nodeName: string) => void;
     /** Event handler for node exit */
     onNodeExit?: (nodeName: string) => void;
+    /** Checkpointer for state persistence */
+    checkpointer?: Checkpointer;
+    /** Thread ID for checkpoint (required if checkpointer provided) */
+    threadId?: string;
+    /** Resume from checkpoint if available (default: true) */
+    resumeFromCheckpoint?: boolean;
 }
 
 /**
@@ -519,10 +527,28 @@ export async function generateTextWithGraph(
         maxTokens,
         responseFormat,
         toolChoice,
+        checkpointer,
+        threadId,
+        resumeFromCheckpoint = true,
     } = options;
 
-    // Normalize messages
-    const messages = normalizeMessages(options);
+    // Validate checkpointer + threadId combination
+    if (checkpointer && !threadId) {
+        throw new Error('threadId is required when checkpointer is provided');
+    }
+
+    // Try to resume from checkpoint if available
+    let resumedMessages: ChatMessage[] | null = null;
+    if (checkpointer && threadId && resumeFromCheckpoint) {
+        const checkpoint = await checkpointer.load(threadId);
+        if (checkpoint) {
+            // Extract messages from checkpoint (tools will be re-injected by graph)
+            resumedMessages = checkpoint.state.messages as ChatMessage[];
+        }
+    }
+
+    // Normalize messages - use resumed messages if available, otherwise input
+    const messages = resumedMessages ?? normalizeMessages(options);
 
     // Track current messages for tool context (will be updated during execution)
     let currentMessages = [...messages];
@@ -609,6 +635,11 @@ export async function generateTextWithGraph(
 
     // Execute graph
     const graphResult = await graph.invoke(messages);
+
+    // Save checkpoint if checkpointer provided
+    if (checkpointer && threadId) {
+        await checkpointer.save(threadId, graphResult.state);
+    }
 
     // Build result
     return {

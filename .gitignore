@@ -33,3 +33,6 @@ coverage/
 # Local verification (ignored)
 local-tests/
 local-reports/
+
+# Agent configuration (local only)
+.agent/
