@@ -6,6 +6,7 @@
 import type { ChatMessage, ToolCall } from '../lib/types';
 import type { RegisteredTool } from '../lib/tool-registry';
 import type { Skill } from '../modules/skills';
+import type { ApprovalConfig } from './tool-approval';
 
 /**
  * Internal metadata for messages.
@@ -60,6 +61,8 @@ export interface AgentState {
     };
     /** Abort signal for cancellation */
     abortSignal?: AbortSignal;
+    /** Approval configuration for tool execution */
+    approvalConfig?: ApprovalConfig;
 }
 
 /**

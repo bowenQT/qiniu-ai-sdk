@@ -24,6 +24,7 @@ import type {
 } from './internal-types';
 import { stripMeta } from './internal-types';
 import { getGlobalTracer } from '../lib/tracer';
+import type { ApprovalConfig } from './tool-approval';
 
 /** AgentGraph options */
 export interface AgentGraphOptions {
@@ -44,6 +45,8 @@ export interface AgentGraphOptions {
     toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
     abortSignal?: AbortSignal;
     events?: AgentGraphEvents;
+    /** Approval configuration for tool execution */
+    approvalConfig?: ApprovalConfig;
 }
 
 /** AgentGraph result */
@@ -183,6 +186,7 @@ export class AgentGraph {
                 reasoning: '',
                 finishReason: null,
                 abortSignal: this.options.abortSignal,
+                approvalConfig: this.options.approvalConfig,
             };
 
             // Inject skills if provided
@@ -353,7 +357,8 @@ export class AgentGraph {
                 {
                     messages: stripMeta(state.messages),
                     abortSignal: state.abortSignal,
-                }
+                },
+                state.approvalConfig,
             );
 
             // Create tool result steps and messages

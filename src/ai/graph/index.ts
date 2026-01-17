@@ -18,12 +18,22 @@ export type {
 export {
     MemoryCheckpointer,
     deserializeCheckpoint,
+    // Phase 5: Async Approval helpers
+    isPendingApproval,
+    getPendingApproval,
+    resumeWithApproval,
 } from './checkpointer';
 export type {
     Checkpointer,
     Checkpoint,
     CheckpointMetadata,
     SerializedAgentState,
+    // Phase 5: Async Approval
+    CheckpointStatus,
+    CheckpointSaveOptions,
+    PendingApproval,
+    ResumeWithApprovalResult,
+    ToolExecutor,
 } from './checkpointer';
 
 // Redis Checkpointer (optional - requires ioredis)

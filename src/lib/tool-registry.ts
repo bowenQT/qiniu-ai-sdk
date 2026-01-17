@@ -32,6 +32,15 @@ export interface RegisteredToolContext {
     abortSignal?: AbortSignal;
 }
 
+/** Approval handler function for tools */
+export type ToolApprovalHandler = (context: {
+    toolCall: { id: string; function: { name: string; arguments: string } };
+    toolName: string;
+    toolDescription: string;
+    args: Record<string, unknown>;
+    messages: Array<{ role: string; content: unknown }>;
+}) => Promise<boolean>;
+
 /** Registered tool definition */
 export interface RegisteredTool {
     name: string;
@@ -39,6 +48,10 @@ export interface RegisteredTool {
     parameters: ToolParameters;
     source: ToolSource;
     execute?: (args: Record<string, unknown>, context?: RegisteredToolContext) => Promise<unknown>;
+    /** Whether this tool requires approval before execution */
+    requiresApproval?: boolean;
+    /** Per-tool approval handler (overrides global) */
+    approvalHandler?: ToolApprovalHandler;
 }
 
 /** Conflict resolution strategy */

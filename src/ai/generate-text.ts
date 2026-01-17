@@ -3,6 +3,8 @@ import type { ChatCompletionRequest, ChatMessage, ToolCall, ResponseFormat } fro
 import type { StreamResult } from '../modules/chat';
 import { MaxStepsExceededError, ToolExecutionError } from '../lib/errors';
 import type { Checkpointer } from './graph/checkpointer';
+import type { ApprovalConfig, ApprovalHandler } from './tool-approval';
+import { checkApproval } from './tool-approval';
 
 export interface ToolExecutionContext {
     toolCallId: string;
@@ -14,6 +16,10 @@ export interface Tool {
     description?: string;
     parameters?: Record<string, unknown>;
     execute?: (args: unknown, context: ToolExecutionContext) => Promise<unknown> | unknown;
+    /** Whether this tool requires approval before execution */
+    requiresApproval?: boolean;
+    /** Per-tool approval handler (overrides global) */
+    approvalHandler?: ApprovalHandler;
 }
 
 export interface ToolResult {
@@ -49,6 +55,8 @@ export interface GenerateTextOptions {
     responseFormat?: ResponseFormat;
     /** Tool choice strategy */
     toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
+    /** Approval configuration for tool execution */
+    approvalConfig?: ApprovalConfig;
 }
 
 export interface GenerateTextResult {
@@ -76,6 +84,7 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
         maxTokens,
         responseFormat,
         toolChoice,
+        approvalConfig,
     } = options;
 
     const messages = normalizeMessages(options);
@@ -142,7 +151,7 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
         }));
         steps.push(...toolCallSteps);
 
-        const toolResults = await executeTools(streamResult.toolCalls, tools, messages, abortSignal);
+        const toolResults = await executeTools(streamResult.toolCalls, tools, messages, abortSignal, approvalConfig);
         const toolResultSteps = toolResults.map((toolResult) => ({
             type: 'tool_result' as const,
             content: toolResult.result,
@@ -404,7 +413,8 @@ async function executeTools(
     toolCalls: ToolCall[],
     tools: Record<string, Tool>,
     messages: ChatMessage[],
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    approvalConfig?: ApprovalConfig,
 ): Promise<ToolResult[]> {
     const results: ToolResult[] = [];
 
@@ -415,6 +425,36 @@ async function executeTools(
         }
 
         const args = parseToolArguments(toolCall.function.arguments);
+
+        // Check approval if tool requires it
+        if (tool.requiresApproval) {
+            // Create a minimal RegisteredTool-compatible object for checkApproval
+            const toolForApproval = {
+                name: toolCall.function.name,
+                description: tool.description ?? '',
+                parameters: (tool.parameters ?? {}) as any,
+                source: { type: 'builtin' as const, namespace: 'user' },
+                requiresApproval: tool.requiresApproval,
+                approvalHandler: tool.approvalHandler,
+            };
+
+            const approvalResult = await checkApproval(
+                toolForApproval,
+                toolCall,
+                args as Record<string, unknown>,
+                messages as Array<{ role: string; content: unknown }>,
+                approvalConfig,
+            );
+
+            if (!approvalResult.approved) {
+                results.push({
+                    toolCallId: toolCall.id,
+                    result: approvalResult.rejectionMessage ?? '[Approval Rejected] Tool execution was denied.',
+                });
+                continue;
+            }
+        }
+
         const value = await tool.execute(args, {
             toolCallId: toolCall.id,
             messages,
@@ -468,6 +508,8 @@ export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
     threadId?: string;
     /** Resume from checkpoint if available (default: true) */
     resumeFromCheckpoint?: boolean;
+    /** Approval configuration for tool execution */
+    approvalConfig?: ApprovalConfig;
 }
 
 /**
@@ -637,6 +679,7 @@ export async function generateTextWithGraph(
             },
             onNodeExit: onNodeExit,
         },
+        approvalConfig: options.approvalConfig,
     });
 
     // Execute graph

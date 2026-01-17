@@ -40,7 +40,8 @@ export type {
 
 // Error types
 export { APIError } from './lib/request';
-export { AIError, ToolExecutionError, MaxStepsExceededError } from './lib/errors';
+export { AIError, ToolExecutionError, MaxStepsExceededError, StructuredOutputError } from './lib/errors';
+export type { ValidationErrorItem } from './lib/errors';
 
 // Shared types
 export * from './lib/types';
@@ -58,6 +59,14 @@ export type {
     Tool,
     ToolResult,
 } from './ai/generate-text';
+
+// generateObject (structured output)
+export { generateObject } from './ai/generate-object';
+export type {
+    GenerateObjectOptions,
+    GenerateObjectResult,
+    GenerateObjectMode,
+} from './ai/generate-object';
 
 // Module types - Chat (including new streaming types)
 export type {
@@ -141,6 +150,13 @@ export type { GenerateTextWithGraphOptions, GenerateTextWithGraphResult } from '
 export { AgentGraph } from './ai/agent-graph';
 export type { AgentGraphOptions, AgentGraphResult } from './ai/agent-graph';
 
+// createAgent (reusable agent wrapper)
+export { createAgent } from './ai/create-agent';
+export type { AgentConfig, Agent, AgentRunOptions, AgentRunWithThreadOptions } from './ai/create-agent';
+
+// Tool Approval (Human-in-the-Loop)
+export type { ApprovalConfig, ApprovalHandler, ApprovalContext, ApprovalResult } from './ai/tool-approval';
+
 // Internal types (for advanced users)
 export type { InternalMessage, AgentState, StepResult as GraphStepResult, AgentGraphEvents } from './ai/internal-types';
 export { stripMeta, isDroppable, getSkillId } from './ai/internal-types';
@@ -187,13 +203,17 @@ export type {
     FileTokenStoreConfig,
 } from './modules/mcp';
 
-// Checkpointer (Phase 1 + Phase 3)
+// Checkpointer (Phase 1 + Phase 3 + Phase 5)
 export {
     MemoryCheckpointer,
     deserializeCheckpoint,
     // Phase 3: Redis + Postgres
     RedisCheckpointer,
     PostgresCheckpointer,
+    // Phase 5: Async Approval
+    isPendingApproval,
+    getPendingApproval,
+    resumeWithApproval,
 } from './ai/graph';
 export type {
     Checkpointer,
@@ -204,6 +224,12 @@ export type {
     RedisCheckpointerConfig,
     PostgresClient,
     PostgresCheckpointerConfig,
+    // Phase 5: Async Approval
+    CheckpointStatus,
+    CheckpointSaveOptions,
+    PendingApproval,
+    ResumeWithApprovalResult,
+    ToolExecutor,
 } from './ai/graph';
 
 // Tool Registry

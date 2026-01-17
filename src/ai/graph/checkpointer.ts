@@ -7,6 +7,31 @@
 import type { AgentState } from '../internal-types';
 
 /**
+ * Checkpoint status.
+ */
+export type CheckpointStatus = 'active' | 'pending_approval' | 'completed';
+
+/**
+ * Pending approval information.
+ */
+export interface PendingApproval {
+    /** Tool call awaiting approval */
+    toolCall: {
+        id: string;
+        function: {
+            name: string;
+            arguments: string;
+        };
+    };
+    /** Tool name */
+    toolName: string;
+    /** Parsed arguments */
+    args: Record<string, unknown>;
+    /** Timestamp when approval was requested */
+    requestedAt: number;
+}
+
+/**
  * Checkpoint metadata.
  */
 export interface CheckpointMetadata {
@@ -18,6 +43,10 @@ export interface CheckpointMetadata {
     createdAt: number;
     /** Step count at checkpoint */
     stepCount: number;
+    /** Checkpoint status */
+    status?: CheckpointStatus;
+    /** Pending approval info (if status is 'pending_approval') */
+    pendingApproval?: PendingApproval;
     /** Optional user-provided metadata */
     custom?: Record<string, unknown>;
 }
@@ -59,6 +88,16 @@ export interface SerializedAgentState {
     };
 }
 
+/** Options for saving a checkpoint */
+export interface CheckpointSaveOptions {
+    /** Custom user metadata */
+    custom?: Record<string, unknown>;
+    /** Checkpoint status (default: 'active') */
+    status?: CheckpointStatus;
+    /** Pending approval info for async approval flow */
+    pendingApproval?: PendingApproval;
+}
+
 /**
  * Checkpointer interface.
  */
@@ -69,7 +108,7 @@ export interface Checkpointer {
     save(
         threadId: string,
         state: AgentState,
-        custom?: Record<string, unknown>
+        options?: CheckpointSaveOptions | Record<string, unknown>
     ): Promise<CheckpointMetadata>;
 
     /**
@@ -108,15 +147,35 @@ export class MemoryCheckpointer implements Checkpointer {
     async save(
         threadId: string,
         state: AgentState,
-        custom?: Record<string, unknown>
+        options?: CheckpointSaveOptions | Record<string, unknown>
     ): Promise<CheckpointMetadata> {
         const id = `ckpt_${threadId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+        // Extract options - handle both new CheckpointSaveOptions and legacy custom object
+        let status: CheckpointStatus = 'active';
+        let pendingApproval: PendingApproval | undefined;
+        let custom: Record<string, unknown> | undefined;
+
+        if (options) {
+            if ('status' in options || 'pendingApproval' in options || 'custom' in options) {
+                // New CheckpointSaveOptions format
+                const opts = options as CheckpointSaveOptions;
+                status = opts.status ?? 'active';
+                pendingApproval = opts.pendingApproval;
+                custom = opts.custom;
+            } else {
+                // Legacy: treat entire object as custom metadata
+                custom = options as Record<string, unknown>;
+            }
+        }
 
         const metadata: CheckpointMetadata = {
             id,
             threadId,
             createdAt: Date.now(),
             stepCount: state.stepCount,
+            status,
+            pendingApproval,
             custom,
         };
 
@@ -242,5 +301,113 @@ export function deserializeCheckpoint(
         finishReason: s.finishReason,
         usage: s.usage,
         abortSignal: undefined,
+    };
+}
+
+/**
+ * Check if a checkpoint is pending approval.
+ */
+export function isPendingApproval(checkpoint: Checkpoint): boolean {
+    return checkpoint.metadata.status === 'pending_approval' &&
+        checkpoint.metadata.pendingApproval != null;
+}
+
+/**
+ * Get pending approval info from checkpoint.
+ */
+export function getPendingApproval(checkpoint: Checkpoint): PendingApproval | null {
+    if (!isPendingApproval(checkpoint)) {
+        return null;
+    }
+    return checkpoint.metadata.pendingApproval ?? null;
+}
+
+/** Result of resuming with approval */
+export interface ResumeWithApprovalResult {
+    /** Whether approval was granted */
+    approved: boolean;
+    /** Updated state with tool result added */
+    state: AgentState;
+    /** Tool result (executed result or rejection message) */
+    toolResult: string;
+    /** Whether the tool was actually executed */
+    toolExecuted: boolean;
+}
+
+/** Tool executor function */
+export type ToolExecutor = (
+    toolName: string,
+    args: Record<string, unknown>,
+    abortSignal?: AbortSignal,
+) => Promise<unknown>;
+
+/**
+ * Resume a pending approval checkpoint with user's decision.
+ * 
+ * If approved and toolExecutor is provided, the tool will be executed.
+ * Otherwise, a synthetic approval result will be used.
+ * 
+ * @param checkpoint - The pending approval checkpoint
+ * @param approved - Whether the user approved
+ * @param toolExecutor - Optional function to execute the approved tool
+ * @param tools - Tool map for state deserialization
+ * @param abortSignal - Abort signal for tool execution
+ */
+export async function resumeWithApproval(
+    checkpoint: Checkpoint,
+    approved: boolean,
+    toolExecutor?: ToolExecutor,
+    tools?: Map<string, any>,
+    abortSignal?: AbortSignal,
+): Promise<ResumeWithApprovalResult> {
+    const pending = checkpoint.metadata.pendingApproval;
+
+    if (!pending) {
+        throw new Error('Checkpoint does not have pending approval');
+    }
+
+    // Deserialize state
+    const state = deserializeCheckpoint(checkpoint, tools);
+
+    let toolResult: string;
+    let toolExecuted = false;
+
+    if (approved) {
+        if (toolExecutor) {
+            // Execute the actual tool
+            try {
+                const result = await toolExecutor(pending.toolName, pending.args, abortSignal);
+                toolResult = typeof result === 'string' ? result : JSON.stringify(result ?? { success: true });
+                toolExecuted = true;
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                toolResult = `[Execution Error] ${errorMessage}`;
+                toolExecuted = true; // Attempted execution
+            }
+        } else {
+            // No executor provided - return synthetic success
+            toolResult = JSON.stringify({ approved: true, args: pending.args });
+            toolExecuted = false;
+        }
+    } else {
+        // Rejected
+        toolResult = '[Approval Rejected] Tool execution was denied by user.';
+        toolExecuted = false;
+    }
+
+    // Add tool result message to state
+    const toolResultMessage = {
+        role: 'tool' as const,
+        content: toolResult,
+        tool_call_id: pending.toolCall.id,
+    };
+
+    state.messages = [...state.messages, toolResultMessage as any];
+
+    return {
+        approved,
+        state,
+        toolResult,
+        toolExecuted,
     };
 }

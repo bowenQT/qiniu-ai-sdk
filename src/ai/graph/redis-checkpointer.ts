@@ -60,16 +60,21 @@ export class RedisCheckpointer implements Checkpointer {
     async save(
         threadId: string,
         state: AgentState,
-        custom?: Record<string, unknown>
+        options?: Record<string, unknown>
     ): Promise<CheckpointMetadata> {
         const id = `ckpt_${threadId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+        // Extract options (compatible with both old and new API)
+        const opts = options as { status?: string; pendingApproval?: unknown; custom?: Record<string, unknown> } | undefined;
 
         const metadata: CheckpointMetadata = {
             id,
             threadId,
             createdAt: Date.now(),
             stepCount: state.stepCount,
-            custom,
+            status: (opts?.status as any) ?? 'active',
+            pendingApproval: opts?.pendingApproval as any,
+            custom: opts?.custom ?? (opts && !('status' in opts) ? opts as Record<string, unknown> : undefined),
         };
 
         const checkpoint: Checkpoint = {

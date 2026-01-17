@@ -6,6 +6,7 @@
 import type { ChatMessage, ToolCall } from '../../lib/types';
 import type { RegisteredTool } from '../../lib/tool-registry';
 import { ToolExecutionError } from '../../lib/errors';
+import { executeToolWithApproval, type ApprovalConfig } from '../tool-approval';
 
 /** Tool execution context */
 export interface ExecutionContext {
@@ -28,6 +29,7 @@ export async function executeTools(
     toolCalls: ToolCall[],
     tools: Map<string, RegisteredTool>,
     context: Omit<ExecutionContext, 'toolCallId'>,
+    approvalConfig?: ApprovalConfig,
 ): Promise<ToolExecutionResult[]> {
     const results: ToolExecutionResult[] = [];
 
@@ -53,42 +55,24 @@ export async function executeTools(
             continue;
         }
 
-        if (!tool.execute) {
-            results.push({
-                toolCallId: call.id,
-                result: `Tool ${call.function.name} has no execute function`,
-                isError: true,
-            });
-            continue;
-        }
+        // Parse arguments
+        const args = parseToolArguments(call.function.arguments);
 
-        try {
-            // Parse arguments
-            const args = parseToolArguments(call.function.arguments);
+        // Execute with approval check using unified function
+        const execResult = await executeToolWithApproval(
+            tool,
+            call,
+            args,
+            context.messages,
+            approvalConfig,
+            context.abortSignal,
+        );
 
-            // Execute tool
-            const execContext: ExecutionContext = {
-                toolCallId: call.id,
-                messages: context.messages,
-                abortSignal: context.abortSignal,
-            };
-
-            const result = await tool.execute(args, execContext);
-
-            results.push({
-                toolCallId: call.id,
-                result: serializeResult(result),
-                isError: false,
-            });
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-
-            results.push({
-                toolCallId: call.id,
-                result: `Error: ${errorMessage}`,
-                isError: true,
-            });
-        }
+        results.push({
+            toolCallId: call.id,
+            result: execResult.result,
+            isError: execResult.isError,
+        });
     }
 
     return results;

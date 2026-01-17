@@ -24,3 +24,26 @@ export class MaxStepsExceededError extends AIError {
         this.maxSteps = maxSteps;
     }
 }
+
+/** Validation error details */
+export interface ValidationErrorItem {
+    path: (string | number)[];
+    message: string;
+}
+
+/**
+ * Error thrown when structured output validation fails.
+ */
+export class StructuredOutputError extends AIError {
+    /** Raw LLM output before validation */
+    raw: string;
+    /** Validation errors */
+    validationErrors: ValidationErrorItem[];
+
+    constructor(message: string, raw: string, validationErrors: ValidationErrorItem[]) {
+        super(message);
+        this.name = 'StructuredOutputError';
+        this.raw = raw;
+        this.validationErrors = validationErrors;
+    }
+}

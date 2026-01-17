@@ -81,25 +81,37 @@ export class PostgresCheckpointer implements Checkpointer {
     async save(
         threadId: string,
         state: AgentState,
-        custom?: Record<string, unknown>
+        options?: Record<string, unknown>
     ): Promise<CheckpointMetadata> {
         const id = `ckpt_${threadId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const createdAt = Date.now();
+
+        // Extract options (compatible with both old and new API)
+        const opts = options as { status?: string; pendingApproval?: unknown; custom?: Record<string, unknown> } | undefined;
 
         const metadata: CheckpointMetadata = {
             id,
             threadId,
             createdAt,
             stepCount: state.stepCount,
-            custom,
+            status: (opts?.status as any) ?? 'active',
+            pendingApproval: opts?.pendingApproval as any,
+            custom: opts?.custom ?? (opts && !('status' in opts) ? opts as Record<string, unknown> : undefined),
         };
 
         const serializedState = this.serializeState(state);
 
+        // Store status and pendingApproval in custom field for Postgres (schema migration needed for full support)
+        const fullCustom = {
+            ...metadata.custom,
+            ...(metadata.status !== 'active' ? { __status: metadata.status } : {}),
+            ...(metadata.pendingApproval ? { __pendingApproval: metadata.pendingApproval } : {}),
+        };
+
         await this.client.query(
             `INSERT INTO ${this.table} (id, thread_id, created_at, step_count, custom, state) 
              VALUES ($1, $2, $3, $4, $5, $6)`,
-            [id, threadId, createdAt, state.stepCount, JSON.stringify(custom ?? {}), JSON.stringify(serializedState)]
+            [id, threadId, createdAt, state.stepCount, JSON.stringify(fullCustom), JSON.stringify(serializedState)]
         );
 
         return metadata;
