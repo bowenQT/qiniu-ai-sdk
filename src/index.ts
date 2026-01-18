@@ -197,6 +197,46 @@ export type {
     UrlCacheConfig,
 } from './lib/signer';
 
+// Asset Resolution (v0.20)
+export {
+    parseQiniuUri,
+    resolveAsset,
+    resolveAssets,
+    AssetResolutionError,
+} from './lib/asset-resolver';
+export type {
+    QiniuAsset,
+    ResolveOptions,
+    ResolvedAsset,
+} from './lib/asset-resolver';
+
+// Video Frame Extraction (v0.20)
+export {
+    buildVframeFop,
+    buildVframeUrl,
+    extractFrames,
+    extractFrame,
+    VframeError,
+} from './lib/vframe';
+export type {
+    VframeOptions,
+    VideoFrame,
+    VframeResult,
+} from './lib/vframe';
+
+// Asset Cost Estimation (v0.20)
+export {
+    estimateAssetCost,
+    detectAssetType,
+} from './lib/asset-cost';
+export type {
+    AssetType,
+    AssetInfo,
+    AssetCost,
+    CostLevel,
+    CostConfidence,
+} from './lib/asset-cost';
+
 // Skills (NOTE: SkillLoader requires Node.js - use '@bowenqt/qiniu-ai-sdk/node' for explicit import)
 // Kept here for backward compatibility, will be excluded in browser bundle
 export { SkillLoader } from './modules/skills';
