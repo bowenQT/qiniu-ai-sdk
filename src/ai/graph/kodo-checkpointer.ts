@@ -73,6 +73,8 @@ export interface KodoCheckpointerConfig {
     tokenExpiry?: number;
     /** Max retries for API calls (default: 3) */
     maxRetries?: number;
+    /** Download domain (e.g., 'cdn.example.com'). If not set, uses Kodo default domain. */
+    downloadDomain?: string;
 }
 
 // ============================================================================
@@ -81,7 +83,7 @@ export interface KodoCheckpointerConfig {
 
 /** Internal Kodo API client */
 class KodoClient {
-    private readonly config: Required<Omit<KodoCheckpointerConfig, 'region'>> & { region: KodoRegion };
+    private readonly config: Required<Omit<KodoCheckpointerConfig, 'region' | 'downloadDomain'>> & { region: KodoRegion; downloadDomain?: string };
     private readonly hosts: RegionHosts;
     private cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -94,12 +96,13 @@ class KodoClient {
             prefix: config.prefix ?? 'checkpoints/',
             tokenExpiry: config.tokenExpiry ?? 3600,
             maxRetries: config.maxRetries ?? 3,
+            downloadDomain: config.downloadDomain,
         };
         this.hosts = REGION_HOSTS[this.config.region];
     }
 
-    /** Generate upload token */
-    private generateUploadToken(key: string): string {
+    /** Generate upload token (bucket-level scope for reuse) */
+    private generateUploadToken(): string {
         const now = Math.floor(Date.now() / 1000);
         const deadline = now + this.config.tokenExpiry;
 
@@ -108,10 +111,11 @@ class KodoClient {
             return this.cachedToken.token;
         }
 
-        // PutPolicy
+        // PutPolicy with bucket-level scope (allows any key in bucket)
         const policy = {
-            scope: `${this.config.bucket}:${key}`,
+            scope: this.config.bucket,
             deadline,
+            insertOnly: 0, // Allow overwrite
         };
 
         const encodedPolicy = this.base64UrlSafe(JSON.stringify(policy));
@@ -165,7 +169,7 @@ class KodoClient {
 
     /** Upload JSON data */
     async upload(key: string, data: unknown): Promise<void> {
-        const token = this.generateUploadToken(key);
+        const token = this.generateUploadToken();
         const body = JSON.stringify(data);
 
         const formData = new FormData();
@@ -189,12 +193,16 @@ class KodoClient {
     /** Download JSON data */
     async download<T>(key: string): Promise<T | null> {
         return this.withRetry(async () => {
+            // Determine download domain
+            const domain = this.config.downloadDomain
+                ?? `${this.config.bucket}.${this.hosts.io.replace('iovip', 'kodo')}`;
+
             // Generate signed URL for private bucket
             const deadline = Math.floor(Date.now() / 1000) + 3600;
-            const url = `https://${this.config.bucket}.${this.hosts.io.replace('iovip', 'kodo')}/${encodeURIComponent(key)}`;
-            const toSign = `${url}?e=${deadline}`;
+            const baseUrl = `https://${domain}/${encodeURIComponent(key)}`;
+            const toSign = `${baseUrl}?e=${deadline}`;
             const sign = this.hmacSha1(toSign);
-            const signedUrl = `${url}?e=${deadline}&token=${this.config.accessKey}:${this.base64UrlSafe(sign)}`;
+            const signedUrl = `${baseUrl}?e=${deadline}&token=${this.config.accessKey}:${this.base64UrlSafe(sign)}`;
 
             const response = await fetch(signedUrl);
 
@@ -308,14 +316,32 @@ export class KodoCheckpointer implements Checkpointer {
         const key = this.client.getFullKey(threadId);
         const serialized = this.serializeState(state);
 
+        // Extract options - handle both new CheckpointSaveOptions and legacy custom object
+        let status: 'active' | 'pending_approval' | 'completed' = 'active';
+        let pendingApproval: CheckpointMetadata['pendingApproval'] | undefined;
+        let custom: Record<string, unknown> | undefined;
+
+        if (options) {
+            if ('status' in options || 'pendingApproval' in options || 'custom' in options) {
+                // New CheckpointSaveOptions format
+                const opts = options as CheckpointSaveOptions;
+                status = opts.status ?? 'active';
+                pendingApproval = opts.pendingApproval;
+                custom = opts.custom;
+            } else {
+                // Legacy: treat entire object as custom metadata
+                custom = options as Record<string, unknown>;
+            }
+        }
+
         const metadata: CheckpointMetadata = {
-            id: `${threadId}-${Date.now()}`,
+            id: threadId, // Simplified: single checkpoint per thread
             threadId,
             createdAt: Date.now(),
             stepCount: state.stepCount,
-            status: (options as CheckpointSaveOptions)?.status,
-            pendingApproval: (options as CheckpointSaveOptions)?.pendingApproval,
-            custom: (options as CheckpointSaveOptions)?.custom,
+            status,
+            pendingApproval,
+            custom,
         };
 
         const checkpoint: Checkpoint = {
@@ -337,35 +363,21 @@ export class KodoCheckpointer implements Checkpointer {
     }
 
     /**
-     * List all checkpoints.
+     * List checkpoints for a specific thread.
+     * Since we store single checkpoint per thread, this returns 0 or 1 item.
      */
     async list(threadId: string): Promise<CheckpointMetadata[]> {
-        const items = await this.client.list(this.prefix);
-
-        // Filter by threadId if provided
-        const filtered = threadId
-            ? items.filter(item => item.key.includes(threadId))
-            : items;
-
-        // Download metadata for each
-        const metadataList: CheckpointMetadata[] = [];
-        for (const item of filtered) {
-            const checkpoint = await this.client.download<Checkpoint>(item.key);
-            if (checkpoint?.metadata) {
-                metadataList.push(checkpoint.metadata);
-            }
-        }
-
-        return metadataList.sort((a, b) => b.createdAt - a.createdAt);
+        // Direct download (single checkpoint per thread model)
+        const checkpoint = await this.load(threadId);
+        return checkpoint ? [checkpoint.metadata] : [];
     }
 
     /**
      * Delete a single checkpoint.
      */
     async delete(checkpointId: string): Promise<boolean> {
-        // Extract threadId from checkpointId (format: {threadId}-{timestamp})
-        const threadId = checkpointId.split('-').slice(0, -1).join('-');
-        const key = this.client.getFullKey(threadId);
+        // For single checkpoint per thread, checkpointId is the threadId
+        const key = this.client.getFullKey(checkpointId);
         return this.client.delete(key);
     }
 
