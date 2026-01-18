@@ -8,6 +8,7 @@ import type { ResponseFormat } from '../lib/types';
 import type { Skill } from '../modules/skills';
 import type { Checkpointer } from './graph/checkpointer';
 import type { ApprovalConfig } from './tool-approval';
+import type { MemoryManager } from './memory';
 import {
     generateTextWithGraph,
     type GenerateTextWithGraphResult,
@@ -51,6 +52,8 @@ export interface AgentConfig {
     approvalConfig?: ApprovalConfig;
     /** Checkpointer for state persistence */
     checkpointer?: Checkpointer;
+    /** Memory manager for conversation summarization */
+    memory?: MemoryManager;
 }
 
 /** Options for single run (without thread) */
@@ -125,11 +128,13 @@ export function createAgent(config: AgentConfig): Agent {
         abortSignal,
         approvalConfig,
         checkpointer,
+        memory,
     } = config;
 
     // Helper to build common options
     const buildOptions = (
         prompt: string,
+        threadId?: string,
         onStepFinish?: (step: StepResult) => void,
         onNodeEnter?: (nodeName: string) => void,
         onNodeExit?: (nodeName: string) => void,
@@ -149,6 +154,8 @@ export function createAgent(config: AgentConfig): Agent {
         toolChoice,
         abortSignal,
         approvalConfig,
+        memory,
+        threadId,
         onStepFinish,
         onNodeEnter,
         onNodeExit,
@@ -162,7 +169,7 @@ export function createAgent(config: AgentConfig): Agent {
             const { prompt, onStepFinish, onNodeEnter, onNodeExit } = options;
 
             return generateTextWithGraph(
-                buildOptions(prompt, onStepFinish, onNodeEnter, onNodeExit),
+                buildOptions(prompt, undefined, onStepFinish, onNodeEnter, onNodeExit),
             );
         },
 
@@ -182,9 +189,8 @@ export function createAgent(config: AgentConfig): Agent {
             }
 
             return generateTextWithGraph({
-                ...buildOptions(prompt, onStepFinish, onNodeEnter, onNodeExit),
+                ...buildOptions(prompt, threadId, onStepFinish, onNodeEnter, onNodeExit),
                 checkpointer,
-                threadId,
                 resumeFromCheckpoint,
             });
         },

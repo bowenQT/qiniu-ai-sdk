@@ -15,6 +15,8 @@ import { executeTools, toolResultsToMessages, type ToolExecutionResult } from '.
 import { compactMessages, ContextOverflowError } from './nodes/memory-node';
 import type { CompactionConfig, CompactionResult } from './nodes/types';
 import { estimateMessageTokens, type TokenEstimatorConfig } from '../lib/token-estimator';
+import { normalizeContent } from '../lib/content-converter';
+import type { MemoryManager } from './memory';
 import type {
     AgentState,
     InternalMessage,
@@ -47,6 +49,10 @@ export interface AgentGraphOptions {
     events?: AgentGraphEvents;
     /** Approval configuration for tool execution */
     approvalConfig?: ApprovalConfig;
+    /** Memory manager for conversation summarization and long-term storage */
+    memory?: MemoryManager;
+    /** Thread ID for memory isolation (used with memory option) */
+    threadId?: string;
 }
 
 /** AgentGraph result */
@@ -189,6 +195,21 @@ export class AgentGraph {
                 approvalConfig: this.options.approvalConfig,
             };
 
+            // Apply Memory processing if configured
+            if (this.options.memory) {
+                const memoryResult = await this.options.memory.process(
+                    initialState.messages,
+                    { threadId: this.options.threadId ?? 'default' }
+                );
+                initialState.messages = memoryResult.messages;
+                if (memoryResult.summarized) {
+                    span.setAttribute('memory_summarized', true);
+                }
+                if (memoryResult.droppedCount > 0) {
+                    span.setAttribute('memory_dropped', memoryResult.droppedCount);
+                }
+            }
+
             // Inject skills if provided
             if (this.options.skills?.length) {
                 const injected = this.injectSkills(initialState.messages, this.options.skills);
@@ -201,6 +222,14 @@ export class AgentGraph {
             const finalState = await this.graph.invoke(initialState, {
                 maxSteps: this.options.maxSteps ? this.options.maxSteps * 3 : 30,
             });
+
+            // Persist to long-term memory if configured
+            if (this.options.memory) {
+                await this.options.memory.persist(
+                    finalState.messages,
+                    this.options.threadId ?? 'default'
+                );
+            }
 
             span.setAttribute('final_step_count', finalState.stepCount);
             span.setAttribute('finish_reason', finalState.finishReason ?? 'unknown');
@@ -266,8 +295,11 @@ export class AgentGraph {
             // Compact messages before prediction (if needed)
             const compactedState = this.compactIfNeeded(state);
 
-            // Strip metadata before API call
-            const apiMessages = stripMeta(compactedState.messages);
+            // Normalize multimodal content (image -> image_url) and strip metadata
+            const apiMessages = stripMeta(compactedState.messages).map(msg => ({
+                ...msg,
+                content: normalizeContent(msg.content),
+            }));
 
             // Execute prediction
             const result = await predict({

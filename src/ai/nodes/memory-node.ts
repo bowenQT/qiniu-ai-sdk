@@ -10,7 +10,7 @@
 import type { ChatMessage } from '../../lib/types';
 import type { CompactionResult, CompactionConfig, ToolPair, InjectedSkill } from './types';
 import type { InternalMessage } from '../internal-types';
-import { isDroppable, getSkillId } from '../internal-types';
+import { isDroppable, getSkillId, getDroppableId } from '../internal-types';
 
 /** Context overflow error */
 export class ContextOverflowError extends Error {
@@ -82,44 +82,41 @@ export function compactMessages(
         }
     }
 
-    // Step 1: Drop droppable skill messages (lowest priority first)
-    // Collect all droppable messages with their skill IDs
-    const droppableIndices: { idx: number; skillId: string; tokens: number }[] = [];
+    // Step 1: Drop droppable skill/summary messages (lowest priority first)
+    // Collect all droppable messages with their IDs, tokens, and priority
+    const droppableIndices: { idx: number; droppableId: string; tokens: number; priority: number }[] = [];
 
     result.messages.forEach((msg, idx) => {
         if (isDroppable(msg)) {
-            const skillId = getSkillId(msg);
-            if (skillId) {
+            const droppableId = getDroppableId(msg);
+            if (droppableId) {
+                const internalMsg = msg as InternalMessage;
+                const skillIdx = injectedSkills.findIndex(s => s.name === droppableId);
                 droppableIndices.push({
                     idx,
-                    skillId,
+                    droppableId,
                     tokens: config.estimateTokens([msg as ChatMessage]),
+                    // Use _meta.priority if set, else fallback to skill order, else 0
+                    priority: internalMsg._meta?.priority ?? (skillIdx >= 0 ? skillIdx + 1 : 0),
                 });
             }
         }
     });
 
-    // Sort by priority (using injectedSkills order) - lowest priority first
-    const skillPriorityMap = new Map<string, number>();
-    injectedSkills.forEach((skill, i) => skillPriorityMap.set(skill.name, i));
-
-    droppableIndices.sort((a, b) => {
-        const priorityA = skillPriorityMap.get(a.skillId) ?? 0;
-        const priorityB = skillPriorityMap.get(b.skillId) ?? 0;
-        return priorityA - priorityB; // Lower priority (earlier in list) dropped first
-    });
+    // Sort by priority (higher priority = keep, lower priority = drop first)
+    droppableIndices.sort((a, b) => a.priority - b.priority);
 
     // Drop droppable messages until under budget
     const indicesToRemove = new Set<number>();
 
-    for (const { idx, skillId, tokens } of droppableIndices) {
+    for (const { idx, droppableId, tokens } of droppableIndices) {
         if (currentTokens <= config.maxTokens) break;
 
         indicesToRemove.add(idx);
         currentTokens -= tokens;
 
-        if (!result.droppedSkills.includes(skillId)) {
-            result.droppedSkills.push(skillId);
+        if (!result.droppedSkills.includes(droppableId)) {
+            result.droppedSkills.push(droppableId);
         }
     }
 

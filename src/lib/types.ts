@@ -9,14 +9,39 @@ export interface ChatMessage {
     tool_call_id?: string;
 }
 
-export interface ContentPart {
-    type: 'text' | 'image_url';
-    text?: string;
-    image_url?: {
+/** Cross-platform image source types */
+export type ImageSource =
+    | Uint8Array      // Cross-platform binary
+    | ArrayBuffer     // Cross-platform binary
+    | Blob            // Browser
+    | URL             // Cross-platform URL
+    | string;         // base64 or URL string
+
+/** Image URL content part (API format) */
+export interface ImageUrlContentPart {
+    type: 'image_url';
+    image_url: {
         url: string;
         detail?: 'auto' | 'low' | 'high';
     };
 }
+
+/** Text content part */
+export interface TextContentPart {
+    type: 'text';
+    text: string;
+}
+
+/** Image sugar content part (SDK convenience format) */
+export interface ImageContentPart {
+    type: 'image';
+    image: ImageSource;
+    /** Optional detail level for image processing */
+    detail?: 'auto' | 'low' | 'high';
+}
+
+/** Content part for multimodal messages */
+export type ContentPart = TextContentPart | ImageUrlContentPart | ImageContentPart;
 
 export interface ToolCall {
     id: string;

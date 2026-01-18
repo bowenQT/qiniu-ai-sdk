@@ -15,6 +15,8 @@ import type { ApprovalConfig } from './tool-approval';
 export interface MessageMeta {
     /** Skill ID for skill-injected messages */
     skillId?: string;
+    /** Summary ID for memory-injected summary messages */
+    summaryId?: string;
     /** Whether this message can be dropped during compaction */
     droppable?: boolean;
     /** Original message index before injection */
@@ -122,4 +124,19 @@ export function isDroppable(message: InternalMessage): boolean {
  */
 export function getSkillId(message: InternalMessage): string | undefined {
     return message._meta?.skillId;
+}
+
+/**
+ * Get summary ID from message.
+ */
+export function getSummaryId(message: InternalMessage): string | undefined {
+    return message._meta?.summaryId;
+}
+
+/**
+ * Check if a message can be compacted (has skill or summary ID).
+ * Used by memory-node to determine which droppable messages to remove.
+ */
+export function getDroppableId(message: InternalMessage): string | undefined {
+    return message._meta?.skillId ?? message._meta?.summaryId;
 }

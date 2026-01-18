@@ -68,6 +68,18 @@ export type {
     GenerateObjectMode,
 } from './ai/generate-object';
 
+// streamObject (streaming structured output)
+export { streamObject } from './ai/stream-object';
+export type {
+    StreamObjectOptions,
+    StreamObjectResult,
+    DeepPartial,
+} from './ai/stream-object';
+
+// Partial JSON parser (for advanced users)
+export { PartialJsonParser, parsePartialJson } from './lib/partial-json-parser';
+export type { ParseResult } from './lib/partial-json-parser';
+
 // Module types - Chat (including new streaming types)
 export type {
     ChatCompletionRequest,
@@ -158,8 +170,21 @@ export type { AgentConfig, Agent, AgentRunOptions, AgentRunWithThreadOptions } f
 export type { ApprovalConfig, ApprovalHandler, ApprovalContext, ApprovalResult } from './ai/tool-approval';
 
 // Internal types (for advanced users)
-export type { InternalMessage, AgentState, StepResult as GraphStepResult, AgentGraphEvents } from './ai/internal-types';
-export { stripMeta, isDroppable, getSkillId } from './ai/internal-types';
+export type { InternalMessage, AgentState, StepResult as GraphStepResult, AgentGraphEvents, MessageMeta } from './ai/internal-types';
+export { stripMeta, isDroppable, getSkillId, getSummaryId, getDroppableId } from './ai/internal-types';
+
+// Memory Manager
+export { MemoryManager, InMemoryVectorStore, isDroppable as isMessageDroppable } from './ai/memory';
+export type {
+    MemoryConfig,
+    MemoryProcessOptions,
+    MemoryProcessResult,
+    ShortTermMemoryConfig,
+    SummarizerConfig,
+    LongTermMemoryConfig,
+    VectorStore,
+    VectorDocument,
+} from './ai/memory';
 
 // Skills
 export { SkillLoader } from './modules/skills';

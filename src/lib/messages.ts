@@ -75,11 +75,12 @@ function estimateMessageTokens(message: ChatMessage): number {
 }
 
 function estimateTokensFromPart(part: ContentPart): number {
-    if (part.type === 'text') {
-        return estimateTokensFromText(part.text ?? '');
+    if (part.type === 'text' && 'text' in part) {
+        return estimateTokensFromText(part.text);
     }
 
-    if (part.type === 'image_url') {
+    // Both image_url (API format) and image (SDK sugar) count as image tokens
+    if (part.type === 'image_url' || part.type === 'image') {
         return 50;
     }
 

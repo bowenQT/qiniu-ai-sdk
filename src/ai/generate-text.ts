@@ -5,6 +5,8 @@ import { MaxStepsExceededError, ToolExecutionError } from '../lib/errors';
 import type { Checkpointer } from './graph/checkpointer';
 import type { ApprovalConfig, ApprovalHandler } from './tool-approval';
 import { checkApproval } from './tool-approval';
+import { normalizeContent } from '../lib/content-converter';
+import type { MemoryManager } from './memory';
 
 export interface ToolExecutionContext {
     toolCallId: string;
@@ -219,9 +221,15 @@ function buildChatRequest(params: {
 }): ChatCompletionRequest {
     const { model, messages, tools, temperature, topP, maxTokens, responseFormat, toolChoice } = params;
 
+    // Normalize multimodal content (image -> image_url) for API compatibility
+    const normalizedMessages = messages.map(msg => ({
+        ...msg,
+        content: normalizeContent(msg.content),
+    }));
+
     return {
         model,
-        messages,
+        messages: normalizedMessages,
         temperature,
         top_p: topP,
         max_tokens: maxTokens,
@@ -504,12 +512,14 @@ export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
     onNodeExit?: (nodeName: string) => void;
     /** Checkpointer for state persistence */
     checkpointer?: Checkpointer;
-    /** Thread ID for checkpoint (required if checkpointer provided) */
+    /** Thread ID for checkpoint and memory (required if checkpointer or memory provided) */
     threadId?: string;
     /** Resume from checkpoint if available (default: true) */
     resumeFromCheckpoint?: boolean;
     /** Approval configuration for tool execution */
     approvalConfig?: ApprovalConfig;
+    /** Memory manager for conversation summarization */
+    memory?: MemoryManager;
 }
 
 /**
@@ -571,6 +581,7 @@ export async function generateTextWithGraph(
         checkpointer,
         threadId,
         resumeFromCheckpoint = true,
+        memory,
     } = options;
 
     // Validate checkpointer + threadId combination
@@ -680,6 +691,8 @@ export async function generateTextWithGraph(
             onNodeExit: onNodeExit,
         },
         approvalConfig: options.approvalConfig,
+        memory,
+        threadId,
     });
 
     // Execute graph

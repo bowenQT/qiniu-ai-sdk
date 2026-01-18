@@ -59,9 +59,10 @@ export function createTokenEstimator(config: TokenEstimatorConfig = {}): Content
         if (Array.isArray(content)) {
             let total = 0;
             for (const part of content) {
-                if (part.type === 'text' && part.text) {
+                if (part.type === 'text' && 'text' in part) {
                     total += estimateText(part.text, charsPerToken, cjkMultiplier);
-                } else if (part.type === 'image_url') {
+                } else if (part.type === 'image_url' || part.type === 'image') {
+                    // Both image_url (API format) and image (SDK sugar) count as image tokens
                     total += imageTokenCost;
                 }
             }
