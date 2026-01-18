@@ -100,7 +100,7 @@ const TOOLS: Tool[] = [
             type: 'object',
             properties: {
                 prompt: { type: 'string', description: '图片描述提示' },
-                model: { type: 'string', description: '模型名称 (默认: flux-schnell)' },
+                model: { type: 'string', description: '模型名称 (默认: kling-v2)' },
                 aspect_ratio: {
                     type: 'string',
                     enum: ['16:9', '9:16', '1:1', '4:3', '3:4', '3:2', '2:3', '21:9'],
@@ -251,7 +251,7 @@ export class QiniuMCPServer {
 
     private async executeImageGenerate(args: Record<string, unknown>): Promise<{ url: string }> {
         const prompt = z.string().parse(args.prompt);
-        const model = z.string().optional().parse(args.model) ?? 'flux-schnell';
+        const model = z.string().optional().parse(args.model) ?? 'kling-v2';
         const aspectRatio = z.enum(['16:9', '9:16', '1:1', '4:3', '3:4', '3:2', '2:3', '21:9']).optional().parse(args.aspect_ratio);
 
         const result = await this.client.image.generate({
