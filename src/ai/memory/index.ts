@@ -172,8 +172,16 @@ export class InMemoryVectorStore implements VectorStore {
 
     async add(documents: VectorDocument[]): Promise<void> {
         for (const doc of documents) {
-            // Check if we need to evict
-            if (this.config.maxEntries !== Infinity &&
+            // De-duplicate: remove existing doc with same id
+            const existingIndex = this.documents.findIndex(d => d.id === doc.id);
+            if (existingIndex !== -1) {
+                this.documents.splice(existingIndex, 1);
+                // Keep accessOrder entry, just update it below
+            }
+
+            // Check if we need to evict (only for new entries, not updates)
+            if (existingIndex === -1 &&
+                this.config.maxEntries !== Infinity &&
                 this.documents.length >= this.config.maxEntries) {
                 this.evict();
             }

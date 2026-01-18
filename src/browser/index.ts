@@ -196,39 +196,16 @@ export {
 export type { Span, Tracer, TracerConfig } from '../lib/tracer';
 
 // ============================================================================
-// MCP (Browser-compatible HTTP transport only)
+// MCP: NOT EXPORTED in browser
 // ============================================================================
-export {
-    adaptMCPToolsToRegistry,
-    getAllMCPToolsAsRegistered,
-    MCPHttpTransport,
-    MCPHttpTransportError,
-    // OAuth (browser-compatible)
-    PKCEFlow,
-    DeviceCodeFlow,
-    OAuthError,
-    generateCodeVerifier,
-    generateCodeChallenge,
-    generateState,
-    refreshAccessToken,
-    // Token Store (memory only, not file)
-    MemoryTokenStore,
-    TokenManager,
-} from '../modules/mcp';
-
-export type {
-    MCPClientConfig,
-    MCPServerConfig,
-    MCPHttpServerConfig,
-    MCPOAuthConfig,
-    MCPToolDefinition,
-    MCPToolResult,
-    MCPConnectionState,
-    MCPTransport,
-    TokenProvider,
-    OAuthTokens,
-    TokenStore,
-} from '../modules/mcp';
+// The @modelcontextprotocol/sdk package is Node.js only.
+// For MCP functionality, use '@bowenqt/qiniu-ai-sdk/node' instead.
+//
+// EXPLICITLY EXCLUDED:
+// - MCPClient (requires child_process)
+// - MCPHttpTransport (requires @modelcontextprotocol/sdk - Node only)
+// - FileTokenStore (requires fs)
+// - All MCP OAuth utilities (depend on @modelcontextprotocol/sdk)
 
 // ============================================================================
 // Utilities

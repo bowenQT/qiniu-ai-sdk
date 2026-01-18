@@ -11,12 +11,6 @@
  *     }
  * };
  * ```
- * 
- * @example Node.js usage (direct signing):
- * ```typescript
- * import { createSigner } from '@bowenqt/qiniu-ai-sdk/node';
- * const signer = createSigner({ accessKey, secretKey });
- * ```
  */
 
 // ============================================================================
@@ -109,7 +103,16 @@ export class UrlCache {
     set(bucket: string, key: string, signedUrl: SignedUrl, fop?: string): void {
         const cacheKey = this.getKey(bucket, key, fop);
 
-        // Evict if at capacity
+        // Check if key already exists (update, not new entry)
+        if (this.cache.has(cacheKey)) {
+            this.cache.set(cacheKey, {
+                signedUrl,
+                accessTime: Date.now(),
+            });
+            return;
+        }
+
+        // Evict if at capacity (only for new entries)
         if (this.cache.size >= this.config.maxSize) {
             this.evictLRU();
         }
@@ -178,7 +181,12 @@ export class CachedSigner implements QiniuSigner {
     }
 
     async sign(bucket: string, key: string, options?: SignOptions): Promise<SignedUrl> {
-        // Check cache first
+        // Skip cache if custom expiry is specified (different TTLs = different URLs)
+        if (options?.expiry) {
+            return this.baseSigner.sign(bucket, key, options);
+        }
+
+        // Check cache first (only for default expiry)
         const cached = this.cache.get(bucket, key, options?.fop);
         if (cached) return cached;
 
