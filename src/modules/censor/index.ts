@@ -97,6 +97,7 @@ export interface VideoCensorResult {
 interface ImageCensorApiResponse {
     code?: number;
     message?: string;
+    error?: string;
     result?: {
         suggestion?: CensorSuggestion;
         scenes?: {
@@ -248,20 +249,34 @@ export class Censor {
 
     /**
      * Normalize image censor API response.
+     * SECURITY: Fail-closed - throw on error/missing data rather than defaulting to 'pass'
      */
     private normalizeImageResponse(
         response: ImageCensorApiResponse,
         requestedScenes: CensorScene[]
     ): ImageCensorResponse {
-        const result = response.result ?? {};
+        // Check for API error
+        if (response.code && response.code !== 200) {
+            throw new Error(`Censor API error (${response.code}): ${response.message || 'Unknown error'}`);
+        }
+        if (response.error) {
+            throw new Error(`Censor API error: ${response.error}`);
+        }
+
+        const result = response.result;
+
+        // Fail-closed: require explicit result
+        if (!result || result.suggestion === undefined) {
+            throw new Error('Censor API returned no result - cannot determine content safety');
+        }
 
         return {
-            suggestion: result.suggestion ?? 'pass',
+            suggestion: result.suggestion,
             scenes: result.scenes
                 ? this.normalizeScenes(result.scenes)
                 : requestedScenes.map(scene => ({
                     scene,
-                    suggestion: 'pass' as CensorSuggestion,
+                    suggestion: result.suggestion!,
                 })),
         };
     }

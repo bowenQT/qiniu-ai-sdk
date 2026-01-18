@@ -20,6 +20,8 @@ export interface QiniuToolContext {
     client: QiniuAI;
     /** Signer for asset resolution (optional) */
     signer?: QiniuSigner;
+    /** Allowed buckets whitelist for security (optional) */
+    allowedBuckets?: string[];
 }
 
 // ============================================================================
@@ -173,7 +175,7 @@ export const qiniuVideoCensorTool: ToolDefinition<VideoCensorToolParams, VideoCe
 // ============================================================================
 
 const vframeParamsSchema = z.object({
-    video_url: z.string().describe('视频 URL 或 qiniu:// URI'),
+    video_url: z.string().describe('qiniu:// 格式的视频 URI (如: qiniu://bucket/video.mp4)'),
     count: z.number().optional().describe('抽帧数量 (默认: 5)'),
     duration: z.number().optional().describe('视频时长 (秒), 均匀抽帧时必须'),
     offset: z.number().optional().describe('单帧偏移 (秒)'),
@@ -218,7 +220,9 @@ export const qiniuVframeTool: ToolDefinition<VframeToolParams, VframeToolResult>
             throw new Error('duration is required for uniform frame extraction');
         }
 
-        const result = await extractFrames(asset, context.signer, options);
+        const result = await extractFrames(asset, context.signer, options, {
+            allowedBuckets: context.allowedBuckets,
+        });
 
         return {
             frames: result.frames.map(f => ({

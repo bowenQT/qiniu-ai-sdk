@@ -175,6 +175,41 @@ export type {
     CostConfidence,
 } from '../lib/asset-cost';
 
+// Content Moderation (v0.21)
+export { Censor } from '../modules/censor';
+export type {
+    CensorScene,
+    CensorSuggestion,
+    ImageCensorRequest,
+    ImageCensorResponse,
+    VideoCensorRequest,
+    VideoCensorJobResponse,
+    VideoCensorStatus,
+    VideoCensorResult,
+    SceneResult,
+} from '../modules/censor';
+
+// Native Cloud Tools (v0.21)
+export {
+    QINIU_TOOLS,
+    getQiniuToolsArray,
+    getQiniuToolSchemas,
+    qiniuOcrTool,
+    qiniuImageCensorTool,
+    qiniuVideoCensorTool,
+    qiniuVframeTool,
+} from '../ai-tools/qiniu-tools';
+export type {
+    QiniuToolContext,
+    OcrToolParams,
+    OcrToolResult,
+    ImageCensorToolParams,
+    ImageCensorToolResult,
+    VideoCensorToolParams,
+    VideoCensorToolResult,
+    VframeToolParams,
+    VframeToolResult,
+} from '../ai-tools/qiniu-tools';
 
 // Graph (browser-compatible parts)
 export {
