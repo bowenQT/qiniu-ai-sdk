@@ -4,6 +4,13 @@
  * Implements the Checkpointer interface for serverless-compatible
  * durable state management.
  * 
+ * **⚠️ Node.js Only**: This module uses `node:crypto` for HMAC-SHA1 signing
+ * and is NOT compatible with Edge runtimes (CloudFlare Workers, Vercel Edge).
+ * For Edge environments, use MemoryCheckpointer or implement a backend proxy.
+ * 
+ * **Download Domain**: If your bucket doesn't have a default Kodo domain bound,
+ * you MUST provide `downloadDomain` to avoid 404 errors on load().
+ * 
  * @example
  * ```typescript
  * import { KodoCheckpointer } from '@bowenqt/qiniu-ai-sdk';
@@ -13,11 +20,8 @@
  *     accessKey: process.env.QINIU_ACCESS_KEY!,
  *     secretKey: process.env.QINIU_SECRET_KEY!,
  *     region: 'z0',
- * });
- * 
- * const graph = createAgentGraph({
- *     checkpointer,
- *     // ...
+ *     // Required if bucket has no default Kodo domain
+ *     downloadDomain: 'cdn.example.com',
  * });
  * ```
  */
@@ -73,7 +77,11 @@ export interface KodoCheckpointerConfig {
     tokenExpiry?: number;
     /** Max retries for API calls (default: 3) */
     maxRetries?: number;
-    /** Download domain (e.g., 'cdn.example.com'). If not set, uses Kodo default domain. */
+    /** 
+     * Download domain (e.g., 'cdn.example.com'). 
+     * **REQUIRED** unless bucket has a default Kodo domain bound.
+     * Without this, load() will return 404 errors.
+     */
     downloadDomain?: string;
 }
 
