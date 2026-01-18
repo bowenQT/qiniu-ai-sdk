@@ -19,6 +19,7 @@ import { Asr } from './modules/asr/index';
 import { Tts } from './modules/tts/index';
 import { Account } from './modules/account/index';
 import { Admin } from './modules/admin/index';
+import { Censor } from './modules/censor/index';
 
 export interface QiniuAIOptions {
     apiKey: string; // The Sk-xxxx key
@@ -56,6 +57,7 @@ export class QiniuAI implements IQiniuClient {
     public tts: Tts;
     public account: Account;
     public admin: Admin;
+    public censor: Censor;
 
     private apiKey: string;
     private baseUrl: string;
@@ -118,6 +120,7 @@ export class QiniuAI implements IQiniuClient {
         this.tts = new Tts(this);
         this.account = new Account(this);
         this.admin = new Admin(this);
+        this.censor = new Censor(this);
     }
 
     /**
