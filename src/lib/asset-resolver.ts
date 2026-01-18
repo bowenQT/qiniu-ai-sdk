@@ -48,11 +48,11 @@ const QINIU_URI_SCHEME = 'qiniu://';
 
 // Characters not allowed in bucket/key names (security)
 const DANGEROUS_PATTERNS = [
-    /\.\./,          // Path traversal
-    /\\/,            // Backslash
-    /[\x00-\x1f]/,   // Control characters
-    /%2e%2e/i,       // URL-encoded ../
-    /%5c/i,          // URL-encoded \
+    /(?:^|[\/])\.\.(?:[\/]|$)/,  // Path traversal: /../ or starts/ends with ..
+    /\\/,                          // Backslash
+    /[\x00-\x1f]/,                 // Control characters
+    /%2e%2e(?:%2f|%5c|$)/i,        // URL-encoded ../ or ..\
+    /%5c/i,                        // URL-encoded \
 ];
 
 // ============================================================================
@@ -174,6 +174,14 @@ export async function resolveAsset(
     signer: QiniuSigner | CachedSigner,
     options: ResolveOptions = {}
 ): Promise<ResolvedAsset> {
+    // Reject empty key to prevent bucket-level access
+    if (!asset.key) {
+        throw new AssetResolutionError(
+            'Asset key cannot be empty',
+            'INVALID_URI'
+        );
+    }
+
     // Bucket whitelist validation
     if (options.allowedBuckets?.length) {
         if (!options.allowedBuckets.includes(asset.bucket)) {
@@ -207,7 +215,7 @@ export async function resolveAsset(
 
 /**
  * Resolve multiple assets in parallel.
- * Uses CachedSigner for efficiency.
+ * For better efficiency, wrap signer with CachedSigner before calling.
  */
 export async function resolveAssets(
     assets: QiniuAsset[],

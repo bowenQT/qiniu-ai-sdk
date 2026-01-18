@@ -54,9 +54,20 @@ describe('parseQiniuUri', () => {
         expect(parseQiniuUri('')).toBeNull();
     });
 
-    it('should throw on path traversal attack', () => {
+    it('should throw on path traversal attack (/../)', () => {
         expect(() => parseQiniuUri('qiniu://bucket/../secret'))
             .toThrow(AssetResolutionError);
+    });
+
+    it('should throw on path traversal at start (../) ', () => {
+        expect(() => parseQiniuUri('qiniu://bucket/..%2fsecret'))
+            .toThrow(AssetResolutionError);
+    });
+
+    it('should allow benign filenames containing dots', () => {
+        // file..name.mp4 is valid, not path traversal
+        const result = parseQiniuUri('qiniu://bucket/file..name.mp4');
+        expect(result).toEqual({ bucket: 'bucket', key: 'file..name.mp4' });
     });
 
     it('should throw on URL-encoded path traversal', () => {
@@ -107,6 +118,13 @@ describe('resolveAsset', () => {
             allowedBuckets: ['allowed'],
         });
         expect(result.bucket).toBe('allowed');
+    });
+
+    it('should reject empty key', async () => {
+        const asset: QiniuAsset = { bucket: 'test', key: '' };
+
+        await expect(resolveAsset(asset, mockSigner))
+            .rejects.toThrow('Asset key cannot be empty');
     });
 });
 
