@@ -182,6 +182,7 @@ export type {
     ShortTermMemoryConfig,
     SummarizerConfig,
     LongTermMemoryConfig,
+    TokenBudgetConfig,
     VectorStore,
     VectorDocument,
 } from './ai/memory';

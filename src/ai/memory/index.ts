@@ -23,6 +23,8 @@
 
 import type { ChatMessage } from '../../lib/types';
 import type { InternalMessage, MessageMeta } from '../internal-types';
+import type { QiniuAI } from '../../client';
+import { estimateMessageTokens, estimateMessagesTokens } from '../../lib/token-estimator';
 
 // ============================================================================
 // Types
@@ -40,6 +42,12 @@ export interface SummarizerConfig {
     enabled: boolean;
     /** Message count threshold to trigger summarization */
     threshold?: number;
+    /** Summarization type: 'simple' (concatenation) or 'llm' (LLM-based) */
+    type?: 'simple' | 'llm';
+    /** QiniuAI client for LLM summarization (required if type='llm') */
+    client?: QiniuAI;
+    /** Model for LLM summarization */
+    model?: string;
     /** System prompt for summarization */
     systemPrompt?: string;
 }
@@ -70,6 +78,16 @@ export interface LongTermMemoryConfig {
     retrieveLimit?: number;
 }
 
+/** Fine-grained token budget configuration */
+export interface TokenBudgetConfig {
+    /** Token budget for summary messages */
+    summary?: number;
+    /** Token budget for retrieved context */
+    context?: number;
+    /** Token budget for active conversation */
+    active?: number;
+}
+
 /** Memory manager configuration */
 export interface MemoryConfig {
     /** Short-term memory (sliding window) */
@@ -78,6 +96,8 @@ export interface MemoryConfig {
     longTerm?: LongTermMemoryConfig;
     /** Automatic summarization */
     summarizer?: SummarizerConfig;
+    /** Fine-grained token budget control */
+    tokenBudget?: TokenBudgetConfig;
 }
 
 /** Memory processing options */
@@ -262,6 +282,13 @@ export class MemoryManager {
             }
         }
 
+        // 5. Apply token budget enforcement
+        if (this.config.tokenBudget) {
+            const [trimmed, budgetDropped] = this.applyTokenBudget(processedMessages, threadId);
+            processedMessages = trimmed;
+            droppedCount += budgetDropped;
+        }
+
         return {
             messages: processedMessages,
             summarized,
@@ -272,25 +299,201 @@ export class MemoryManager {
 
     /**
      * Generate summary from messages.
-     * Override this method for custom summarization logic.
+     * Supports 'simple' (concatenation) and 'llm' (LLM-based) modes.
      */
     protected async generateSummary(
         messages: InternalMessage[],
-        _threadId: string
+        _threadId: string,
+        abortSignal?: AbortSignal
     ): Promise<string> {
-        // Default: Simple concatenation (override for LLM-based summarization)
+        const config = this.config.summarizer;
+
+        // LLM-based summarization
+        if (config?.type === 'llm') {
+            if (!config.client) {
+                console.warn('[MemoryManager] type=llm but no client provided, using simple');
+            } else {
+                try {
+                    const serializedMessages = messages
+                        .map(m => this.serializeMessage(m))
+                        .join('\n');
+
+                    const systemPrompt = config.systemPrompt ??
+                        'Summarize the following conversation concisely, preserving key facts, decisions, and tool actions. Output only the summary.';
+
+                    const response = await config.client.chat.create({
+                        model: config.model ?? 'gemini-2.5-flash',
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: serializedMessages },
+                        ],
+                    });
+
+                    const content = response.choices[0]?.message?.content;
+                    if (content && typeof content === 'string' && content.trim()) {
+                        return content.trim();
+                    }
+                    // Empty response: fallback to simple
+                    console.warn('[MemoryManager] LLM returned empty summary, using simple');
+                } catch (error) {
+                    console.warn('[MemoryManager] LLM summarization failed, using simple:', error);
+                }
+            }
+        }
+
+        // Fallback: simple concatenation
+        return this.simpleConcat(messages);
+    }
+
+    /**
+     * Simple concatenation summarization.
+     */
+    private simpleConcat(messages: InternalMessage[]): string {
         const userMessages = messages
-            .filter(m => m.role === 'user' && typeof m.content === 'string')
-            .map(m => m.content as string);
+            .filter(m => m.role === 'user')
+            .map(m => this.serializeMessage(m))
+            .slice(0, 3);
 
         const assistantMessages = messages
-            .filter(m => m.role === 'assistant' && typeof m.content === 'string')
-            .map(m => m.content as string);
+            .filter(m => m.role === 'assistant')
+            .map(m => this.serializeMessage(m))
+            .slice(0, 3);
 
         return [
-            `User discussed: ${userMessages.slice(0, 3).join(', ').slice(0, 200)}...`,
-            `Assistant covered: ${assistantMessages.slice(0, 3).join(', ').slice(0, 200)}...`,
+            `User discussed: ${userMessages.join(', ').slice(0, 200)}...`,
+            `Assistant covered: ${assistantMessages.join(', ').slice(0, 200)}...`,
         ].join('\n');
+    }
+
+    /**
+     * Serialize message content for summarization.
+     * Handles string, multimodal arrays, and tool calls.
+     * Priority: tool_calls > string content > multimodal > unknown
+     */
+    private serializeMessage(msg: InternalMessage): string {
+        // Tool calls (check first - common case where content is '')
+        if ((msg as any).tool_calls && (msg as any).tool_calls.length > 0) {
+            const toolCalls = (msg as any).tool_calls;
+            const toolNames = toolCalls.map((t: any) => t.function?.name || 'unknown').join(', ');
+            // Include content if non-empty
+            const content = typeof msg.content === 'string' && msg.content.trim()
+                ? ` - ${msg.content}`
+                : '';
+            return `[Tool calls: ${toolNames}]${content}`;
+        }
+
+        // Tool result
+        if (msg.role === 'tool') {
+            const content = typeof msg.content === 'string' ? msg.content : '[result]';
+            return `[Tool result: ${content.slice(0, 100)}]`;
+        }
+
+        // String content
+        if (typeof msg.content === 'string') {
+            return msg.content;
+        }
+
+        // Multimodal content (array of parts)
+        if (Array.isArray(msg.content)) {
+            const textParts = msg.content
+                .filter((p: any) => p.type === 'text')
+                .map((p: any) => p.text)
+                .join(' ');
+            return textParts || '[non-text content]';
+        }
+
+        return '[unknown content]';
+    }
+
+    /**
+     * Apply token budget enforcement to messages.
+     * Trims summary, context, and active messages to fit within budgets.
+     * PRESERVES original message order (important for system prompt precedence).
+     * 
+     * @returns [trimmedMessages, droppedByBudget]
+     */
+    private applyTokenBudget(
+        messages: InternalMessage[],
+        threadId: string
+    ): [InternalMessage[], number] {
+        const budget = this.config.tokenBudget!;
+        let droppedByBudget = 0;
+
+        // Track which messages to keep (by index)
+        const keepIndices = new Set<number>();
+
+        // Categorize messages by index
+        const summaryIndices: number[] = [];
+        const contextIndices: number[] = [];
+        const activeIndices: number[] = [];
+
+        messages.forEach((msg, idx) => {
+            if (msg._meta?.summaryId?.startsWith('summary_')) {
+                summaryIndices.push(idx);
+            } else if (msg._meta?.summaryId?.startsWith('context_')) {
+                contextIndices.push(idx);
+            } else {
+                activeIndices.push(idx);
+            }
+        });
+
+        // 1. Apply summary budget (undefined = no limit, 0 = drop all)
+        if (budget.summary !== undefined) {
+            let tokens = 0;
+            for (const idx of summaryIndices) {
+                const msgTokens = estimateMessageTokens(messages[idx] as any);
+                if (tokens + msgTokens <= budget.summary) {
+                    keepIndices.add(idx);
+                    tokens += msgTokens;
+                } else {
+                    droppedByBudget++;
+                }
+            }
+        } else {
+            summaryIndices.forEach(idx => keepIndices.add(idx));
+        }
+
+        // 2. Apply context budget (undefined = no limit, 0 = drop all)
+        if (budget.context !== undefined) {
+            let tokens = 0;
+            for (const idx of contextIndices) {
+                const msgTokens = estimateMessageTokens(messages[idx] as any);
+                if (tokens + msgTokens <= budget.context) {
+                    keepIndices.add(idx);
+                    tokens += msgTokens;
+                } else {
+                    droppedByBudget++;
+                }
+            }
+        } else {
+            contextIndices.forEach(idx => keepIndices.add(idx));
+        }
+
+        // 3. Apply active budget (undefined = no limit, 0 = drop all)
+        // Process from end to keep most recent, but ALWAYS keep at least 1
+        if (budget.active !== undefined) {
+            let tokens = 0;
+            const keptActiveIndices: number[] = [];
+            for (let i = activeIndices.length - 1; i >= 0; i--) {
+                const idx = activeIndices[i];
+                const msgTokens = estimateMessageTokens(messages[idx] as any);
+                if (tokens + msgTokens <= budget.active || keptActiveIndices.length === 0) {
+                    // Always keep at least the most recent message
+                    keptActiveIndices.push(idx);
+                    tokens += msgTokens;
+                } else {
+                    droppedByBudget++;
+                }
+            }
+            keptActiveIndices.forEach(idx => keepIndices.add(idx));
+        } else {
+            activeIndices.forEach(idx => keepIndices.add(idx));
+        }
+
+        // Rebuild messages preserving original order
+        const result = messages.filter((_, idx) => keepIndices.has(idx));
+
+        return [result, droppedByBudget];
     }
 
     /**
