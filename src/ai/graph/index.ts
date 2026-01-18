@@ -44,3 +44,6 @@ export type { RedisClient, RedisCheckpointerConfig } from './redis-checkpointer'
 export { PostgresCheckpointer } from './postgres-checkpointer';
 export type { PostgresClient, PostgresCheckpointerConfig } from './postgres-checkpointer';
 
+// Kodo Checkpointer (Phase 7 - Qiniu Object Storage)
+export { KodoCheckpointer } from './kodo-checkpointer';
+export type { KodoCheckpointerConfig, KodoRegion } from './kodo-checkpointer';

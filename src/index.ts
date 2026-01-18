@@ -330,6 +330,8 @@ export {
     // Phase 3: Redis + Postgres
     RedisCheckpointer,
     PostgresCheckpointer,
+    // Phase 7: Kodo (Qiniu Object Storage)
+    KodoCheckpointer,
     // Phase 5: Async Approval
     isPendingApproval,
     getPendingApproval,
@@ -344,6 +346,9 @@ export type {
     RedisCheckpointerConfig,
     PostgresClient,
     PostgresCheckpointerConfig,
+    // Phase 7: Kodo
+    KodoCheckpointerConfig,
+    KodoRegion,
     // Phase 5: Async Approval
     CheckpointStatus,
     CheckpointSaveOptions,
