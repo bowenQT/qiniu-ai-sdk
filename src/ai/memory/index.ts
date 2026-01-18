@@ -130,15 +130,60 @@ export interface SummaryMeta extends MessageMeta {
 // In-Memory Vector Store (Simple Implementation)
 // ============================================================================
 
+/** InMemoryVectorStore configuration */
+export interface InMemoryVectorStoreConfig {
+    /** Maximum number of documents (default: unlimited) */
+    maxEntries?: number;
+    /** Eviction policy when maxEntries reached (default: 'lru') */
+    evictionPolicy?: 'lru' | 'fifo';
+    /** Warn when usage exceeds this threshold (0-1, default: 0.8) */
+    warnThreshold?: number;
+    /** Warning callback when threshold exceeded */
+    onWarn?: (usage: number, maxEntries: number) => void;
+}
+
 /**
  * Simple in-memory vector store for testing and small-scale use.
  * Uses cosine similarity for search (requires embeddings).
+ * 
+ * @example
+ * ```typescript
+ * const store = new InMemoryVectorStore({
+ *     maxEntries: 1000,
+ *     warnThreshold: 0.8,
+ *     onWarn: (usage, max) => console.warn(`Vector store ${usage}% full`),
+ * });
+ * ```
  */
 export class InMemoryVectorStore implements VectorStore {
     private documents: VectorDocument[] = [];
+    private accessOrder: Map<string, number> = new Map(); // id -> last access time
+    private accessCounter = 0;
+    private readonly config: Required<Omit<InMemoryVectorStoreConfig, 'onWarn'>> & Pick<InMemoryVectorStoreConfig, 'onWarn'>;
+
+    constructor(config: InMemoryVectorStoreConfig = {}) {
+        this.config = {
+            maxEntries: config.maxEntries ?? Infinity,
+            evictionPolicy: config.evictionPolicy ?? 'lru',
+            warnThreshold: config.warnThreshold ?? 0.8,
+            onWarn: config.onWarn,
+        };
+    }
 
     async add(documents: VectorDocument[]): Promise<void> {
-        this.documents.push(...documents);
+        for (const doc of documents) {
+            // Check if we need to evict
+            if (this.config.maxEntries !== Infinity &&
+                this.documents.length >= this.config.maxEntries) {
+                this.evict();
+            }
+
+            this.documents.push(doc);
+            this.accessOrder.set(doc.id, this.accessCounter++);
+        }
+
+        // Check warning threshold
+        this.checkWarningThreshold();
     }
 
     async search(query: string, limit = 5): Promise<VectorDocument[]> {
@@ -150,14 +195,72 @@ export class InMemoryVectorStore implements VectorStore {
             score: this.textSimilarity(queryLower, doc.content.toLowerCase()),
         }));
 
-        return scored
+        const results = scored
             .sort((a, b) => b.score - a.score)
             .slice(0, limit)
             .map(s => s.doc);
+
+        // Update access time for LRU
+        for (const doc of results) {
+            this.accessOrder.set(doc.id, this.accessCounter++);
+        }
+
+        return results;
     }
 
     async clear(): Promise<void> {
         this.documents = [];
+        this.accessOrder.clear();
+        this.accessCounter = 0;
+    }
+
+    /** Get current document count */
+    get size(): number {
+        return this.documents.length;
+    }
+
+    /** Get usage ratio (0-1) */
+    get usage(): number {
+        if (this.config.maxEntries === Infinity) return 0;
+        return this.documents.length / this.config.maxEntries;
+    }
+
+    private evict(): void {
+        if (this.documents.length === 0) return;
+
+        if (this.config.evictionPolicy === 'fifo') {
+            // Remove oldest added
+            const removed = this.documents.shift();
+            if (removed) this.accessOrder.delete(removed.id);
+        } else {
+            // LRU: remove least recently accessed
+            let lruId: string | undefined;
+            let lruTime = Infinity;
+
+            for (const [id, time] of this.accessOrder) {
+                if (time < lruTime) {
+                    lruTime = time;
+                    lruId = id;
+                }
+            }
+
+            if (lruId) {
+                const index = this.documents.findIndex(d => d.id === lruId);
+                if (index !== -1) {
+                    this.documents.splice(index, 1);
+                    this.accessOrder.delete(lruId);
+                }
+            }
+        }
+    }
+
+    private checkWarningThreshold(): void {
+        if (this.config.maxEntries === Infinity || !this.config.onWarn) return;
+
+        const usage = this.usage;
+        if (usage >= this.config.warnThreshold) {
+            this.config.onWarn(Math.round(usage * 100), this.config.maxEntries);
+        }
     }
 
     private textSimilarity(a: string, b: string): number {

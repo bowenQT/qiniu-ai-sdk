@@ -123,7 +123,17 @@ export type {
     TokenBudgetConfig,
     VectorStore,
     VectorDocument,
+    InMemoryVectorStoreConfig,
 } from '../ai/memory';
+
+// Signer (browser-compatible - delegate to backend)
+export { UrlCache, CachedSigner } from '../lib/signer';
+export type {
+    QiniuSigner,
+    SignedUrl,
+    SignOptions,
+    UrlCacheConfig,
+} from '../lib/signer';
 
 // Graph (browser-compatible parts)
 export {

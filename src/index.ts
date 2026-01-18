@@ -185,7 +185,17 @@ export type {
     TokenBudgetConfig,
     VectorStore,
     VectorDocument,
+    InMemoryVectorStoreConfig,
 } from './ai/memory';
+
+// Signer (browser-compatible delegate pattern)
+export { UrlCache, CachedSigner } from './lib/signer';
+export type {
+    QiniuSigner,
+    SignedUrl,
+    SignOptions,
+    UrlCacheConfig,
+} from './lib/signer';
 
 // Skills (NOTE: SkillLoader requires Node.js - use '@bowenqt/qiniu-ai-sdk/node' for explicit import)
 // Kept here for backward compatibility, will be excluded in browser bundle
