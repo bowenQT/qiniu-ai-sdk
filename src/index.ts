@@ -187,11 +187,14 @@ export type {
     VectorDocument,
 } from './ai/memory';
 
-// Skills
+// Skills (NOTE: SkillLoader requires Node.js - use '@bowenqt/qiniu-ai-sdk/node' for explicit import)
+// Kept here for backward compatibility, will be excluded in browser bundle
 export { SkillLoader } from './modules/skills';
 export type { Skill } from './modules/skills';
 
 // MCP (Phase 1 + Phase 3)
+// NOTE: MCPClient stdio transport requires Node.js - use '@bowenqt/qiniu-ai-sdk/node' for explicit import
+// HTTP transport (MCPHttpTransport) is browser-compatible
 export {
     MCPClient,
     MCPClientError,

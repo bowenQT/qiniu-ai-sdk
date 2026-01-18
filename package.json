@@ -1,6 +1,6 @@
 {
   "name": "@bowenqt/qiniu-ai-sdk",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "description": "TypeScript SDK for Qiniu Cloud AI Token API - Chat, Image, Video generation and more",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -14,6 +14,26 @@
       "import": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.mjs"
+      }
+    },
+    "./node": {
+      "require": {
+        "types": "./dist/node/index.d.ts",
+        "default": "./dist/node/index.js"
+      },
+      "import": {
+        "types": "./dist/node/index.d.ts",
+        "default": "./dist/node/index.mjs"
+      }
+    },
+    "./browser": {
+      "require": {
+        "types": "./dist/browser/index.d.ts",
+        "default": "./dist/browser/index.js"
+      },
+      "import": {
+        "types": "./dist/browser/index.d.ts",
+        "default": "./dist/browser/index.mjs"
       }
     },
     "./adapter": {
