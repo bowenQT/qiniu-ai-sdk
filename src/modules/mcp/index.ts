@@ -44,3 +44,5 @@ export type {
 } from './types';
 export { DEFAULT_MCP_CONFIG } from './types';
 
+// MCP Server (Phase 4)
+export { QiniuMCPServer, startFromEnv, type QiniuMCPServerConfig } from './server';
