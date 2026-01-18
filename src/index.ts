@@ -301,6 +301,9 @@ export {
     MemoryTokenStore,
     FileTokenStore,
     TokenManager,
+    // Phase 4: MCP Server
+    QiniuMCPServer,
+    startFromEnv,
 } from './modules/mcp';
 export type {
     MCPClientConfig,
@@ -316,6 +319,8 @@ export type {
     OAuthTokens,
     TokenStore,
     FileTokenStoreConfig,
+    // Phase 4: MCP Server
+    QiniuMCPServerConfig,
 } from './modules/mcp';
 
 // Checkpointer (Phase 1 + Phase 3 + Phase 5)

@@ -5,10 +5,7 @@
  *   npx qiniu-mcp-server
  * 
  * Environment Variables:
- *   QINIU_API_KEY       - Required for AI services
- *   QINIU_ACCESS_KEY    - Required for Kodo storage
- *   QINIU_SECRET_KEY    - Required for Kodo storage
- *   QINIU_ALLOWED_BUCKETS - Optional comma-separated bucket whitelist
+ *   QINIU_API_KEY - Required for AI services
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -28,12 +25,6 @@ import { z } from 'zod';
 export interface QiniuMCPServerConfig {
     /** Qiniu AI API Key (sk-xxx) */
     apiKey: string;
-    /** Qiniu Kodo Access Key */
-    accessKey?: string;
-    /** Qiniu Kodo Secret Key */
-    secretKey?: string;
-    /** Allowed buckets whitelist */
-    allowedBuckets?: string[];
     /** Server name */
     name?: string;
     /** Server version */
@@ -110,8 +101,11 @@ const TOOLS: Tool[] = [
             properties: {
                 prompt: { type: 'string', description: '图片描述提示' },
                 model: { type: 'string', description: '模型名称 (默认: flux-schnell)' },
-                width: { type: 'number', description: '图片宽度' },
-                height: { type: 'number', description: '图片高度' },
+                aspect_ratio: {
+                    type: 'string',
+                    enum: ['16:9', '9:16', '1:1', '4:3', '3:4', '3:2', '2:3', '21:9'],
+                    description: '图片宽高比 (默认: 1:1)'
+                },
             },
             required: ['prompt'],
         },
@@ -258,21 +252,23 @@ export class QiniuMCPServer {
     private async executeImageGenerate(args: Record<string, unknown>): Promise<{ url: string }> {
         const prompt = z.string().parse(args.prompt);
         const model = z.string().optional().parse(args.model) ?? 'flux-schnell';
-        const width = z.number().optional().parse(args.width);
-        const height = z.number().optional().parse(args.height);
+        const aspectRatio = z.enum(['16:9', '9:16', '1:1', '4:3', '3:4', '3:2', '2:3', '21:9']).optional().parse(args.aspect_ratio);
 
         const result = await this.client.image.generate({
             model,
             prompt,
-            ...(width && height ? { aspect_ratio: '1:1' } : {}),
+            ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
         });
 
         // Wait for image generation to complete
         const finalResult = await this.client.image.waitForResult(result);
 
-        return {
-            url: finalResult.data?.[0]?.url ?? '',
-        };
+        const url = finalResult.data?.[0]?.url;
+        if (!url) {
+            throw new Error('Image generation completed but no URL returned');
+        }
+
+        return { url };
     }
 
     /**
@@ -305,14 +301,7 @@ export async function startFromEnv(): Promise<QiniuMCPServer> {
         throw new Error('QINIU_API_KEY environment variable is required');
     }
 
-    const allowedBuckets = process.env.QINIU_ALLOWED_BUCKETS?.split(',').map(s => s.trim()).filter(Boolean);
-
-    const server = new QiniuMCPServer({
-        apiKey,
-        accessKey: process.env.QINIU_ACCESS_KEY,
-        secretKey: process.env.QINIU_SECRET_KEY,
-        allowedBuckets,
-    });
+    const server = new QiniuMCPServer({ apiKey });
 
     await server.start();
     return server;
