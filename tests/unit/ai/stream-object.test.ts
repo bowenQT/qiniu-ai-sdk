@@ -11,10 +11,11 @@ describe('streamObject', () => {
     let mockClient: QiniuAI;
 
     beforeEach(() => {
-        // Create mock client
+        // Create mock client with both createStream and create (for fallback)
         mockClient = {
             chat: {
                 createStream: vi.fn(),
+                create: vi.fn(), // For allowFallback to generateObject
             },
             getBaseUrl: () => 'https://api.qiniu.com',
         } as unknown as QiniuAI;
@@ -141,9 +142,7 @@ describe('streamObject', () => {
     });
 
     describe('allowFallback', () => {
-        it('should use generateObject when allowFallback is true and stream fails', async () => {
-            // This test would require mocking both createStream failure and generateObject
-            // For now, we just verify the option is accepted
+        it('should throw when stream fails and allowFallback is false', async () => {
             const schema = z.object({ test: z.string() });
 
             (mockClient.chat.createStream as any).mockRejectedValue(
@@ -154,12 +153,39 @@ describe('streamObject', () => {
             await expect(
                 streamObject({
                     client: mockClient,
-                    model: 'test-model',
+                    model: 'test-model-no-fallback',
                     schema,
                     prompt: 'test',
                     allowFallback: false,
                 })
             ).rejects.toThrow();
+        });
+
+        it('should fall back to generateObject when stream fails with allowFallback', async () => {
+            const schema = z.object({ name: z.string() });
+
+            // Mock createStream to fail
+            (mockClient.chat.createStream as any).mockRejectedValue(
+                Object.assign(new Error('Unsupported response_format'), { status: 400 })
+            );
+
+            // Mock chat.create for generateObject fallback
+            (mockClient.chat.create as any).mockResolvedValue({
+                choices: [{ message: { content: '{"name": "fallback"}' }, finish_reason: 'stop' }],
+                usage: { prompt_tokens: 5, completion_tokens: 5, total_tokens: 10 },
+            });
+
+            const result = await streamObject({
+                client: mockClient,
+                model: 'test-model-with-fallback',
+                schema,
+                prompt: 'test',
+                allowFallback: true,
+            });
+
+            expect(result.streamed).toBe(false);
+            const final = await result.object;
+            expect(final.name).toBe('fallback');
         });
     });
 });

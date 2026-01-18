@@ -169,4 +169,88 @@ describe('generateTextWithGraph', () => {
             expect(result.graphInfo).toBeDefined();
         });
     });
+
+    describe('Tool Approval Propagation', () => {
+        it('should auto-approve MCP tools when autoApproveSources includes mcp', async () => {
+            let toolExecuted = false;
+
+            const client = createMockClient([
+                {
+                    content: '',
+                    finishReason: 'tool_calls',
+                    tool_calls: [{
+                        id: 'call_mcp',
+                        type: 'function',
+                        function: { name: 'mcpTool', arguments: '{}' },
+                    }],
+                },
+                { content: 'Done', finishReason: 'stop' },
+            ]);
+
+            const result = await generateTextWithGraph({
+                client,
+                model: 'test-model',
+                messages: [{ role: 'user', content: 'Use MCP tool' }],
+                tools: {
+                    mcpTool: {
+                        description: 'MCP tool',
+                        parameters: {},
+                        execute: async () => {
+                            toolExecuted = true;
+                            return 'executed';
+                        },
+                        requiresApproval: true,
+                        source: { type: 'mcp', namespace: 'github' },
+                    },
+                },
+                approvalConfig: {
+                    autoApproveSources: ['mcp'],
+                },
+            });
+
+            expect(toolExecuted).toBe(true);
+            expect(result.text).toBe('Done');
+        });
+
+        it('should reject tool when requiresApproval=true but no handler or auto-approve', async () => {
+            let toolExecuted = false;
+
+            const client = createMockClient([
+                {
+                    content: '',
+                    finishReason: 'tool_calls',
+                    tool_calls: [{
+                        id: 'call_reject',
+                        type: 'function',
+                        function: { name: 'dangerousTool', arguments: '{}' },
+                    }],
+                },
+                { content: 'Tool was rejected', finishReason: 'stop' },
+            ]);
+
+            const result = await generateTextWithGraph({
+                client,
+                model: 'test-model',
+                messages: [{ role: 'user', content: 'Use dangerous tool' }],
+                tools: {
+                    dangerousTool: {
+                        description: 'Dangerous tool',
+                        parameters: {},
+                        execute: async () => {
+                            toolExecuted = true;
+                            return 'should not run';
+                        },
+                        requiresApproval: true,
+                        // No source, no handler, no autoApprove -> rejection
+                    },
+                },
+                // No approvalConfig -> fail-closed
+            });
+
+            expect(toolExecuted).toBe(false);
+            // Tool result should contain rejection message
+            const toolResultStep = result.steps.find(s => s.type === 'tool_result');
+            expect(toolResultStep?.toolResults?.[0]?.result).toContain('No handler configured');
+        });
+    });
 });

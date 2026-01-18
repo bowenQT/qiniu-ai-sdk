@@ -120,4 +120,114 @@ describe('generateText', () => {
             })
         ).rejects.toBeInstanceOf(MaxStepsExceededError);
     });
+
+    describe('Tool Approval', () => {
+        it('should auto-approve MCP tools when autoApproveSources includes mcp', async () => {
+            let toolExecuted = false;
+
+            const firstStepChunks = [
+                buildChunk({
+                    tool_calls: [
+                        {
+                            index: 0,
+                            id: 'call-mcp',
+                            type: 'function',
+                            function: { name: 'mcpTool', arguments: '{}' },
+                        },
+                    ],
+                }, null),
+                buildChunk({}, 'tool_calls'),
+            ];
+
+            const secondStepChunks = [
+                buildChunk({ content: 'Done' }, null),
+                buildChunk({}, 'stop'),
+            ];
+
+            const adapter = {
+                fetch: vi
+                    .fn()
+                    .mockResolvedValueOnce(createSSEResponse(firstStepChunks))
+                    .mockResolvedValueOnce(createSSEResponse(secondStepChunks)),
+            };
+
+            const client = new QiniuAI({ apiKey: 'sk-test', adapter });
+            const result = await generateText({
+                client,
+                model: 'test-model',
+                prompt: 'Use MCP tool',
+                maxSteps: 3,
+                tools: {
+                    mcpTool: {
+                        execute: async () => {
+                            toolExecuted = true;
+                            return 'executed';
+                        },
+                        requiresApproval: true,
+                        source: { type: 'mcp', namespace: 'github' },
+                    },
+                },
+                approvalConfig: {
+                    autoApproveSources: ['mcp'],
+                },
+            });
+
+            expect(toolExecuted).toBe(true);
+            expect(result.text).toBe('Done');
+        });
+
+        it('should reject tool when requiresApproval=true but no handler or auto-approve', async () => {
+            let toolExecuted = false;
+
+            const firstStepChunks = [
+                buildChunk({
+                    tool_calls: [
+                        {
+                            index: 0,
+                            id: 'call-reject',
+                            type: 'function',
+                            function: { name: 'dangerousTool', arguments: '{}' },
+                        },
+                    ],
+                }, null),
+                buildChunk({}, 'tool_calls'),
+            ];
+
+            const secondStepChunks = [
+                buildChunk({ content: 'Tool was rejected' }, null),
+                buildChunk({}, 'stop'),
+            ];
+
+            const adapter = {
+                fetch: vi
+                    .fn()
+                    .mockResolvedValueOnce(createSSEResponse(firstStepChunks))
+                    .mockResolvedValueOnce(createSSEResponse(secondStepChunks)),
+            };
+
+            const client = new QiniuAI({ apiKey: 'sk-test', adapter });
+            const result = await generateText({
+                client,
+                model: 'test-model',
+                prompt: 'Use dangerous tool',
+                maxSteps: 3,
+                tools: {
+                    dangerousTool: {
+                        execute: async () => {
+                            toolExecuted = true;
+                            return 'should not run';
+                        },
+                        requiresApproval: true,
+                        // No source, no handler, no autoApprove -> rejection
+                    },
+                },
+                // No approvalConfig -> fail-closed
+            });
+
+            expect(toolExecuted).toBe(false);
+            // Tool result should contain rejection message
+            const toolResultStep = result.steps.find(s => s.type === 'tool_result');
+            expect(toolResultStep?.toolResults?.[0]?.result).toContain('No handler configured');
+        });
+    });
 });

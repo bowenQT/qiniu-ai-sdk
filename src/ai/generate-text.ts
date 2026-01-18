@@ -14,6 +14,10 @@ export interface ToolExecutionContext {
     abortSignal?: AbortSignal;
 }
 
+/** Tool source for approval matching (imported from tool-registry) */
+export type { ToolSource, ToolSourceType } from '../lib/tool-registry';
+import type { ToolSource } from '../lib/tool-registry';
+
 export interface Tool {
     description?: string;
     parameters?: Record<string, unknown>;
@@ -22,6 +26,8 @@ export interface Tool {
     requiresApproval?: boolean;
     /** Per-tool approval handler (overrides global) */
     approvalHandler?: ApprovalHandler;
+    /** Tool source for approval matching (default: user:generateText) */
+    source?: ToolSource;
 }
 
 export interface ToolResult {
@@ -436,12 +442,18 @@ async function executeTools(
 
         // Check approval if tool requires it
         if (tool.requiresApproval) {
+            // Validate source if provided (fail fast for JS callers with incomplete source)
+            if (tool.source && !tool.source.namespace) {
+                throw new Error(`Tool '${toolCall.function.name}' has source.type but missing source.namespace`);
+            }
+            const toolSource = tool.source ?? { type: 'user' as const, namespace: 'generateText' };
+
             // Create a minimal RegisteredTool-compatible object for checkApproval
             const toolForApproval = {
                 name: toolCall.function.name,
                 description: tool.description ?? '',
                 parameters: (tool.parameters ?? {}) as any,
-                source: { type: 'builtin' as const, namespace: 'user' },
+                source: toolSource,
                 requiresApproval: tool.requiresApproval,
                 approvalHandler: tool.approvalHandler,
             };
@@ -620,6 +632,12 @@ export async function generateTextWithGraph(
             // Convert parameters using same logic as generateText
             const convertedParams = convertToolParameters(tool.parameters);
 
+            // Validate source if provided (fail fast for JS callers with incomplete source)
+            if (tool.source && !tool.source.namespace) {
+                throw new Error(`Tool '${name}' has source.type but missing source.namespace`);
+            }
+            const toolSource = tool.source ?? { type: 'user' as const, namespace: 'generateText' };
+
             registeredTools[name] = {
                 name,
                 description: tool.description || '',
@@ -628,7 +646,10 @@ export async function generateTextWithGraph(
                     properties: convertedParams.properties || convertedParams,
                     required: convertedParams.required,
                 } as ToolParameters,
-                source: { type: 'user', namespace: 'generateText' },
+                source: toolSource,
+                // Propagate approval fields for unified behavior
+                requiresApproval: tool.requiresApproval,
+                approvalHandler: tool.approvalHandler,
                 execute: tool.execute
                     ? async (args: Record<string, unknown>, execContext?: { toolCallId: string; messages: Array<{ role: string; content: unknown }>; abortSignal?: AbortSignal }) => {
                         // Use context from execute-node (has real toolCallId), fallback to currentMessages
