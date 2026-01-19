@@ -4,7 +4,7 @@ import type { StreamResult } from '../modules/chat';
 import { MaxStepsExceededError, ToolExecutionError } from '../lib/errors';
 import type { Checkpointer } from './graph/checkpointer';
 import type { ApprovalConfig, ApprovalHandler, ApprovalResult } from './tool-approval';
-import { checkApproval, DeferredApprovalError } from './tool-approval';
+import { checkApproval } from './tool-approval';
 import { normalizeContent } from '../lib/content-converter';
 import type { MemoryManager } from './memory';
 

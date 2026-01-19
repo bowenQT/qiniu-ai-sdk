@@ -464,13 +464,21 @@ export class AgentGraph {
                         state.approvalConfig
                     );
 
-                    if (batchCheck.deferredTools.length > 0) {
+                    // Extract deferred and rejected by toolCallId
+                    const deferredCallIds = batchCheck.results
+                        .filter(r => r.deferred)
+                        .map(r => r.toolCallId);
+                    const rejectedResults = batchCheck.results
+                        .filter(r => !r.approved && !r.deferred);
+
+                    // If any deferred, interrupt
+                    if (batchCheck.hasDeferred) {
                         // Save checkpoint with pending_approval status
-                        // Store rejectedTools so resume knows which tools were already rejected
                         const pendingApproval: PendingApproval = {
                             toolCalls,
-                            deferredTools: batchCheck.deferredTools,
-                            rejectedTools: batchCheck.rejectedTools,
+                            // Store by toolCallId for precise resume
+                            deferredCallIds,
+                            rejectedCallIds: rejectedResults.map(r => r.toolCallId),
                             requestedAt: Date.now(),
                         };
 
@@ -480,7 +488,7 @@ export class AgentGraph {
                         });
 
                         span.setAttribute('interrupted', true);
-                        span.setAttribute('deferred_tools', batchCheck.deferredTools.join(','));
+                        span.setAttribute('deferred_count', deferredCallIds.length);
 
                         return {
                             text: state.output,
@@ -496,6 +504,44 @@ export class AgentGraph {
                             state,
                             interrupted: true,
                             pendingApproval,
+                        };
+                    }
+
+                    // If rejected (but no deferred), generate rejection messages and continue
+                    if (batchCheck.hasRejected) {
+                        const rejectionMessages = rejectedResults.map(r => ({
+                            role: 'tool' as const,
+                            content: r.rejectionMessage ?? '[Approval Rejected] Tool execution was denied.',
+                            tool_call_id: r.toolCallId,
+                        }));
+
+                        // Add rejection messages to state
+                        state.messages = [...state.messages, ...rejectionMessages.map(m => m as InternalMessage)];
+
+                        // Create steps for rejected tools
+                        for (const r of rejectedResults) {
+                            const step: StepResult = {
+                                type: 'tool_result',
+                                content: r.rejectionMessage ?? '[Approval Rejected]',
+                                toolResults: [{ toolCallId: r.toolCallId, result: r.rejectionMessage ?? '[Approval Rejected]' }],
+                            };
+                            this.steps.push(step);
+                            events?.onStepFinish?.(step);
+                        }
+
+                        // Filter out rejected tools from execution
+                        const rejectedIds = new Set(rejectedResults.map(r => r.toolCallId));
+                        const approvedToolCalls = toolCalls.filter(tc => !rejectedIds.has(tc.id));
+
+                        // If no approved tools left, skip execution entirely
+                        if (approvedToolCalls.length === 0) {
+                            continue; // Go to next predict iteration
+                        }
+
+                        // Override tool_calls in last message for execution
+                        state.messages[state.messages.length - 1 - rejectionMessages.length] = {
+                            ...lastMessage,
+                            tool_calls: approvedToolCalls,
                         };
                     }
                 }

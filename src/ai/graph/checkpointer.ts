@@ -15,7 +15,7 @@ export type CheckpointStatus = 'active' | 'pending_approval' | 'completed';
  * Pending approval information.
  */
 export interface PendingApproval {
-    /** Tool call awaiting approval (single tool) */
+    /** Tool call awaiting approval (single tool - legacy) */
     toolCall?: {
         id: string;
         function: {
@@ -31,13 +31,17 @@ export interface PendingApproval {
             arguments: string;
         };
     }>;
-    /** Tool names that require deferred approval */
+    /** Tool call IDs that are deferred (precise per-call tracking) */
+    deferredCallIds?: string[];
+    /** Tool call IDs that were rejected (should not be executed on resume) */
+    rejectedCallIds?: string[];
+    /** @deprecated Use deferredCallIds - Tool names that require deferred approval */
     deferredTools?: string[];
-    /** Tool names that were already rejected (should not be executed on resume) */
+    /** @deprecated Use rejectedCallIds - Tool names that were already rejected */
     rejectedTools?: string[];
-    /** Tool name (for single tool approval) */
+    /** Tool name (for single tool approval - legacy) */
     toolName?: string;
-    /** Parsed arguments (for single tool approval) */
+    /** Parsed arguments (for single tool approval - legacy) */
     args?: Record<string, unknown>;
     /** Timestamp when approval was requested */
     requestedAt: number;
@@ -394,15 +398,17 @@ export async function resumeWithApproval(
 
     if (approved) {
         if (hasBatch) {
-            // Batch mode: execute tool calls, respecting rejectedTools
-            const rejectedSet = new Set(pending.rejectedTools ?? []);
+            // Batch mode: execute tool calls, respecting rejectedCallIds
+            // Support both new callId granularity and legacy toolName granularity
+            const rejectedCallIdSet = new Set(pending.rejectedCallIds ?? []);
+            const rejectedToolNameSet = new Set(pending.rejectedTools ?? []);
             toolResults = [];
 
             for (const tc of pending.toolCalls!) {
                 const toolName = tc.function.name;
 
-                // Skip previously rejected tools - return rejection message
-                if (rejectedSet.has(toolName)) {
+                // Skip previously rejected tools - check both ID and name for backwards compat
+                if (rejectedCallIdSet.has(tc.id) || rejectedToolNameSet.has(toolName)) {
                     toolResults.push({
                         toolCallId: tc.id,
                         result: '[Approval Rejected] Tool was rejected during initial check.'

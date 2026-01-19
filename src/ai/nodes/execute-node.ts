@@ -6,7 +6,7 @@
 import type { ChatMessage, ToolCall } from '../../lib/types';
 import type { RegisteredTool } from '../../lib/tool-registry';
 import { ToolExecutionError } from '../../lib/errors';
-import { executeToolWithApproval, type ApprovalConfig } from '../tool-approval';
+import { executeToolWithApproval, serializeResult, type ApprovalConfig } from '../tool-approval';
 
 /** Tool execution context */
 export interface ExecutionContext {
@@ -70,8 +70,8 @@ export async function executeTools(
                 const result = tool.execute
                     ? await tool.execute(args, { toolCallId: call.id, messages: context.messages, abortSignal: context.abortSignal })
                     : undefined;
-                const resultStr = result === undefined ? '' : (typeof result === 'string' ? result : JSON.stringify(result));
-                results.push({ toolCallId: call.id, result: resultStr, isError: false });
+                // Use shared serializeResult for consistent formatting
+                results.push({ toolCallId: call.id, result: serializeResult(result), isError: false });
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);
                 results.push({ toolCallId: call.id, result: `[Error] ${errorMsg}`, isError: true });
@@ -129,24 +129,5 @@ function parseToolArguments(payload: string): Record<string, unknown> {
         } catch {
             return { _raw: payload };
         }
-    }
-}
-
-/**
- * Serialize tool result to string.
- */
-function serializeResult(result: unknown): string {
-    if (result === undefined || result === null) {
-        return '';
-    }
-
-    if (typeof result === 'string') {
-        return result;
-    }
-
-    try {
-        return JSON.stringify(result, null, 2);
-    } catch {
-        return String(result);
     }
 }

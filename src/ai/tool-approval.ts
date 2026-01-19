@@ -275,9 +275,10 @@ export async function executeToolWithApproval(
 // ============================================================================
 
 /**
- * Serialize tool result to string.
+ * Serialize tool result to string safely.
+ * Handles undefined, null, strings, and objects with JSON.stringify fallback.
  */
-function serializeResult(result: unknown): string {
+export function serializeResult(result: unknown): string {
     if (result === undefined || result === null) {
         return '';
     }
@@ -293,32 +294,59 @@ function serializeResult(result: unknown): string {
     }
 }
 
-// ============================================================================
-// Batch Approval Check
-// ============================================================================
+/**
+ * Per-tool-call approval result for batch checking.
+ */
+export interface BatchApprovalResult {
+    toolCallId: string;
+    toolName: string;
+    approved: boolean;
+    deferred: boolean;
+    rejectionMessage?: string;
+}
+
+/**
+ * Batch approval check result.
+ */
+export interface BatchCheckResult {
+    /** All calls passed (no deferred, no rejected) */
+    allApproved: boolean;
+    /** Per-call results */
+    results: BatchApprovalResult[];
+    /** Has at least one deferred */
+    hasDeferred: boolean;
+    /** Has at least one rejected */
+    hasRejected: boolean;
+}
 
 /**
  * Pre-check approval for a batch of tool calls.
  * This is used to detect deferred approvals BEFORE executing any tools,
  * ensuring no side effects occur when interruption is needed.
  * 
- * @returns Object with approved (all passed) and deferredTools (tools needing defer)
+ * Returns per-toolCallId results for precise handling.
  */
 export async function checkApprovalBatch(
     toolCalls: Array<{ id: string; function: { name: string; arguments: string } }>,
     tools: Map<string, RegisteredTool>,
     messages: Array<{ role: string; content: unknown }>,
     approvalConfig?: ApprovalConfig,
-): Promise<{ approved: boolean; deferredTools: string[]; rejectedTools: string[] }> {
-    const deferredTools: string[] = [];
-    const rejectedTools: string[] = [];
+): Promise<BatchCheckResult> {
+    const results: BatchApprovalResult[] = [];
 
     for (const toolCall of toolCalls) {
         const tool = tools.get(toolCall.function.name);
-        if (!tool) continue;
 
-        // Skip tools that don't require approval
-        if (!tool.requiresApproval) continue;
+        // Tools without requiresApproval or non-existent tools pass by default
+        if (!tool || !tool.requiresApproval) {
+            results.push({
+                toolCallId: toolCall.id,
+                toolName: toolCall.function.name,
+                approved: true,
+                deferred: false,
+            });
+            continue;
+        }
 
         // Parse args for approval context
         let args: Record<string, unknown> = {};
@@ -336,17 +364,23 @@ export async function checkApprovalBatch(
             approvalConfig,
         );
 
-        if (result.deferred) {
-            deferredTools.push(toolCall.function.name);
-        } else if (!result.approved) {
-            rejectedTools.push(toolCall.function.name);
-        }
+        results.push({
+            toolCallId: toolCall.id,
+            toolName: toolCall.function.name,
+            approved: result.approved,
+            deferred: result.deferred ?? false,
+            rejectionMessage: result.rejectionMessage,
+        });
     }
 
+    const hasDeferred = results.some(r => r.deferred);
+    const hasRejected = results.some(r => !r.approved && !r.deferred);
+
     return {
-        approved: deferredTools.length === 0 && rejectedTools.length === 0,
-        deferredTools,
-        rejectedTools,
+        allApproved: !hasDeferred && !hasRejected,
+        results,
+        hasDeferred,
+        hasRejected,
     };
 }
 
