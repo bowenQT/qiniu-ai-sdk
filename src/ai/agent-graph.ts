@@ -56,6 +56,22 @@ export interface AgentGraphOptions {
     memory?: MemoryManager;
     /** Thread ID for memory isolation (used with memory option) */
     threadId?: string;
+    /** Auto-retry configuration for RecoverableError handling */
+    autoRetry?: AutoRetryConfig;
+}
+
+/**
+ * Configuration for automatic retry of recoverable errors.
+ * 
+ * SECURITY: requiresApproval tools are NEVER auto-retried, regardless of config.
+ */
+export interface AutoRetryConfig {
+    /** Enable auto-retry (default: false) */
+    enabled: boolean;
+    /** Maximum retry attempts per tool call (default: 3) */
+    maxRetries?: number;
+    /** Initial backoff delay in ms (default: 1000, doubles each retry) */
+    backoffMs?: number;
 }
 
 /** AgentGraph result */

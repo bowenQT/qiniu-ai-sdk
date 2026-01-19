@@ -5,7 +5,7 @@
 
 import type { ChatMessage, ToolCall } from '../../lib/types';
 import type { RegisteredTool } from '../../lib/tool-registry';
-import { ToolExecutionError } from '../../lib/errors';
+import { ToolExecutionError, RecoverableError } from '../../lib/errors';
 import { executeToolWithApproval, serializeResult, type ApprovalConfig } from '../tool-approval';
 
 /** Tool execution context */
@@ -73,8 +73,22 @@ export async function executeTools(
                 // Use shared serializeResult for consistent formatting
                 results.push({ toolCallId: call.id, result: serializeResult(result), isError: false });
             } catch (error) {
-                const errorMsg = error instanceof Error ? error.message : String(error);
-                results.push({ toolCallId: call.id, result: `[Error] ${errorMsg}`, isError: true });
+                // Check for RecoverableError - convert to structured prompt
+                if (error instanceof RecoverableError) {
+                    results.push({
+                        toolCallId: call.id,
+                        result: error.toPrompt(),
+                        isError: true,
+                        // Attach metadata for auto-retry logic
+                        _recoverable: {
+                            retryable: error.retryable,
+                            modifiedParams: error.modifiedParams,
+                        },
+                    } as ToolExecutionResult & { _recoverable?: unknown });
+                } else {
+                    const errorMsg = error instanceof Error ? error.message : String(error);
+                    results.push({ toolCallId: call.id, result: `[Error] ${errorMsg}`, isError: true });
+                }
             }
         } else {
             // Execute with approval check using unified function
