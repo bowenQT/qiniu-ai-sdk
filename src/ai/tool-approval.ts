@@ -5,6 +5,7 @@
 
 import type { ToolCall } from '../lib/types';
 import type { RegisteredTool, ToolSource } from '../lib/tool-registry';
+import { RecoverableError } from '../lib/errors';
 
 // ============================================================================
 // Types
@@ -261,6 +262,14 @@ export async function executeToolWithApproval(
             isRejected: false,
         };
     } catch (error) {
+        // Check for RecoverableError - convert to structured prompt
+        if (error instanceof RecoverableError) {
+            return {
+                result: error.toPrompt(),
+                isError: true,
+                isRejected: false,
+            };
+        }
         const errorMessage = error instanceof Error ? error.message : String(error);
         return {
             result: `Error: ${errorMessage}`,

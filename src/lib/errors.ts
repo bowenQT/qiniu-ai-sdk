@@ -47,30 +47,56 @@ export class StructuredOutputError extends AIError {
         this.validationErrors = validationErrors;
     }
 }
-
 // ============================================================================
 // Recoverable Errors (Error-as-Prompt)
 // ============================================================================
 
-/** Sensitive key patterns for redaction */
-const SENSITIVE_KEYS = /^(password|secret|token|key|auth|credential|apikey|api_key|access_token|bearer)$/i;
+/** 
+ * Sensitive key patterns for redaction.
+ * Matches keys that CONTAIN these patterns (case insensitive).
+ */
+const SENSITIVE_KEY_PATTERNS = [
+    'password', 'secret', 'token', 'key', 'auth', 'credential',
+    'bearer', 'cookie', 'session', 'jwt', 'private',
+];
+
+/**
+ * Check if a key looks sensitive.
+ */
+function isSensitiveKey(key: string): boolean {
+    const lowerKey = key.toLowerCase();
+    return SENSITIVE_KEY_PATTERNS.some(pattern => lowerKey.includes(pattern));
+}
 
 /**
  * Redact potentially sensitive values from an object.
- * Replaces values for keys matching SENSITIVE_KEYS with '[REDACTED]'.
+ * - Matches keys that CONTAIN sensitive patterns (not just exact match)
+ * - Recursively processes nested objects AND arrays
+ * - Handles camelCase keys like accessKey, secretKey
  */
-export function redactSecrets(obj: Record<string, unknown>): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-        if (SENSITIVE_KEYS.test(key)) {
-            result[key] = '[REDACTED]';
-        } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-            result[key] = redactSecrets(value as Record<string, unknown>);
-        } else {
-            result[key] = value;
-        }
+export function redactSecrets(value: unknown): unknown {
+    if (value === null || value === undefined) {
+        return value;
     }
-    return result;
+
+    if (Array.isArray(value)) {
+        return value.map(item => redactSecrets(item));
+    }
+
+    if (typeof value === 'object') {
+        const obj = value as Record<string, unknown>;
+        const result: Record<string, unknown> = {};
+        for (const [key, val] of Object.entries(obj)) {
+            if (isSensitiveKey(key)) {
+                result[key] = '[REDACTED]';
+            } else {
+                result[key] = redactSecrets(val);
+            }
+        }
+        return result;
+    }
+
+    return value;
 }
 
 /**
@@ -123,8 +149,12 @@ export class RecoverableError extends AIError {
     toPrompt(options?: { maxLength?: number }): string {
         const maxLength = options?.maxLength ?? 1024;
 
-        let prompt = `[Tool Error: ${this.toolName}] ${this.message}\n` +
-            `Recovery: ${this.recoverySuggestion}`;
+        // Redact any potential secrets in strings too
+        const safeMessage = redactStringSecrets(this.message);
+        const safeSuggestion = redactStringSecrets(this.recoverySuggestion);
+
+        let prompt = `[Tool Error: ${this.toolName}] ${safeMessage}\n` +
+            `Recovery: ${safeSuggestion}`;
 
         if (this.modifiedParams) {
             const safeParams = redactSecrets(this.modifiedParams);
@@ -138,4 +168,21 @@ export class RecoverableError extends AIError {
 
         return truncateString(prompt, maxLength);
     }
+}
+
+/**
+ * Redact common secret patterns from strings.
+ * Looks for patterns like key=value, Bearer tokens, etc.
+ */
+function redactStringSecrets(str: string): string {
+    // Redact Bearer tokens
+    let result = str.replace(/Bearer\s+[A-Za-z0-9\-_.]+/gi, 'Bearer [REDACTED]');
+
+    // Redact key=value patterns for sensitive keys
+    result = result.replace(
+        /(password|secret|token|key|auth|credential|bearer|api_key|apikey|access_token)\s*[=:]\s*["']?[^"'\s,}]+["']?/gi,
+        '$1=[REDACTED]'
+    );
+
+    return result;
 }

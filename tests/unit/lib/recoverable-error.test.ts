@@ -104,15 +104,30 @@ describe('redactSecrets', () => {
         });
     });
 
-    it('should preserve arrays', () => {
-        const result = redactSecrets({ items: ['a', 'b'], token: 'x' });
-        expect(result).toEqual({ items: ['a', 'b'], token: '[REDACTED]' });
+    it('should redact inside arrays', () => {
+        const result = redactSecrets({
+            servers: [
+                { host: 'a.com', accessKey: 'secret1' },
+                { host: 'b.com', secretKey: 'secret2' },
+            ]
+        });
+        expect((result as any).servers[0].accessKey).toBe('[REDACTED]');
+        expect((result as any).servers[0].host).toBe('a.com');
+        expect((result as any).servers[1].secretKey).toBe('[REDACTED]');
     });
 
-    it('should be case insensitive', () => {
-        const result = redactSecrets({ PASSWORD: 'x', Token: 'y', API_KEY: 'z' });
-        expect(result.PASSWORD).toBe('[REDACTED]');
-        expect(result.Token).toBe('[REDACTED]');
-        expect(result.API_KEY).toBe('[REDACTED]');
+    it('should match keys containing sensitive patterns (camelCase)', () => {
+        const result = redactSecrets({
+            accessKey: 'x',
+            secretKey: 'y',
+            myPassword: 'z',
+            authToken: 'w',
+            username: 'john'
+        });
+        expect(result.accessKey).toBe('[REDACTED]');
+        expect(result.secretKey).toBe('[REDACTED]');
+        expect(result.myPassword).toBe('[REDACTED]');
+        expect(result.authToken).toBe('[REDACTED]');
+        expect(result.username).toBe('john');
     });
 });
