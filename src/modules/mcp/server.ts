@@ -31,6 +31,32 @@ export interface QiniuMCPServerConfig {
     version?: string;
 }
 
+/**
+ * Options for registering a dynamic tool.
+ */
+export interface RegisterToolOptions {
+    /**
+     * Conflict handling strategy.
+     * - 'error': Throw error if tool name already exists (default)
+     * - 'replace': Replace existing tool silently
+     */
+    onConflict?: 'error' | 'replace';
+}
+
+/**
+ * Dynamic tool definition for MCP Server.
+ */
+export interface DynamicTool {
+    /** Tool name (must be unique) */
+    name: string;
+    /** Tool description */
+    description: string;
+    /** JSON Schema for input */
+    inputSchema: Record<string, unknown>;
+    /** Tool executor function */
+    execute: (args: Record<string, unknown>) => Promise<unknown>;
+}
+
 // ============================================================================
 // Tool Definitions
 // ============================================================================
@@ -120,6 +146,8 @@ export class QiniuMCPServer {
     private server: Server;
     private client: QiniuAI;
     private config: QiniuMCPServerConfig;
+    /** Dynamically registered tools */
+    private dynamicTools = new Map<string, DynamicTool>();
 
     constructor(config: QiniuMCPServerConfig) {
         this.config = config;
@@ -146,9 +174,16 @@ export class QiniuMCPServer {
     }
 
     private registerHandlers(): void {
-        // List available tools
+        // List available tools (built-in + dynamic)
         this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-            tools: TOOLS,
+            tools: [
+                ...TOOLS,
+                ...Array.from(this.dynamicTools.values()).map(t => ({
+                    name: t.name,
+                    description: t.description,
+                    inputSchema: t.inputSchema,
+                })),
+            ],
         }));
 
         // Handle tool calls
@@ -176,6 +211,13 @@ export class QiniuMCPServer {
     }
 
     private async executeTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+        // Check dynamic tools first
+        const dynamicTool = this.dynamicTools.get(name);
+        if (dynamicTool) {
+            return dynamicTool.execute(args);
+        }
+
+        // Built-in tools
         switch (name) {
             case 'qiniu_chat':
                 return this.executeChat(args);
@@ -285,6 +327,68 @@ export class QiniuMCPServer {
      */
     async close(): Promise<void> {
         await this.server.close();
+    }
+
+    // ========================================================================
+    // Dynamic Tool Registration
+    // ========================================================================
+
+    /**
+     * Register a dynamic tool.
+     * 
+     * @param tool - Tool definition with name, description, inputSchema, and execute function
+     * @param options - Registration options (default: error on conflict)
+     * @throws Error if tool name conflicts with existing tool and onConflict is 'error'
+     * 
+     * @example
+     * ```typescript
+     * server.registerTool({
+     *     name: 'my_custom_tool',
+     *     description: 'Does something custom',
+     *     inputSchema: { type: 'object', properties: { input: { type: 'string' } } },
+     *     execute: async (args) => ({ result: 'success' }),
+     * });
+     * ```
+     */
+    registerTool(tool: DynamicTool, options?: RegisterToolOptions): void {
+        const onConflict = options?.onConflict ?? 'error';
+
+        // Check for conflicts with built-in tools
+        const builtinNames = TOOLS.map(t => t.name);
+        if (builtinNames.includes(tool.name)) {
+            if (onConflict === 'error') {
+                throw new Error(`Tool "${tool.name}" conflicts with built-in tool`);
+            }
+            // 'replace' - can't replace built-ins, just warn
+            console.warn(`Cannot replace built-in tool "${tool.name}", ignoring`);
+            return;
+        }
+
+        // Check for conflicts with existing dynamic tools
+        if (this.dynamicTools.has(tool.name)) {
+            if (onConflict === 'error') {
+                throw new Error(`Tool "${tool.name}" already registered. Use unregisterTool first or set onConflict: 'replace'`);
+            }
+        }
+
+        this.dynamicTools.set(tool.name, tool);
+    }
+
+    /**
+     * Unregister a dynamic tool.
+     * 
+     * @param name - Tool name to unregister
+     * @returns true if tool was unregistered, false if not found
+     */
+    unregisterTool(name: string): boolean {
+        return this.dynamicTools.delete(name);
+    }
+
+    /**
+     * Get list of registered dynamic tool names.
+     */
+    getDynamicToolNames(): string[] {
+        return Array.from(this.dynamicTools.keys());
     }
 }
 
