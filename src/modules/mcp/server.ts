@@ -349,6 +349,10 @@ export class QiniuMCPServer {
      *     execute: async (args) => ({ result: 'success' }),
      * });
      * ```
+     * 
+     * @note Built-in tools (qiniu_chat, qiniu_ocr, etc.) cannot be replaced.
+     *       If onConflict is 'replace' and the name conflicts with a built-in,
+     *       the registration is silently ignored with a console warning.
      */
     registerTool(tool: DynamicTool, options?: RegisterToolOptions): void {
         const onConflict = options?.onConflict ?? 'error';
@@ -357,7 +361,7 @@ export class QiniuMCPServer {
         const builtinNames = TOOLS.map(t => t.name);
         if (builtinNames.includes(tool.name)) {
             if (onConflict === 'error') {
-                throw new Error(`Tool "${tool.name}" conflicts with built-in tool`);
+                throw new Error(`Tool "${tool.name}" conflicts with built-in tool (built-ins cannot be replaced)`);
             }
             // 'replace' - can't replace built-ins, just warn
             console.warn(`Cannot replace built-in tool "${tool.name}", ignoring`);
