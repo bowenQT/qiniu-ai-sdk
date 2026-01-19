@@ -104,6 +104,8 @@ export interface AgentExpertConfig {
  * Request to call a specific tool.
  */
 export interface CallToolRequest {
+    /** Caller agent ID (for response routing) */
+    from?: string;
     /** Tool name (without prefix) */
     tool: string;
     /** Tool arguments */

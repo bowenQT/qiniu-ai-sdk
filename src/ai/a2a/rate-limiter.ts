@@ -13,6 +13,8 @@ interface RateLimitEntry {
 }
 
 interface QueuedCall<T> {
+    agentId: string;
+    toolName: string;
     execute: () => Promise<T>;
     resolve: (value: T) => void;
     reject: (reason: unknown) => void;
@@ -41,7 +43,7 @@ export class A2ARateLimiter {
     }
 
     /**
-     * Check if a call is allowed and track it.
+     * Check if a call is allowed.
      * 
      * @param agentId - The agent making the call
      * @param toolName - The tool being called (used if scope is 'tool')
@@ -94,8 +96,8 @@ export class A2ARateLimiter {
             );
         }
 
-        // Queue the call
-        return this.enqueue(execute);
+        // Queue the call with context
+        return this.enqueue(agentId, toolName, execute);
     }
 
     /**
@@ -124,15 +126,22 @@ export class A2ARateLimiter {
      * Reset rate limit for an agent/tool.
      */
     reset(agentId: string, toolName?: string): void {
-        if (toolName && this.config.scope === 'tool') {
-            this.entries.delete(this.getKey(agentId, toolName));
-        } else {
-            // Reset all entries for this agent
-            for (const key of this.entries.keys()) {
-                if (key.startsWith(`${agentId}:`)) {
-                    this.entries.delete(key);
+        if (this.config.scope === 'tool') {
+            if (toolName) {
+                // Reset specific tool
+                this.entries.delete(this.getKey(agentId, toolName));
+            } else {
+                // Reset all tools for this agent
+                const prefix = `${agentId}:`;
+                for (const key of [...this.entries.keys()]) {
+                    if (key.startsWith(prefix)) {
+                        this.entries.delete(key);
+                    }
                 }
             }
+        } else {
+            // scope === 'agent': key is just agentId
+            this.entries.delete(agentId);
         }
     }
 
@@ -168,9 +177,15 @@ export class A2ARateLimiter {
         entry.timestamps = entry.timestamps.filter(t => t > cutoff);
     }
 
-    private async enqueue<T>(execute: () => Promise<T>): Promise<T> {
+    private async enqueue<T>(
+        agentId: string,
+        toolName: string,
+        execute: () => Promise<T>
+    ): Promise<T> {
         return new Promise<T>((resolve, reject) => {
             this.queue.push({
+                agentId,
+                toolName,
                 execute: execute as () => Promise<unknown>,
                 resolve: resolve as (value: unknown) => void,
                 reject,
@@ -189,9 +204,11 @@ export class A2ARateLimiter {
         while (this.queue.length > 0) {
             const call = this.queue[0];
 
-            // Wait until we have a slot
-            // We use a simple "any agent" check since we don't have agent info in queue
-            await this.waitForSlot();
+            // Wait until slot is available for this specific call
+            await this.waitForSlot(call.agentId, call.toolName);
+
+            // Track before execution (count it)
+            this.track(call.agentId, call.toolName);
 
             this.queue.shift();
 
@@ -206,23 +223,21 @@ export class A2ARateLimiter {
         this.processing = false;
     }
 
-    private async waitForSlot(): Promise<void> {
-        // Simple exponential backoff check
-        const checkInterval = 100; // 100ms
-        const maxWait = this.config.windowMs;
+    private async waitForSlot(agentId: string, toolName: string): Promise<void> {
+        const checkInterval = 50;
+        const maxWait = this.config.windowMs * 2;
         let waited = 0;
 
         while (waited < maxWait) {
-            // Check if any slot is available
-            // Since we don't have context, wait for window to pass
-            await new Promise(resolve => setTimeout(resolve, checkInterval));
-            waited += checkInterval;
-
-            // If we've waited long enough for at least one slot to free up
-            if (waited >= this.config.windowMs) {
+            if (this.isAllowed(agentId, toolName)) {
                 return;
             }
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            waited += checkInterval;
         }
+
+        // Timeout - still execute but may exceed limit
+        console.warn(`[A2ARateLimiter] Queue timeout for ${agentId}:${toolName}`);
     }
 }
 

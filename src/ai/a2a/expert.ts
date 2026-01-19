@@ -70,6 +70,13 @@ export class AgentExpert {
         // Build exposed tools with prefix
         const exposedTools: Record<string, Tool> = {};
         const prefix = config.prefix ?? `${agent.id}_`;
+        const expertId = agent.id;
+        const rateLimit = config.rateLimit;
+        let rateLimiter: A2ARateLimiter | undefined;
+
+        if (rateLimit) {
+            rateLimiter = new A2ARateLimiter(rateLimit);
+        }
 
         for (const toolName of config.expose) {
             const tool = originalTools[toolName];
@@ -81,6 +88,9 @@ export class AgentExpert {
             const prefixedName = `${prefix}${toolName}`;
             exposedTools[prefixedName] = createWrappedTool(
                 tool,
+                toolName,
+                expertId,
+                rateLimiter,
                 config.validateArgs ?? true
             );
         }
@@ -93,59 +103,54 @@ export class AgentExpert {
      */
     async callTool(request: CallToolRequest): Promise<A2AMessage> {
         const requestId = request.requestId ?? generateRequestId();
-        const { tool, args, signal } = request;
+        const { from = '', tool, args, signal } = request;
+
+        // Create base request for error responses
+        const baseRequest: A2AMessage = {
+            requestId,
+            type: 'request',
+            from,
+            to: this.id,
+            timestamp: Date.now(),
+            tool,
+            args,
+        };
 
         // Check if tool is exposed
         if (!this.config.expose.includes(tool)) {
-            return createA2AError(
-                { requestId, type: 'request', from: '', to: this.id, timestamp: Date.now() } as A2AMessage,
-                'TOOL_NOT_EXPOSED',
-                `Tool "${tool}" is not exposed by this expert`
-            );
+            return createA2AError(baseRequest, 'TOOL_NOT_EXPOSED', `Tool "${tool}" is not exposed by this expert`);
         }
 
         // Get original tool
         const originalTool = this.originalTools[tool];
         if (!originalTool) {
-            return createA2AError(
-                { requestId, type: 'request', from: '', to: this.id, timestamp: Date.now() } as A2AMessage,
-                'TOOL_NOT_FOUND',
-                `Tool "${tool}" not found`
-            );
+            return createA2AError(baseRequest, 'TOOL_NOT_FOUND', `Tool "${tool}" not found`);
         }
 
         // Check abort signal
         if (signal?.aborted) {
-            return createA2AError(
-                { requestId, type: 'request', from: '', to: this.id, timestamp: Date.now() } as A2AMessage,
-                'CANCELLED',
-                'Request was cancelled'
-            );
+            return createA2AError(baseRequest, 'CANCELLED', 'Request was cancelled');
         }
 
         // Rate limiting
         if (this.rateLimiter) {
             try {
-                const allowed = this.rateLimiter.isAllowed(this.id, tool);
+                const allowed = this.rateLimiter.isAllowed(from || this.id, tool);
                 if (!allowed) {
                     if (this.config.rateLimit?.onLimit === 'reject') {
                         throw new RateLimitError(
-                            this.id,
+                            from || this.id,
                             tool,
-                            this.rateLimiter.getTimeUntilSlot(this.id, tool)
+                            this.rateLimiter.getTimeUntilSlot(from || this.id, tool)
                         );
                     }
                     // Queue mode - wait for slot
-                    await this.waitForRateLimitSlot(tool);
+                    await this.waitForRateLimitSlot(from || this.id, tool);
                 }
-                this.rateLimiter.track(this.id, tool);
+                this.rateLimiter.track(from || this.id, tool);
             } catch (error) {
                 if (error instanceof RateLimitError) {
-                    return createA2AError(
-                        { requestId, type: 'request', from: '', to: this.id, timestamp: Date.now() } as A2AMessage,
-                        'RATE_LIMITED',
-                        error.message
-                    );
+                    return createA2AError(baseRequest, 'RATE_LIMITED', error.message);
                 }
                 throw error;
             }
@@ -155,11 +160,7 @@ export class AgentExpert {
         if (this.config.validateArgs && originalTool.parameters) {
             const validationResult = validateSchema(args, originalTool.parameters as JsonSchema);
             if (!validationResult.valid) {
-                return createA2AError(
-                    { requestId, type: 'request', from: '', to: this.id, timestamp: Date.now() } as A2AMessage,
-                    'VALIDATION_ERROR',
-                    validationResult.error?.message ?? 'Validation failed'
-                );
+                return createA2AError(baseRequest, 'VALIDATION_ERROR', validationResult.error?.message ?? 'Validation failed');
             }
         }
 
@@ -175,12 +176,10 @@ export class AgentExpert {
                 abortSignal: signal,
             });
 
-            const requestMsg = createA2ARequest('', this.id, tool, args);
-            requestMsg.requestId = requestId;
-            return createA2AResponse(requestMsg, result);
+            return createA2AResponse(baseRequest, result);
         } catch (error) {
             return createA2AError(
-                { requestId, type: 'request', from: '', to: this.id, timestamp: Date.now() } as A2AMessage,
+                baseRequest,
                 'EXECUTION_ERROR',
                 error instanceof Error ? error.message : String(error),
                 error instanceof Error ? error.stack : undefined
@@ -220,21 +219,21 @@ export class AgentExpert {
     // Private Methods
     // ========================================================================
 
-    private async waitForRateLimitSlot(tool: string): Promise<void> {
+    private async waitForRateLimitSlot(callerId: string, tool: string): Promise<void> {
         const maxWait = this.config.rateLimit?.windowMs ?? 60000;
-        const checkInterval = 100;
+        const checkInterval = 50;
         let waited = 0;
 
         while (waited < maxWait) {
             await new Promise(resolve => setTimeout(resolve, checkInterval));
             waited += checkInterval;
 
-            if (this.rateLimiter?.isAllowed(this.id, tool)) {
+            if (this.rateLimiter?.isAllowed(callerId, tool)) {
                 return;
             }
         }
 
-        throw new RateLimitError(this.id, tool, 0);
+        throw new RateLimitError(callerId, tool, 0);
     }
 }
 
@@ -243,16 +242,33 @@ export class AgentExpert {
 // ============================================================================
 
 /**
- * Create a wrapped tool with validation.
+ * Create a wrapped tool preserving all metadata.
  */
 function createWrappedTool(
     original: Tool,
+    toolName: string,
+    expertId: string,
+    rateLimiter: A2ARateLimiter | undefined,
     validateArgs: boolean
 ): Tool {
     return {
+        // Preserve all metadata
         description: original.description,
         parameters: original.parameters,
+        requiresApproval: original.requiresApproval,
+        approvalHandler: original.approvalHandler,
+        source: original.source,
+
         execute: async (args, context) => {
+            // Rate limiting for exposed tools path
+            if (rateLimiter) {
+                const callerId = expertId; // Use expert ID as caller for exposed tools
+                if (!rateLimiter.isAllowed(callerId, toolName)) {
+                    throw new RateLimitError(callerId, toolName, rateLimiter.getTimeUntilSlot(callerId, toolName));
+                }
+                rateLimiter.track(callerId, toolName);
+            }
+
             // Validate if enabled
             if (validateArgs && original.parameters) {
                 const result = validateSchema(args as Record<string, unknown>, original.parameters as JsonSchema);

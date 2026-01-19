@@ -249,6 +249,54 @@ describe('A2ARateLimiter', () => {
         expect(limiter.isAllowed('agent1', 'tool1')).toBe(true);
     });
 
+    it('should reset correctly for agent scope', () => {
+        const limiter = new A2ARateLimiter({
+            maxCalls: 1,
+            windowMs: 1000,
+            scope: 'agent',
+            onLimit: 'reject',
+        });
+
+        limiter.track('agent1', 'tool1');
+        expect(limiter.isAllowed('agent1', 'tool1')).toBe(false);
+
+        // Reset for this agent
+        limiter.reset('agent1');
+
+        // Should be allowed again
+        expect(limiter.isAllowed('agent1', 'tool1')).toBe(true);
+    });
+
+    it('should queue calls and track them properly in queue mode', async () => {
+        const limiter = new A2ARateLimiter({
+            maxCalls: 1,
+            windowMs: 100,
+            scope: 'agent',
+            onLimit: 'queue',
+        });
+
+        const results: number[] = [];
+
+        // First call goes through immediately
+        const p1 = limiter.execute('agent1', 'tool1', async () => {
+            results.push(1);
+            return 1;
+        });
+
+        // Second call should be queued
+        const p2 = limiter.execute('agent1', 'tool1', async () => {
+            results.push(2);
+            return 2;
+        });
+
+        // Advance time to allow second call
+        vi.advanceTimersByTime(150);
+
+        await Promise.all([p1, p2]);
+
+        expect(results).toEqual([1, 2]);
+    });
+
     it('should throw RateLimitError on reject mode', async () => {
         const limiter = new A2ARateLimiter({
             maxCalls: 0,
