@@ -5,7 +5,7 @@
 
 import type { ToolCall } from '../lib/types';
 import type { RegisteredTool, ToolSource } from '../lib/tool-registry';
-import { RecoverableError } from '../lib/errors';
+import { RecoverableError, FatalToolError } from '../lib/errors';
 
 // ============================================================================
 // Types
@@ -262,6 +262,10 @@ export async function executeToolWithApproval(
             isRejected: false,
         };
     } catch (error) {
+        // FatalToolError: propagate to caller (for parallel fail-fast)
+        if (error instanceof FatalToolError) {
+            throw error;
+        }
         // Check for RecoverableError - convert to structured prompt
         if (error instanceof RecoverableError) {
             return {

@@ -40,8 +40,30 @@ export type {
 
 // Error types
 export { APIError } from './lib/request';
-export { AIError, ToolExecutionError, MaxStepsExceededError, StructuredOutputError } from './lib/errors';
+export {
+    AIError,
+    ToolExecutionError,
+    MaxStepsExceededError,
+    StructuredOutputError,
+    FatalToolError,
+    RecoverableError,
+} from './lib/errors';
 export type { ValidationErrorItem } from './lib/errors';
+
+// Parallel execution
+export {
+    executeParallel,
+    cloneStateForBranch,
+    stampMessage,
+    sortMessagesByBranch,
+    stripBranchMeta,
+    defaultParallelReducer,
+} from './ai/graph/parallel-executor';
+export type {
+    ParallelBranch,
+    ParallelConfig,
+    ParallelResult,
+} from './ai/graph/parallel-executor';
 
 // Shared types
 export * from './lib/types';

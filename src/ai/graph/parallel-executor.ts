@@ -53,24 +53,46 @@ export interface ParallelResult {
 /**
  * Clone AgentState for parallel branch execution.
  * 
- * - Deep copies: messages (JSON-safe fields only)
+ * - Deep copies: messages (using structuredClone for ArrayBuffer/TypedArray support)
  * - Shallow copies: skills array
- * - Shared references: tools Map, abortSignal, approvalConfig, memory
- * - Adds: _branchIndex to track origin
+ * - Shared references: tools Map, approvalConfig
+ * - Overrides: abortSignal with groupAbort for fail-fast coordination
+ * - Adds: branchIndex to message _meta for ordering
+ * 
+ * @param groupAbort - Shared abort controller for fail-fast (optional)
  */
-export function cloneStateForBranch(state: AgentState, branchIndex: number): AgentState {
-    return {
-        // Deep copy messages (preserving structure)
-        messages: state.messages.map(msg => ({
-            ...msg,
-            content: typeof msg.content === 'string'
+export function cloneStateForBranch(
+    state: AgentState,
+    branchIndex: number,
+    groupAbort?: AbortController
+): AgentState {
+    // Clone messages with structuredClone (handles ArrayBuffer, Blob references)
+    const clonedMessages = state.messages.map((msg, localIndex) => {
+        // For content: use structuredClone if possible, fallback for non-cloneable
+        let clonedContent: unknown;
+        try {
+            clonedContent = typeof msg.content === 'string'
                 ? msg.content
-                : JSON.parse(JSON.stringify(msg.content)),
-            tool_calls: msg.tool_calls
-                ? JSON.parse(JSON.stringify(msg.tool_calls))
-                : undefined,
-            _meta: msg._meta ? { ...msg._meta, branchIndex } : { branchIndex },
-        })),
+                : structuredClone(msg.content);
+        } catch {
+            // Fallback for non-cloneable (functions, etc) - shallow copy
+            clonedContent = msg.content;
+        }
+
+        return {
+            ...msg,
+            content: clonedContent as typeof msg.content,
+            tool_calls: msg.tool_calls ? structuredClone(msg.tool_calls) : undefined,
+            _meta: {
+                ...msg._meta,
+                branchIndex,
+                localIndex, // Auto-assign localIndex for ordering
+            },
+        };
+    });
+
+    return {
+        messages: clonedMessages,
 
         // Scalar fields
         stepCount: state.stepCount,
@@ -89,8 +111,10 @@ export function cloneStateForBranch(state: AgentState, branchIndex: number): Age
 
         // Shared references (read-only during parallel execution)
         tools: state.tools,
-        abortSignal: state.abortSignal,
         approvalConfig: state.approvalConfig,
+
+        // Use group abort signal for fail-fast coordination
+        abortSignal: groupAbort?.signal ?? state.abortSignal,
     };
 }
 
@@ -252,8 +276,8 @@ export async function executeParallel(
                 throw new Error(`Branch "${branch.name}" cancelled`);
             }
 
-            // Clone state for this branch
-            const branchState = cloneStateForBranch(state, index);
+            // Clone state for this branch (with shared abort signal for fail-fast)
+            const branchState = cloneStateForBranch(state, index, groupAbort);
 
             // Execute branch
             const result = await branch.execute(branchState);
