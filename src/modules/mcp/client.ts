@@ -17,7 +17,7 @@ import type { Logger } from '../../lib/logger';
 import { noopLogger } from '../../lib/logger';
 import { MCPHttpTransport } from './http-transport';
 
-/** Default request timeout (30s) */
+/** Default request timeout (30s) - for long-running tool calls */
 const DEFAULT_REQUEST_TIMEOUT = 30000;
 
 /** MCP Client error */
@@ -57,6 +57,7 @@ export class MCPClient {
         this.config = {
             servers: config.servers,
             connectionTimeout: config.connectionTimeout ?? DEFAULT_MCP_CONFIG.connectionTimeout,
+            requestTimeout: config.requestTimeout ?? DEFAULT_REQUEST_TIMEOUT,
         };
         this.logger = logger ?? noopLogger;
 
@@ -347,13 +348,13 @@ export class MCPClient {
         }) + '\n';
 
         return new Promise((resolve, reject) => {
-            // Set request timeout
+            // Set request timeout (configurable via MCPClientConfig)
             const timeoutId = setTimeout(() => {
                 if (conn.pendingRequests.has(id)) {
                     conn.pendingRequests.delete(id);
                     reject(new MCPClientError(`Request timeout: ${method}`, serverName));
                 }
-            }, DEFAULT_REQUEST_TIMEOUT);
+            }, this.config.requestTimeout);
 
             conn.pendingRequests.set(id, {
                 resolve: (value) => {

@@ -79,6 +79,8 @@ export interface MCPClientConfig {
     servers: MCPServerConfig[];
     /** Connection timeout in ms */
     connectionTimeout?: number;
+    /** Request timeout in ms (stdio transport, default: 30000) */
+    requestTimeout?: number;
 }
 
 /** MCP tool execution result */
