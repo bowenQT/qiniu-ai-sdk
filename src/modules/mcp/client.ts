@@ -17,6 +17,9 @@ import type { Logger } from '../../lib/logger';
 import { noopLogger } from '../../lib/logger';
 import { MCPHttpTransport } from './http-transport';
 
+/** Default request timeout (30s) */
+const DEFAULT_REQUEST_TIMEOUT = 30000;
+
 /** MCP Client error */
 export class MCPClientError extends Error {
     constructor(message: string, public readonly serverName?: string) {
@@ -159,6 +162,22 @@ export class MCPClient {
                     this.logger.info('MCP server exited', { server: serverName, code });
                     conn.state = 'disconnected';
                     conn.process = null;
+                    // Reject all pending requests
+                    for (const [id, { reject }] of conn.pendingRequests) {
+                        reject(new MCPClientError('Server process exited', serverName));
+                    }
+                    conn.pendingRequests.clear();
+                });
+
+                // Handle spawn errors
+                conn.process.on('error', (error) => {
+                    this.logger.error('MCP server process error', { server: serverName, error: error.message });
+                    conn.state = 'error';
+                    // Reject all pending requests
+                    for (const [id, { reject }] of conn.pendingRequests) {
+                        reject(new MCPClientError(`Process error: ${error.message}`, serverName));
+                    }
+                    conn.pendingRequests.clear();
                 });
 
                 // Wait for connection with timeout
@@ -189,6 +208,12 @@ export class MCPClient {
      */
     async disconnect(): Promise<void> {
         for (const [name, conn] of this.connections) {
+            // Reject all pending requests before disconnecting
+            for (const [id, { reject }] of conn.pendingRequests) {
+                reject(new MCPClientError('Client disconnected', name));
+            }
+            conn.pendingRequests.clear();
+
             if (conn.httpTransport) {
                 await conn.httpTransport.disconnect();
                 conn.httpTransport = null;
@@ -322,7 +347,24 @@ export class MCPClient {
         }) + '\n';
 
         return new Promise((resolve, reject) => {
-            conn.pendingRequests.set(id, { resolve, reject });
+            // Set request timeout
+            const timeoutId = setTimeout(() => {
+                if (conn.pendingRequests.has(id)) {
+                    conn.pendingRequests.delete(id);
+                    reject(new MCPClientError(`Request timeout: ${method}`, serverName));
+                }
+            }, DEFAULT_REQUEST_TIMEOUT);
+
+            conn.pendingRequests.set(id, {
+                resolve: (value) => {
+                    clearTimeout(timeoutId);
+                    resolve(value);
+                },
+                reject: (reason) => {
+                    clearTimeout(timeoutId);
+                    reject(reason);
+                },
+            });
             conn.process?.stdin?.write(message);
         });
     }

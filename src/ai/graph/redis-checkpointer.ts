@@ -14,6 +14,7 @@
 
 import type { AgentState } from '../internal-types';
 import type { Checkpoint, CheckpointMetadata, Checkpointer, SerializedAgentState } from './checkpointer';
+import { serializeState } from './checkpointer';
 
 /** Redis client interface (compatible with ioredis) */
 export interface RedisClient {
@@ -79,7 +80,7 @@ export class RedisCheckpointer implements Checkpointer {
 
         const checkpoint: Checkpoint = {
             metadata,
-            state: this.serializeState(state),
+            state: serializeState(state),
         };
 
         const key = this.checkpointKey(id);
@@ -151,24 +152,5 @@ export class RedisCheckpointer implements Checkpointer {
         await this.redis.del(this.threadKey(threadId));
 
         return ids.length;
-    }
-
-    private serializeState(state: AgentState): SerializedAgentState {
-        return {
-            messages: state.messages.map(msg => ({
-                role: msg.role,
-                content: msg.content,
-                tool_calls: msg.tool_calls,
-                tool_call_id: msg.tool_call_id,
-                _meta: msg._meta,
-            })),
-            stepCount: state.stepCount,
-            maxSteps: state.maxSteps,
-            done: state.done,
-            output: state.output,
-            reasoning: state.reasoning,
-            finishReason: state.finishReason,
-            usage: state.usage,
-        };
     }
 }

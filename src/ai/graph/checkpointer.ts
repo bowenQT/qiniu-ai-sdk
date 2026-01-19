@@ -88,6 +88,31 @@ export interface SerializedAgentState {
     };
 }
 
+/**
+ * Serialize agent state to JSON-safe format.
+ * Strips non-serializable fields (abortSignal, tools Map).
+ * 
+ * @public Shared by all Checkpointer implementations.
+ */
+export function serializeState(state: AgentState): SerializedAgentState {
+    return {
+        messages: state.messages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            tool_calls: msg.tool_calls,
+            tool_call_id: msg.tool_call_id,
+            _meta: msg._meta,
+        })),
+        stepCount: state.stepCount,
+        maxSteps: state.maxSteps,
+        done: state.done,
+        output: state.output,
+        reasoning: state.reasoning,
+        finishReason: state.finishReason,
+        usage: state.usage,
+    };
+}
+
 /** Options for saving a checkpoint */
 export interface CheckpointSaveOptions {
     /** Custom user metadata */
@@ -179,7 +204,7 @@ export class MemoryCheckpointer implements Checkpointer {
             custom,
         };
 
-        const serialized = this.serializeState(state);
+        const serialized = serializeState(state);
 
         this.checkpoints.set(id, {
             metadata,
@@ -234,29 +259,6 @@ export class MemoryCheckpointer implements Checkpointer {
         }
 
         return count;
-    }
-
-    /**
-     * Serialize agent state to JSON-safe format.
-     * Strips non-serializable fields (abortSignal, tools Map).
-     */
-    private serializeState(state: AgentState): SerializedAgentState {
-        return {
-            messages: state.messages.map(msg => ({
-                role: msg.role,
-                content: msg.content,
-                tool_calls: msg.tool_calls,
-                tool_call_id: msg.tool_call_id,
-                _meta: msg._meta,
-            })),
-            stepCount: state.stepCount,
-            maxSteps: state.maxSteps,
-            done: state.done,
-            output: state.output,
-            reasoning: state.reasoning,
-            finishReason: state.finishReason,
-            usage: state.usage,
-        };
     }
 
     /**

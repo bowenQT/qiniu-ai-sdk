@@ -34,6 +34,7 @@ import type {
     CheckpointSaveOptions,
     SerializedAgentState,
 } from './checkpointer';
+import { serializeState } from './checkpointer';
 import { createHmac } from 'crypto';
 
 // ============================================================================
@@ -322,7 +323,7 @@ export class KodoCheckpointer implements Checkpointer {
         options?: CheckpointSaveOptions | Record<string, unknown>
     ): Promise<CheckpointMetadata> {
         const key = this.client.getFullKey(threadId);
-        const serialized = this.serializeState(state);
+        const serialized = serializeState(state);
 
         // Extract options - handle both new CheckpointSaveOptions and legacy custom object
         let status: 'active' | 'pending_approval' | 'completed' = 'active';
@@ -396,28 +397,5 @@ export class KodoCheckpointer implements Checkpointer {
         const key = this.client.getFullKey(threadId);
         const deleted = await this.client.delete(key);
         return deleted ? 1 : 0;
-    }
-
-    /**
-     * Serialize agent state to JSON-safe format.
-     * Strips non-serializable fields (abortSignal, tools Map).
-     */
-    private serializeState(state: AgentState): SerializedAgentState {
-        return {
-            messages: state.messages.map(msg => ({
-                role: msg.role,
-                content: msg.content,
-                tool_calls: msg.tool_calls,
-                tool_call_id: msg.tool_call_id,
-                _meta: msg._meta,
-            })),
-            stepCount: state.stepCount,
-            maxSteps: state.maxSteps,
-            done: state.done,
-            output: state.output,
-            reasoning: state.reasoning,
-            finishReason: state.finishReason,
-            usage: state.usage,
-        };
     }
 }

@@ -17,6 +17,7 @@
 
 import type { AgentState } from '../internal-types';
 import type { Checkpoint, CheckpointMetadata, Checkpointer, SerializedAgentState } from './checkpointer';
+import { serializeState } from './checkpointer';
 
 /** Postgres client interface (compatible with pg Pool) */
 export interface PostgresClient {
@@ -99,7 +100,7 @@ export class PostgresCheckpointer implements Checkpointer {
             custom: opts?.custom ?? (opts && !('status' in opts) ? opts as Record<string, unknown> : undefined),
         };
 
-        const serializedState = this.serializeState(state);
+        const serializedState = serializeState(state);
 
         // Store status and pendingApproval in custom field for Postgres (schema migration needed for full support)
         const fullCustom = {
@@ -191,24 +192,5 @@ export class PostgresCheckpointer implements Checkpointer {
             [threadId]
         );
         return (result as { rowCount?: number }).rowCount ?? 0;
-    }
-
-    private serializeState(state: AgentState): SerializedAgentState {
-        return {
-            messages: state.messages.map(msg => ({
-                role: msg.role,
-                content: msg.content,
-                tool_calls: msg.tool_calls,
-                tool_call_id: msg.tool_call_id,
-                _meta: msg._meta,
-            })),
-            stepCount: state.stepCount,
-            maxSteps: state.maxSteps,
-            done: state.done,
-            output: state.output,
-            reasoning: state.reasoning,
-            finishReason: state.finishReason,
-            usage: state.usage,
-        };
     }
 }
