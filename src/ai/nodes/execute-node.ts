@@ -5,7 +5,7 @@
 
 import type { ChatMessage, ToolCall } from '../../lib/types';
 import type { RegisteredTool } from '../../lib/tool-registry';
-import { ToolExecutionError, RecoverableError } from '../../lib/errors';
+import { ToolExecutionError, RecoverableError, FatalToolError } from '../../lib/errors';
 import { executeToolWithApproval, serializeResult, type ApprovalConfig } from '../tool-approval';
 
 /** Tool execution context */
@@ -73,6 +73,10 @@ export async function executeTools(
                 // Use shared serializeResult for consistent formatting
                 results.push({ toolCallId: call.id, result: serializeResult(result), isError: false });
             } catch (error) {
+                // FatalToolError: propagate for parallel fail-fast
+                if (error instanceof FatalToolError) {
+                    throw error;
+                }
                 // Check for RecoverableError - convert to structured prompt
                 if (error instanceof RecoverableError) {
                     results.push({
