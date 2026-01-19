@@ -22,6 +22,8 @@ import {
 
 /** Agent configuration */
 export interface AgentConfig {
+    /** Agent ID for A2A identification (auto-generated if not provided) */
+    id?: string;
     /** Qiniu AI client */
     client: QiniuAI;
     /** Model to use */
@@ -78,6 +80,10 @@ export interface AgentRunWithThreadOptions extends AgentRunOptions {
 
 /** Agent instance */
 export interface Agent {
+    /** Agent ID for A2A identification */
+    readonly id: string;
+    /** Registered tools (for A2A exposure) */
+    readonly _tools: Record<string, Tool>;
     /** Run agent once (no persistence) */
     run: (options: AgentRunOptions) => Promise<GenerateTextWithGraphResult>;
     /** Run agent with thread (persistent conversation) */
@@ -161,7 +167,13 @@ export function createAgent(config: AgentConfig): Agent {
         onNodeExit,
     });
 
+    // Generate agent ID
+    const agentId = config.id ?? `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
     return {
+        id: agentId,
+        _tools: tools ?? {},
+
         /**
          * Run agent once without persistence.
          */

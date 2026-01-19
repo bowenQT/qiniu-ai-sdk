@@ -65,6 +65,31 @@ export type {
     ParallelResult,
 } from './ai/graph/parallel-executor';
 
+// A2A (Agent-to-Agent) Protocol
+export {
+    AgentExpert,
+    A2ARateLimiter,
+    RateLimitError,
+    validateSchema,
+    sanitizeArgs,
+    generateRequestId,
+    createA2ARequest,
+    createA2AResponse,
+    createA2AError,
+} from './ai/a2a';
+export type {
+    A2AMessage,
+    A2AError,
+    A2AErrorCode,
+    AgentExpertConfig,
+    RateLimitConfig,
+    CallToolRequest,
+    RunTaskRequest,
+    RunTaskResult,
+    ValidationResult,
+    JsonSchema,
+} from './ai/a2a';
+
 // Shared types
 export * from './lib/types';
 
