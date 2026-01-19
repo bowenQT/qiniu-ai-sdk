@@ -33,6 +33,8 @@ export interface PendingApproval {
     }>;
     /** Tool names that require deferred approval */
     deferredTools?: string[];
+    /** Tool names that were already rejected (should not be executed on resume) */
+    rejectedTools?: string[];
     /** Tool name (for single tool approval) */
     toolName?: string;
     /** Parsed arguments (for single tool approval) */
@@ -392,13 +394,26 @@ export async function resumeWithApproval(
 
     if (approved) {
         if (hasBatch) {
-            // Batch mode: execute all tool calls
+            // Batch mode: execute tool calls, respecting rejectedTools
+            const rejectedSet = new Set(pending.rejectedTools ?? []);
             toolResults = [];
+
             for (const tc of pending.toolCalls!) {
+                const toolName = tc.function.name;
+
+                // Skip previously rejected tools - return rejection message
+                if (rejectedSet.has(toolName)) {
+                    toolResults.push({
+                        toolCallId: tc.id,
+                        result: '[Approval Rejected] Tool was rejected during initial check.'
+                    });
+                    continue;
+                }
+
                 if (toolExecutor) {
                     try {
                         const args = JSON.parse(tc.function.arguments || '{}');
-                        const result = await toolExecutor(tc.function.name, args, abortSignal);
+                        const result = await toolExecutor(toolName, args, abortSignal);
                         const resultStr = typeof result === 'string' ? result : JSON.stringify(result ?? { success: true });
                         toolResults.push({ toolCallId: tc.id, result: resultStr });
                         toolExecuted = true;

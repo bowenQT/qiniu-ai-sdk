@@ -27,7 +27,7 @@ import type {
 import { stripMeta } from './internal-types';
 import { getGlobalTracer } from '../lib/tracer';
 import type { ApprovalConfig } from './tool-approval';
-import { checkApprovalBatch, DeferredApprovalError } from './tool-approval';
+import { checkApprovalBatch } from './tool-approval';
 import type { Checkpointer, PendingApproval } from './graph/checkpointer';
 import { deserializeCheckpoint, resumeWithApproval } from './graph/checkpointer';
 
@@ -315,7 +315,7 @@ export class AgentGraph {
      *         checkpointer,
      *         resume: true,
      *         approvalDecision: true,
-     *         toolExecutor: async (tc) => tools[tc.function.name].execute(JSON.parse(tc.function.arguments)),
+     *         toolExecutor: async (name, args) => tools[name].execute(args),
      *     });
      * }
      * ```
@@ -402,8 +402,13 @@ export class AgentGraph {
                 }
 
                 span.setAttribute('resumed_from_status', checkpoint.metadata.status ?? 'active');
+
+                // Restore config not serialized in checkpoint
+                state.approvalConfig = this.options.approvalConfig;
+                state.abortSignal = this.options.abortSignal;
+                // Enable skipApprovalCheck since we already pre-checked
+                state.skipApprovalCheck = true;
             } else {
-                // Fresh execution
                 state = {
                     messages: [...messages],
                     skills: [],
@@ -416,6 +421,8 @@ export class AgentGraph {
                     finishReason: null,
                     abortSignal: this.options.abortSignal,
                     approvalConfig: this.options.approvalConfig,
+                    // invokeResumable uses pre-check, so skip approval in executeNode
+                    skipApprovalCheck: true,
                 };
 
                 // Apply Memory processing if configured
@@ -459,9 +466,11 @@ export class AgentGraph {
 
                     if (batchCheck.deferredTools.length > 0) {
                         // Save checkpoint with pending_approval status
+                        // Store rejectedTools so resume knows which tools were already rejected
                         const pendingApproval: PendingApproval = {
                             toolCalls,
                             deferredTools: batchCheck.deferredTools,
+                            rejectedTools: batchCheck.rejectedTools,
                             requestedAt: Date.now(),
                         };
 
@@ -672,6 +681,7 @@ export class AgentGraph {
                     abortSignal: state.abortSignal,
                 },
                 state.approvalConfig,
+                state.skipApprovalCheck, // Pass through for invokeResumable
             );
 
             // Create tool result steps and messages

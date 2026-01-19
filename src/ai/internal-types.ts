@@ -65,6 +65,11 @@ export interface AgentState {
     abortSignal?: AbortSignal;
     /** Approval configuration for tool execution */
     approvalConfig?: ApprovalConfig;
+    /** 
+     * Skip approval check in executeNode (used by invokeResumable).
+     * When true, tools are executed directly without re-checking approval.
+     */
+    skipApprovalCheck?: boolean;
 }
 
 /**

@@ -24,12 +24,18 @@ export interface ToolExecutionResult {
 
 /**
  * Execute tools based on tool calls from LLM.
+ * @param toolCalls - Tool calls from LLM response
+ * @param tools - Available tools map
+ * @param context - Execution context
+ * @param approvalConfig - Approval configuration (ignored if skipApprovalCheck is true)
+ * @param skipApprovalCheck - If true, bypass approval checks (used by invokeResumable after pre-check)
  */
 export async function executeTools(
     toolCalls: ToolCall[],
     tools: Map<string, RegisteredTool>,
     context: Omit<ExecutionContext, 'toolCallId'>,
     approvalConfig?: ApprovalConfig,
+    skipApprovalCheck?: boolean,
 ): Promise<ToolExecutionResult[]> {
     const results: ToolExecutionResult[] = [];
 
@@ -58,21 +64,35 @@ export async function executeTools(
         // Parse arguments
         const args = parseToolArguments(call.function.arguments);
 
-        // Execute with approval check using unified function
-        const execResult = await executeToolWithApproval(
-            tool,
-            call,
-            args,
-            context.messages,
-            approvalConfig,
-            context.abortSignal,
-        );
+        if (skipApprovalCheck) {
+            // Direct execution without approval check (pre-checked by invokeResumable)
+            try {
+                const result = tool.execute
+                    ? await tool.execute(args, { toolCallId: call.id, messages: context.messages, abortSignal: context.abortSignal })
+                    : undefined;
+                const resultStr = result === undefined ? '' : (typeof result === 'string' ? result : JSON.stringify(result));
+                results.push({ toolCallId: call.id, result: resultStr, isError: false });
+            } catch (error) {
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                results.push({ toolCallId: call.id, result: `[Error] ${errorMsg}`, isError: true });
+            }
+        } else {
+            // Execute with approval check using unified function
+            const execResult = await executeToolWithApproval(
+                tool,
+                call,
+                args,
+                context.messages,
+                approvalConfig,
+                context.abortSignal,
+            );
 
-        results.push({
-            toolCallId: call.id,
-            result: execResult.result,
-            isError: execResult.isError,
-        });
+            results.push({
+                toolCallId: call.id,
+                result: execResult.result,
+                isError: execResult.isError,
+            });
+        }
     }
 
     return results;
