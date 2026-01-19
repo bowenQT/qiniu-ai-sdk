@@ -63,10 +63,21 @@ export class RedisCheckpointer implements Checkpointer {
         state: AgentState,
         options?: Record<string, unknown>
     ): Promise<CheckpointMetadata> {
+        // Check for suppressCheckpoint (parallel execution)
+        const opts = options as { suppressCheckpoint?: boolean; status?: string; pendingApproval?: unknown; custom?: Record<string, unknown> } | undefined;
+        if (opts?.suppressCheckpoint) {
+            return {
+                id: `suppressed_${Date.now()}`,
+                threadId,
+                createdAt: Date.now(),
+                stepCount: state.stepCount,
+                status: 'active',
+            };
+        }
+
+
         const id = `ckpt_${threadId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-        // Extract options (compatible with both old and new API)
-        const opts = options as { status?: string; pendingApproval?: unknown; custom?: Record<string, unknown> } | undefined;
 
         const metadata: CheckpointMetadata = {
             id,

@@ -47,6 +47,29 @@ export class StructuredOutputError extends AIError {
         this.validationErrors = validationErrors;
     }
 }
+
+/**
+ * Fatal tool error that triggers fail-fast in parallel execution.
+ * 
+ * Unlike regular errors (converted to tool_result), FatalToolError
+ * propagates up and cancels sibling branches in parallel groups.
+ * 
+ * @example
+ * ```typescript
+ * if (criticalFailure) {
+ *     throw new FatalToolError('database', 'Connection pool exhausted');
+ * }
+ * ```
+ */
+export class FatalToolError extends AIError {
+    constructor(
+        public readonly toolName: string,
+        message: string,
+    ) {
+        super(message);
+        this.name = 'FatalToolError';
+    }
+}
 // ============================================================================
 // Recoverable Errors (Error-as-Prompt)
 // ============================================================================

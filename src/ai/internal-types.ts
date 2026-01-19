@@ -23,6 +23,10 @@ export interface MessageMeta {
     originalIndex?: number;
     /** Skill priority for stable compaction (lower = drop first) */
     priority?: number;
+    /** Branch index for parallel execution (stripped after reducer) */
+    branchIndex?: number;
+    /** Local message index within branch (stripped after reducer) */
+    localIndex?: number;
 }
 
 /**

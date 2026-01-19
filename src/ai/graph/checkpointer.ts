@@ -137,6 +137,11 @@ export interface CheckpointSaveOptions {
     status?: CheckpointStatus;
     /** Pending approval info for async approval flow */
     pendingApproval?: PendingApproval;
+    /** 
+     * Suppress checkpoint saving (used during parallel execution).
+     * When true, save() returns early without persisting.
+     */
+    suppressCheckpoint?: boolean;
 }
 
 /**
@@ -190,6 +195,17 @@ export class MemoryCheckpointer implements Checkpointer {
         state: AgentState,
         options?: CheckpointSaveOptions | Record<string, unknown>
     ): Promise<CheckpointMetadata> {
+        // Check for suppressCheckpoint (parallel execution)
+        if (options && 'suppressCheckpoint' in options && (options as CheckpointSaveOptions).suppressCheckpoint) {
+            return {
+                id: `suppressed_${Date.now()}`,
+                threadId,
+                createdAt: Date.now(),
+                stepCount: state.stepCount,
+                status: 'active',
+            };
+        }
+
         const id = `ckpt_${threadId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
         // Extract options - handle both new CheckpointSaveOptions and legacy custom object

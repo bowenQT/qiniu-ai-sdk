@@ -322,6 +322,17 @@ export class KodoCheckpointer implements Checkpointer {
         state: AgentState,
         options?: CheckpointSaveOptions | Record<string, unknown>
     ): Promise<CheckpointMetadata> {
+        // Check for suppressCheckpoint (parallel execution)
+        if (options && 'suppressCheckpoint' in options && (options as CheckpointSaveOptions).suppressCheckpoint) {
+            return {
+                id: `suppressed_${Date.now()}`,
+                threadId,
+                createdAt: Date.now(),
+                stepCount: state.stepCount,
+                status: 'active',
+            };
+        }
+
         const key = this.client.getFullKey(threadId);
         const serialized = serializeState(state);
 
