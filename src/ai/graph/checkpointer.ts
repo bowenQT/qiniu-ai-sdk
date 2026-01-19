@@ -15,18 +15,28 @@ export type CheckpointStatus = 'active' | 'pending_approval' | 'completed';
  * Pending approval information.
  */
 export interface PendingApproval {
-    /** Tool call awaiting approval */
-    toolCall: {
+    /** Tool call awaiting approval (single tool) */
+    toolCall?: {
         id: string;
         function: {
             name: string;
             arguments: string;
         };
     };
-    /** Tool name */
-    toolName: string;
-    /** Parsed arguments */
-    args: Record<string, unknown>;
+    /** All tool calls in the batch (for batch interruption) */
+    toolCalls?: Array<{
+        id: string;
+        function: {
+            name: string;
+            arguments: string;
+        };
+    }>;
+    /** Tool names that require deferred approval */
+    deferredTools?: string[];
+    /** Tool name (for single tool approval) */
+    toolName?: string;
+    /** Parsed arguments (for single tool approval) */
+    args?: Record<string, unknown>;
     /** Timestamp when approval was requested */
     requestedAt: number;
 }
@@ -330,8 +340,10 @@ export interface ResumeWithApprovalResult {
     approved: boolean;
     /** Updated state with tool result added */
     state: AgentState;
-    /** Tool result (executed result or rejection message) */
-    toolResult: string;
+    /** Tool result (single tool, executed result or rejection message) */
+    toolResult?: string;
+    /** Tool results (batch mode) */
+    toolResults?: Array<{ toolCallId: string; result: string }>;
     /** Whether the tool was actually executed */
     toolExecuted: boolean;
 }
@@ -371,45 +383,95 @@ export async function resumeWithApproval(
     // Deserialize state
     const state = deserializeCheckpoint(checkpoint, tools);
 
-    let toolResult: string;
+    let toolResult: string | undefined;
+    let toolResults: Array<{ toolCallId: string; result: string }> | undefined;
     let toolExecuted = false;
 
+    // Handle batch mode (toolCalls) or single mode (toolCall/toolName)
+    const hasBatch = pending.toolCalls && pending.toolCalls.length > 0;
+
     if (approved) {
-        if (toolExecutor) {
-            // Execute the actual tool
-            try {
-                const result = await toolExecutor(pending.toolName, pending.args, abortSignal);
-                toolResult = typeof result === 'string' ? result : JSON.stringify(result ?? { success: true });
-                toolExecuted = true;
-            } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                toolResult = `[Execution Error] ${errorMessage}`;
-                toolExecuted = true; // Attempted execution
+        if (hasBatch) {
+            // Batch mode: execute all tool calls
+            toolResults = [];
+            for (const tc of pending.toolCalls!) {
+                if (toolExecutor) {
+                    try {
+                        const args = JSON.parse(tc.function.arguments || '{}');
+                        const result = await toolExecutor(tc.function.name, args, abortSignal);
+                        const resultStr = typeof result === 'string' ? result : JSON.stringify(result ?? { success: true });
+                        toolResults.push({ toolCallId: tc.id, result: resultStr });
+                        toolExecuted = true;
+                    } catch (error) {
+                        const errorMessage = error instanceof Error ? error.message : String(error);
+                        toolResults.push({ toolCallId: tc.id, result: `[Execution Error] ${errorMessage}` });
+                        toolExecuted = true;
+                    }
+                } else {
+                    // No executor - synthetic success
+                    toolResults.push({ toolCallId: tc.id, result: JSON.stringify({ approved: true }) });
+                }
             }
-        } else {
-            // No executor provided - return synthetic success
-            toolResult = JSON.stringify({ approved: true, args: pending.args });
-            toolExecuted = false;
+            // Add tool result messages to state
+            for (const tr of toolResults) {
+                state.messages = [...state.messages, {
+                    role: 'tool' as const,
+                    content: tr.result,
+                    tool_call_id: tr.toolCallId,
+                } as any];
+            }
+        } else if (pending.toolName && pending.toolCall) {
+            // Single mode
+            if (toolExecutor) {
+                try {
+                    const result = await toolExecutor(pending.toolName, pending.args ?? {}, abortSignal);
+                    toolResult = typeof result === 'string' ? result : JSON.stringify(result ?? { success: true });
+                    toolExecuted = true;
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    toolResult = `[Execution Error] ${errorMessage}`;
+                    toolExecuted = true;
+                }
+            } else {
+                toolResult = JSON.stringify({ approved: true, args: pending.args });
+            }
+            // Add tool result message to state
+            state.messages = [...state.messages, {
+                role: 'tool' as const,
+                content: toolResult,
+                tool_call_id: pending.toolCall.id,
+            } as any];
         }
     } else {
         // Rejected
         toolResult = '[Approval Rejected] Tool execution was denied by user.';
-        toolExecuted = false;
+
+        if (hasBatch) {
+            toolResults = pending.toolCalls!.map(tc => ({
+                toolCallId: tc.id,
+                result: toolResult!,
+            }));
+            for (const tr of toolResults) {
+                state.messages = [...state.messages, {
+                    role: 'tool' as const,
+                    content: tr.result,
+                    tool_call_id: tr.toolCallId,
+                } as any];
+            }
+        } else if (pending.toolCall) {
+            state.messages = [...state.messages, {
+                role: 'tool' as const,
+                content: toolResult,
+                tool_call_id: pending.toolCall.id,
+            } as any];
+        }
     }
-
-    // Add tool result message to state
-    const toolResultMessage = {
-        role: 'tool' as const,
-        content: toolResult,
-        tool_call_id: pending.toolCall.id,
-    };
-
-    state.messages = [...state.messages, toolResultMessage as any];
 
     return {
         approved,
         state,
         toolResult,
+        toolResults,
         toolExecuted,
     };
 }

@@ -3,8 +3,8 @@ import type { ChatCompletionRequest, ChatMessage, ToolCall, ResponseFormat } fro
 import type { StreamResult } from '../modules/chat';
 import { MaxStepsExceededError, ToolExecutionError } from '../lib/errors';
 import type { Checkpointer } from './graph/checkpointer';
-import type { ApprovalConfig, ApprovalHandler } from './tool-approval';
-import { checkApproval } from './tool-approval';
+import type { ApprovalConfig, ApprovalHandler, ApprovalResult } from './tool-approval';
+import { checkApproval, DeferredApprovalError } from './tool-approval';
 import { normalizeContent } from '../lib/content-converter';
 import type { MemoryManager } from './memory';
 
@@ -467,6 +467,13 @@ async function executeTools(
             );
 
             if (!approvalResult.approved) {
+                // Check for deferred approval - not supported in generateText
+                if (approvalResult.deferred) {
+                    throw new Error(
+                        `Deferred approval not supported in generateText(). ` +
+                        `Use generateTextWithGraph() with AgentGraph.invokeResumable() for resumable workflows.`
+                    );
+                }
                 results.push({
                     toolCallId: toolCall.id,
                     result: approvalResult.rejectionMessage ?? '[Approval Rejected] Tool execution was denied.',

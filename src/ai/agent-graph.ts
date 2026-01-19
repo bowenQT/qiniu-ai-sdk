@@ -27,6 +27,9 @@ import type {
 import { stripMeta } from './internal-types';
 import { getGlobalTracer } from '../lib/tracer';
 import type { ApprovalConfig } from './tool-approval';
+import { checkApprovalBatch, DeferredApprovalError } from './tool-approval';
+import type { Checkpointer, PendingApproval } from './graph/checkpointer';
+import { deserializeCheckpoint, resumeWithApproval } from './graph/checkpointer';
 
 /** AgentGraph options */
 export interface AgentGraphOptions {
@@ -73,6 +76,39 @@ export interface AgentGraphResult {
     };
     /** Final agent state (for checkpointing) */
     state: AgentState;
+}
+
+/**
+ * Options for resumable agent execution.
+ */
+export interface ResumableOptions {
+    /** Thread ID for checkpoint isolation */
+    threadId: string;
+    /** Checkpointer for state persistence */
+    checkpointer: Checkpointer;
+    /** Resume from existing checkpoint */
+    resume?: boolean;
+    /** 
+     * Approval decision for pending_approval checkpoints.
+     * Required when resume=true and checkpoint status is 'pending_approval'.
+     */
+    approvalDecision?: boolean;
+    /** Tool executor for resuming with approval - matches ToolExecutor type from checkpointer */
+    toolExecutor?: (
+        toolName: string,
+        args: Record<string, unknown>,
+        abortSignal?: AbortSignal
+    ) => Promise<unknown>;
+}
+
+/**
+ * Result from resumable agent execution.
+ */
+export interface ResumableResult extends AgentGraphResult {
+    /** Whether execution was interrupted for approval */
+    interrupted: boolean;
+    /** Pending approval info if interrupted */
+    pendingApproval?: PendingApproval;
 }
 
 /**
@@ -251,6 +287,251 @@ export class AgentGraph {
                     droppedMessages: this.droppedMessages,
                 } : undefined,
                 state: finalState,
+            };
+        });
+    }
+
+    /**
+     * Execute the agent graph with interrupt/resume support.
+     * 
+     * This method uses an explicit loop instead of StateGraph.invoke() to:
+     * 1. Pre-check all tool approvals before execution (no side effects on defer)
+     * 2. Save checkpoints at safe points (after execute)
+     * 3. Support resuming from pending_approval or active checkpoints
+     * 
+     * @example
+     * ```typescript
+     * // Initial execution
+     * const result = await agent.invokeResumable(messages, {
+     *     threadId: 'session-123',
+     *     checkpointer,
+     * });
+     * 
+     * if (result.interrupted) {
+     *     // Store result.pendingApproval for user review
+     *     // Later, resume with approval:
+     *     const resumed = await agent.invokeResumable([], {
+     *         threadId: 'session-123',
+     *         checkpointer,
+     *         resume: true,
+     *         approvalDecision: true,
+     *         toolExecutor: async (tc) => tools[tc.function.name].execute(JSON.parse(tc.function.arguments)),
+     *     });
+     * }
+     * ```
+     */
+    async invokeResumable(
+        messages: InternalMessage[],
+        options: ResumableOptions
+    ): Promise<ResumableResult> {
+        const tracer = getGlobalTracer();
+        const { events } = this.options;
+
+        return tracer.withSpan('agent_graph.invoke_resumable', async (span) => {
+            span.setAttribute('thread_id', options.threadId);
+            span.setAttribute('resume', options.resume ?? false);
+
+            // Reset tracking
+            this.steps = [];
+            this.compactionOccurred = false;
+            this.droppedSkills = [];
+            this.droppedMessages = 0;
+
+            // Build tools map
+            const toolsMap = new Map<string, RegisteredTool>();
+            if (this.options.tools) {
+                for (const [name, tool] of Object.entries(this.options.tools)) {
+                    toolsMap.set(name, { ...tool, name });
+                }
+            }
+
+            let state: AgentState;
+
+            if (options.resume) {
+                // Resume mode: load from checkpoint
+                if (messages.length > 0) {
+                    // Log warning but don't error - messages are ignored in resume mode
+                    span.setAttribute('resume_messages_ignored', messages.length);
+                }
+
+                const checkpoint = await options.checkpointer.load(options.threadId);
+                if (!checkpoint) {
+                    throw new Error(`No checkpoint found for thread: ${options.threadId}`);
+                }
+
+                if (checkpoint.metadata.status === 'completed') {
+                    throw new Error('Cannot resume completed checkpoint');
+                }
+
+                if (checkpoint.metadata.status === 'pending_approval') {
+                    // Resuming pending approval
+                    if (options.approvalDecision === undefined) {
+                        throw new Error('approvalDecision required for pending_approval checkpoint');
+                    }
+                    if (options.approvalDecision && !options.toolExecutor) {
+                        throw new Error('toolExecutor required when approving');
+                    }
+
+                    // Use resumeWithApproval to handle the pending tool calls
+                    const resumed = await resumeWithApproval(
+                        checkpoint,
+                        options.approvalDecision,
+                        options.toolExecutor,
+                        toolsMap
+                    );
+                    state = resumed.state;
+
+                    // Add resume steps to tracking
+                    if (resumed.toolResults) {
+                        for (const result of resumed.toolResults) {
+                            this.steps.push({
+                                type: 'tool_result',
+                                content: result.result,
+                                toolResults: [result],
+                            });
+                            events?.onStepFinish?.({
+                                type: 'tool_result',
+                                content: result.result,
+                                toolResults: [result],
+                            });
+                        }
+                    }
+                } else {
+                    // Crash recovery: deserialize and continue
+                    state = deserializeCheckpoint(checkpoint, toolsMap);
+                }
+
+                span.setAttribute('resumed_from_status', checkpoint.metadata.status ?? 'active');
+            } else {
+                // Fresh execution
+                state = {
+                    messages: [...messages],
+                    skills: [],
+                    tools: toolsMap,
+                    stepCount: 0,
+                    maxSteps: this.options.maxSteps ?? 10,
+                    done: false,
+                    output: '',
+                    reasoning: '',
+                    finishReason: null,
+                    abortSignal: this.options.abortSignal,
+                    approvalConfig: this.options.approvalConfig,
+                };
+
+                // Apply Memory processing if configured
+                if (this.options.memory) {
+                    const memoryResult = await this.options.memory.process(
+                        state.messages,
+                        { threadId: options.threadId }
+                    );
+                    state.messages = memoryResult.messages;
+                }
+
+                // Inject skills if provided
+                if (this.options.skills?.length) {
+                    const injected = this.injectSkills(state.messages, this.options.skills);
+                    state.messages = injected.messages;
+                    state.skills = injected.skills;
+                }
+            }
+
+            // Explicit execution loop (NOT using StateGraph.invoke)
+            while (!state.done && state.stepCount < state.maxSteps) {
+                // 1. Predict
+                events?.onNodeEnter?.('predict');
+                const predictResult = await this.predictNode(state);
+                state = { ...state, ...predictResult };
+                events?.onNodeExit?.('predict');
+
+                if (state.done) break;
+
+                // 2. Pre-check all tool approvals BEFORE execution
+                const lastMessage = state.messages[state.messages.length - 1];
+                const toolCalls = lastMessage.tool_calls;
+
+                if (toolCalls?.length) {
+                    const batchCheck = await checkApprovalBatch(
+                        toolCalls,
+                        state.tools,
+                        stripMeta(state.messages),
+                        state.approvalConfig
+                    );
+
+                    if (batchCheck.deferredTools.length > 0) {
+                        // Save checkpoint with pending_approval status
+                        const pendingApproval: PendingApproval = {
+                            toolCalls,
+                            deferredTools: batchCheck.deferredTools,
+                            requestedAt: Date.now(),
+                        };
+
+                        await options.checkpointer.save(options.threadId, state, {
+                            status: 'pending_approval',
+                            pendingApproval,
+                        });
+
+                        span.setAttribute('interrupted', true);
+                        span.setAttribute('deferred_tools', batchCheck.deferredTools.join(','));
+
+                        return {
+                            text: state.output,
+                            reasoning: state.reasoning || undefined,
+                            steps: this.steps,
+                            usage: state.usage,
+                            finishReason: null,
+                            compaction: this.compactionOccurred ? {
+                                occurred: true,
+                                droppedSkills: this.droppedSkills,
+                                droppedMessages: this.droppedMessages,
+                            } : undefined,
+                            state,
+                            interrupted: true,
+                            pendingApproval,
+                        };
+                    }
+                }
+
+                // 3. Execute (all approvals passed)
+                events?.onNodeEnter?.('execute');
+                const executeResult = await this.executeNode(state);
+                state = { ...state, ...executeResult };
+                events?.onNodeExit?.('execute');
+
+                // 4. Save checkpoint at safe point (after execute)
+                await options.checkpointer.save(options.threadId, state, {
+                    status: 'active',
+                });
+            }
+
+            // Persist memory if configured
+            if (this.options.memory) {
+                await this.options.memory.persist(
+                    state.messages,
+                    options.threadId
+                );
+            }
+
+            // Mark as completed
+            await options.checkpointer.save(options.threadId, state, {
+                status: 'completed',
+            });
+
+            span.setAttribute('completed', true);
+            span.setAttribute('final_step_count', state.stepCount);
+
+            return {
+                text: state.output,
+                reasoning: state.reasoning || undefined,
+                steps: this.steps,
+                usage: state.usage,
+                finishReason: state.finishReason,
+                compaction: this.compactionOccurred ? {
+                    occurred: true,
+                    droppedSkills: this.droppedSkills,
+                    droppedMessages: this.droppedMessages,
+                } : undefined,
+                state,
+                interrupted: false,
             };
         });
     }

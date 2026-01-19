@@ -30,8 +30,15 @@ export interface ApprovalContext {
     messages: Array<{ role: string; content: unknown }>;
 }
 
+/**
+ * Approval decision returned by handler.
+ * - `boolean`: Simple approve (true) or reject (false)
+ * - `ApprovalResult`: Detailed result with optional deferred flag
+ */
+export type ApprovalDecision = boolean | ApprovalResult;
+
 /** Approval handler function */
-export type ApprovalHandler = (context: ApprovalContext) => Promise<boolean>;
+export type ApprovalHandler = (context: ApprovalContext) => Promise<ApprovalDecision>;
 
 /** Approval configuration */
 export interface ApprovalConfig {
@@ -55,8 +62,42 @@ export interface ToolWithApproval {
 /** Approval result */
 export interface ApprovalResult {
     approved: boolean;
+    /** 
+     * Defer approval for external/async decision.
+     * When true, the tool execution is suspended until resumed.
+     * Cannot be true when approved is true.
+     */
+    deferred?: boolean;
     /** Rejection message if not approved */
     rejectionMessage?: string;
+}
+
+/**
+ * Normalize approval decision to ApprovalResult.
+ * Validates mutual exclusivity of approved and deferred.
+ */
+export function normalizeApprovalDecision(decision: ApprovalDecision): ApprovalResult {
+    if (typeof decision === 'boolean') {
+        return { approved: decision };
+    }
+    if (decision.approved && decision.deferred) {
+        throw new Error('Invalid ApprovalDecision: approved and deferred are mutually exclusive');
+    }
+    return decision;
+}
+
+/**
+ * Error thrown when approval is deferred for async/external decision.
+ * Used to interrupt tool execution and save checkpoint.
+ */
+export class DeferredApprovalError extends Error {
+    constructor(
+        public readonly deferredTools: string[],
+        public readonly toolCalls: unknown[],
+    ) {
+        super(`Approval deferred for tools: ${deferredTools.join(', ')}`);
+        this.name = 'DeferredApprovalError';
+    }
 }
 
 // ============================================================================
@@ -147,10 +188,12 @@ export async function checkApproval(
     };
 
     try {
-        const approved = await handler(context);
+        const decision = await handler(context);
+        const result = normalizeApprovalDecision(decision);
         return {
-            approved,
-            rejectionMessage: approved ? undefined : REJECTION_MESSAGE,
+            approved: result.approved,
+            deferred: result.deferred,
+            rejectionMessage: result.approved ? undefined : (result.rejectionMessage ?? REJECTION_MESSAGE),
         };
     } catch (error) {
         // Handler error = rejection
@@ -249,3 +292,61 @@ function serializeResult(result: unknown): string {
         return String(result);
     }
 }
+
+// ============================================================================
+// Batch Approval Check
+// ============================================================================
+
+/**
+ * Pre-check approval for a batch of tool calls.
+ * This is used to detect deferred approvals BEFORE executing any tools,
+ * ensuring no side effects occur when interruption is needed.
+ * 
+ * @returns Object with approved (all passed) and deferredTools (tools needing defer)
+ */
+export async function checkApprovalBatch(
+    toolCalls: Array<{ id: string; function: { name: string; arguments: string } }>,
+    tools: Map<string, RegisteredTool>,
+    messages: Array<{ role: string; content: unknown }>,
+    approvalConfig?: ApprovalConfig,
+): Promise<{ approved: boolean; deferredTools: string[]; rejectedTools: string[] }> {
+    const deferredTools: string[] = [];
+    const rejectedTools: string[] = [];
+
+    for (const toolCall of toolCalls) {
+        const tool = tools.get(toolCall.function.name);
+        if (!tool) continue;
+
+        // Skip tools that don't require approval
+        if (!tool.requiresApproval) continue;
+
+        // Parse args for approval context
+        let args: Record<string, unknown> = {};
+        try {
+            args = JSON.parse(toolCall.function.arguments || '{}');
+        } catch {
+            args = {};
+        }
+
+        const result = await checkApproval(
+            tool,
+            toolCall,
+            args,
+            messages,
+            approvalConfig,
+        );
+
+        if (result.deferred) {
+            deferredTools.push(toolCall.function.name);
+        } else if (!result.approved) {
+            rejectedTools.push(toolCall.function.name);
+        }
+    }
+
+    return {
+        approved: deferredTools.length === 0 && rejectedTools.length === 0,
+        deferredTools,
+        rejectedTools,
+    };
+}
+

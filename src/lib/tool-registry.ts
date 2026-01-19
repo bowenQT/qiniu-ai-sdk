@@ -32,6 +32,8 @@ export interface RegisteredToolContext {
     abortSignal?: AbortSignal;
 }
 
+import type { ApprovalDecision } from '../ai/tool-approval';
+
 /** Approval handler function for tools */
 export type ToolApprovalHandler = (context: {
     toolCall: { id: string; function: { name: string; arguments: string } };
@@ -39,7 +41,7 @@ export type ToolApprovalHandler = (context: {
     toolDescription: string;
     args: Record<string, unknown>;
     messages: Array<{ role: string; content: unknown }>;
-}) => Promise<boolean>;
+}) => Promise<ApprovalDecision>;
 
 /** Registered tool definition */
 export interface RegisteredTool {

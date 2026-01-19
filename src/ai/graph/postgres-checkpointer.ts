@@ -140,13 +140,24 @@ export class PostgresCheckpointer implements Checkpointer {
         if (result.rows.length === 0) return null;
 
         const row = result.rows[0];
+
+        // Extract status and pendingApproval from custom field
+        const fullCustom = (row.custom || {}) as Record<string, unknown>;
+        const status = (fullCustom.__status as 'active' | 'pending_approval' | 'completed') ?? 'active';
+        const pendingApproval = fullCustom.__pendingApproval as CheckpointMetadata['pendingApproval'];
+        const custom = Object.fromEntries(
+            Object.entries(fullCustom).filter(([k]) => !k.startsWith('__'))
+        );
+
         return {
             metadata: {
                 id: row.id,
                 threadId: row.thread_id,
                 createdAt: Number(row.created_at),
                 stepCount: row.step_count,
-                custom: row.custom,
+                status,
+                pendingApproval,
+                custom: Object.keys(custom).length > 0 ? custom : undefined,
             },
             state: row.state,
         };
@@ -169,13 +180,25 @@ export class PostgresCheckpointer implements Checkpointer {
             [threadId]
         );
 
-        return result.rows.map(row => ({
-            id: row.id,
-            threadId: row.thread_id,
-            createdAt: Number(row.created_at),
-            stepCount: row.step_count,
-            custom: row.custom,
-        }));
+        return result.rows.map(row => {
+            // Extract status and pendingApproval from custom field
+            const fullCustom = (row.custom || {}) as Record<string, unknown>;
+            const status = (fullCustom.__status as 'active' | 'pending_approval' | 'completed') ?? 'active';
+            const pendingApproval = fullCustom.__pendingApproval as CheckpointMetadata['pendingApproval'];
+            const custom = Object.fromEntries(
+                Object.entries(fullCustom).filter(([k]) => !k.startsWith('__'))
+            );
+
+            return {
+                id: row.id,
+                threadId: row.thread_id,
+                createdAt: Number(row.created_at),
+                stepCount: row.step_count,
+                status,
+                pendingApproval,
+                custom: Object.keys(custom).length > 0 ? custom : undefined,
+            };
+        });
     }
 
     async delete(checkpointId: string): Promise<boolean> {
