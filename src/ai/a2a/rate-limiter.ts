@@ -44,24 +44,17 @@ export class A2ARateLimiter {
 
     /**
      * Check if a call is allowed.
-     * 
-     * @param agentId - The agent making the call
-     * @param toolName - The tool being called (used if scope is 'tool')
-     * @returns Whether the call is allowed
      */
     isAllowed(agentId: string, toolName: string): boolean {
         const key = this.getKey(agentId, toolName);
         const now = Date.now();
         const entry = this.getOrCreateEntry(key);
-
-        // Remove expired timestamps
         this.pruneExpired(entry, now);
-
         return entry.timestamps.length < this.config.maxCalls;
     }
 
     /**
-     * Track a call (should be called after isAllowed returns true).
+     * Track a call.
      */
     track(agentId: string, toolName: string): void {
         const key = this.getKey(agentId, toolName);
@@ -72,11 +65,8 @@ export class A2ARateLimiter {
     /**
      * Execute a call with rate limiting.
      * 
-     * @param agentId - The agent making the call
-     * @param toolName - The tool being called
-     * @param execute - The function to execute
-     * @returns Result of execution
-     * @throws Error if rate limited and onLimit is 'reject'
+     * @throws RateLimitError if onLimit is 'reject' and limit exceeded
+     * @throws RateLimitError if onLimit is 'queue' and wait times out (strict mode)
      */
     async execute<T>(
         agentId: string,
@@ -96,8 +86,28 @@ export class A2ARateLimiter {
             );
         }
 
-        // Queue the call with context
+        // Queue mode (strict): wait for slot or throw
         return this.enqueue(agentId, toolName, execute);
+    }
+
+    /**
+     * Wait for a slot to become available (for external use).
+     * Throws if timeout exceeded.
+     */
+    async waitForSlot(agentId: string, toolName: string, timeoutMs?: number): Promise<void> {
+        const timeout = timeoutMs ?? this.config.windowMs * 2;
+        const checkInterval = 50;
+        let waited = 0;
+
+        while (waited < timeout) {
+            if (this.isAllowed(agentId, toolName)) {
+                return;
+            }
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            waited += checkInterval;
+        }
+
+        throw new RateLimitError(agentId, toolName, this.getTimeUntilSlot(agentId, toolName));
     }
 
     /**
@@ -117,7 +127,6 @@ export class A2ARateLimiter {
             return 0;
         }
 
-        // Time until oldest timestamp expires
         const oldest = entry.timestamps[0];
         return Math.max(0, oldest + this.config.windowMs - now);
     }
@@ -128,10 +137,8 @@ export class A2ARateLimiter {
     reset(agentId: string, toolName?: string): void {
         if (this.config.scope === 'tool') {
             if (toolName) {
-                // Reset specific tool
                 this.entries.delete(this.getKey(agentId, toolName));
             } else {
-                // Reset all tools for this agent
                 const prefix = `${agentId}:`;
                 for (const key of [...this.entries.keys()]) {
                     if (key.startsWith(prefix)) {
@@ -140,7 +147,6 @@ export class A2ARateLimiter {
                 }
             }
         } else {
-            // scope === 'agent': key is just agentId
             this.entries.delete(agentId);
         }
     }
@@ -154,7 +160,7 @@ export class A2ARateLimiter {
     }
 
     // ========================================================================
-    // Private Methods
+    // Private
     // ========================================================================
 
     private getKey(agentId: string, toolName: string): string {
@@ -204,40 +210,20 @@ export class A2ARateLimiter {
         while (this.queue.length > 0) {
             const call = this.queue[0];
 
-            // Wait until slot is available for this specific call
-            await this.waitForSlot(call.agentId, call.toolName);
-
-            // Track before execution (count it)
-            this.track(call.agentId, call.toolName);
-
-            this.queue.shift();
-
             try {
+                // Strict wait - throws on timeout
+                await this.waitForSlot(call.agentId, call.toolName);
+                this.track(call.agentId, call.toolName);
+                this.queue.shift();
                 const result = await call.execute();
                 call.resolve(result);
             } catch (error) {
+                this.queue.shift();
                 call.reject(error);
             }
         }
 
         this.processing = false;
-    }
-
-    private async waitForSlot(agentId: string, toolName: string): Promise<void> {
-        const checkInterval = 50;
-        const maxWait = this.config.windowMs * 2;
-        let waited = 0;
-
-        while (waited < maxWait) {
-            if (this.isAllowed(agentId, toolName)) {
-                return;
-            }
-            await new Promise(resolve => setTimeout(resolve, checkInterval));
-            waited += checkInterval;
-        }
-
-        // Timeout - still execute but may exceed limit
-        console.warn(`[A2ARateLimiter] Queue timeout for ${agentId}:${toolName}`);
     }
 }
 
