@@ -1,9 +1,9 @@
 /**
  * Audit Logger - Log guardrail events with full decision trail.
  *
- * This logger can be used in two ways:
- * 1. As a guardrail (logs entry point, limited info)
- * 2. Via AuditLoggerCollector.flush() after chain execution (full trail)
+ * Two ways to use:
+ * 1. auditLogger guardrail - logs entry point (limited info)
+ * 2. AuditLoggerCollector.log() - complete decision trail after chain execution
  */
 
 import type {
@@ -14,6 +14,9 @@ import type {
     AuditLogEntry,
     GuardrailAction,
 } from './types';
+
+/** Placeholder for redacted content */
+const REDACTED_PLACEHOLDER = '[CONTENT_REDACTED]';
 
 // ============================================================================
 // Audit Logger Collector
@@ -34,6 +37,10 @@ export class AuditLoggerCollector {
 
     /**
      * Log a complete audit entry with full decision trail.
+     * 
+     * @param context - The guardrail context
+     * @param results - Array of guardrail results
+     * @param finalContent - The final content after processing (required if content: 'redacted')
      */
     async log(
         context: GuardrailContext,
@@ -44,14 +51,22 @@ export class AuditLoggerCollector {
         }>,
         finalContent?: string
     ): Promise<void> {
+        // Determine content to log based on config
+        let contentToLog: string;
+        if (this.config.content === 'redacted') {
+            // When redacted mode: use finalContent if provided, otherwise placeholder
+            contentToLog = finalContent ?? REDACTED_PLACEHOLDER;
+        } else {
+            // When original mode: use original content
+            contentToLog = context.content;
+        }
+
         const entry: AuditLogEntry = {
             timestamp: Date.now(),
             agentId: context.agentId,
             threadId: context.threadId,
             phase: context.phase,
-            content: this.config.content === 'original'
-                ? context.content
-                : (finalContent ?? context.content),
+            content: contentToLog,
             actions: results,
         };
 
@@ -90,13 +105,18 @@ export function auditLogger(config: AuditLoggerConfig): Guardrail {
         phase: ['pre-request', 'post-response'],
 
         async process(context: GuardrailContext): Promise<GuardrailResult> {
+            // Determine content to log based on config
+            const contentToLog = content === 'redacted'
+                ? REDACTED_PLACEHOLDER
+                : context.content;
+
             const entry: AuditLogEntry = {
                 timestamp: Date.now(),
                 agentId: context.agentId,
                 threadId: context.threadId,
                 phase: context.phase,
-                content: content === 'original' ? context.content : context.content,
-                actions: [], // Cannot know actions at this point
+                content: contentToLog,
+                actions: [],
             };
 
             if (isAsync) {
@@ -172,8 +192,7 @@ async function flushLogs(sink: SinkInfo, entries: AuditLogEntry[]): Promise<void
 
         case 'kodo':
             // TODO: Implement Kodo upload via QiniuAI client
-            // For now, log with clear TODO marker
-            console.log('[AuditLogger:TODO] Kodo upload not implemented, entries:', entries.length);
+            console.log('[AuditLogger:TODO] Kodo upload not implemented');
             for (const entry of entries) {
                 console.log('[Audit:kodo]', JSON.stringify(entry));
             }
@@ -181,7 +200,7 @@ async function flushLogs(sink: SinkInfo, entries: AuditLogEntry[]): Promise<void
 
         case 'file':
             // TODO: Implement file writing
-            console.log('[AuditLogger:TODO] File write not implemented, entries:', entries.length);
+            console.log('[AuditLogger:TODO] File write not implemented');
             for (const entry of entries) {
                 console.log('[Audit:file]', JSON.stringify(entry));
             }
