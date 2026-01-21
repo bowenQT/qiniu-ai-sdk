@@ -33,6 +33,8 @@ This cookbook provides focused, copy‑ready examples for common workflows.
 22. [Built-in Cloud Tools (OCR/Censor/Vframe)](#22-built-in-cloud-tools-ocrcensorvframe)
 23. [OpenTelemetry Tracing](#23-opentelemetry-tracing)
 24. [Full Agent Example - Combining All Features](#24-full-agent-example---combining-all-features)
+25. [Guardrails - Content Safety](#25-guardrails---content-safety)
+26. [Multi-Agent Crew - Orchestration](#26-multi-agent-crew---orchestration)
 
 ---
 
@@ -1324,4 +1326,243 @@ REDIS_URL=redis://localhost:6379
 
 # For PostgreSQL Checkpointer
 DATABASE_URL=postgresql://user:pass@localhost:5432/db
+```
+
+## 25. Guardrails - Content Safety
+
+Implement pre-request and post-response content filtering:
+
+```ts
+import { 
+  QiniuAI, 
+  createAgent,
+  GuardrailChain,
+  createInputFilter,
+  createOutputFilter,
+  createPIIRedactor,
+  type Guardrail,
+} from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+
+// Create guardrails
+const guardrails: Guardrail[] = [
+  // Block harmful input
+  createInputFilter({
+    blockedPatterns: [/jailbreak/i, /ignore instructions/i],
+    maxInputLength: 10000,
+  }),
+  
+  // Block harmful output
+  createOutputFilter({
+    blockedPatterns: [/confidential/i, /password:\s*\S+/i],
+  }),
+  
+  // Redact PII from output
+  createPIIRedactor({
+    patterns: {
+      email: /\b[\w.-]+@[\w.-]+\.\w+\b/g,
+      phone: /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g,
+      ssn: /\b\d{3}-\d{2}-\d{4}\b/g,
+    },
+    replacement: '[REDACTED]',
+  }),
+  
+  // Custom guardrail
+  {
+    name: 'custom-check',
+    phase: 'post-response',
+    execute: async (content, context) => {
+      if (content.includes('secret')) {
+        return {
+          blocked: false,
+          modified: true,
+          content: content.replace(/secret/gi, '[FILTERED]'),
+          reason: 'Filtered sensitive word',
+        };
+      }
+      return { blocked: false, content };
+    },
+  },
+];
+
+// Create agent with guardrails
+const agent = createAgent({
+  client,
+  model: 'gemini-2.5-flash',
+  system: 'You are a helpful assistant.',
+  guardrails, // Guardrails auto-run on every request/response
+});
+
+try {
+  const result = await agent.run({
+    prompt: 'Tell me about quantum computing',
+  });
+  console.log(result.text); // PII will be redacted
+} catch (error) {
+  if (error.name === 'GuardrailBlockedError') {
+    console.log('Blocked by guardrail:', error.guardrailName);
+    console.log('Reason:', error.reason);
+  } else {
+    throw error;
+  }
+}
+```
+
+### Guardrail with Checkpoint Redaction
+
+When using checkpointer with guardrails, sensitive content is automatically redacted from saved checkpoints:
+
+```ts
+import { 
+  createAgent, 
+  MemoryCheckpointer,
+} from '@bowenqt/qiniu-ai-sdk';
+
+const checkpointer = new MemoryCheckpointer();
+
+const agent = createAgent({
+  client,
+  model: 'gemini-2.5-flash',
+  checkpointer,
+  guardrails: [createPIIRedactor({ /* config */ })],
+});
+
+// Run with thread - checkpoint will contain redacted content
+const result = await agent.runWithThread({
+  threadId: 'user-123',
+  prompt: 'My email is john@example.com',
+});
+
+// Checkpoint will have "[REDACTED]" instead of actual email
+const checkpoint = await checkpointer.load('user-123');
+console.log(checkpoint.state.output); // Email replaced with [REDACTED]
+```
+
+## 26. Multi-Agent Crew - Orchestration
+
+Orchestrate multiple agents working together:
+
+### Sequential Crew
+
+Agents execute in order, passing output as context to the next:
+
+```ts
+import { 
+  QiniuAI, 
+  createAgent, 
+  createSequentialCrew,
+} from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+
+// Create specialized agents
+const researcher = createAgent({
+  client,
+  model: 'gemini-2.5-flash',
+  system: 'You are a research analyst. Gather facts and data.',
+});
+
+const writer = createAgent({
+  client,
+  model: 'gemini-2.5-flash',
+  system: 'You are a technical writer. Create clear documentation.',
+});
+
+const reviewer = createAgent({
+  client,
+  model: 'gemini-2.5-flash',
+  system: 'You are an editor. Review and improve content.',
+});
+
+// Create sequential crew
+const crew = createSequentialCrew({
+  agents: [researcher, writer, reviewer],
+});
+
+// Kickoff the crew
+const result = await crew.kickoff({
+  prompt: 'Create a guide about GraphQL best practices',
+  context: { targetAudience: 'backend developers' },
+});
+
+console.log('Final output:', result.finalOutput);
+console.log('Agent results:', result.results.length);
+result.results.forEach((r, i) => {
+  console.log(`Agent ${i + 1}: ${r.output.slice(0, 100)}...`);
+});
+```
+
+### Parallel Crew
+
+Agents execute concurrently, results are aggregated:
+
+```ts
+import { createParallelCrew } from '@bowenqt/qiniu-ai-sdk';
+
+const crew = createParallelCrew({
+  agents: [securityAnalyst, performanceAnalyst, codeReviewer],
+  aggregator: (results) => {
+    // Custom aggregation logic
+    return results.map(r => `## ${r.agentId}\n${r.output}`).join('\n\n');
+  },
+});
+
+const result = await crew.kickoff({
+  prompt: 'Review this code for issues',
+  context: { code: sourceCode },
+  abortSignal: controller.signal, // Optional: abort all agents
+});
+
+console.log('Aggregated output:', result.finalOutput);
+console.log('Errors:', result.errors); // Partial failures captured
+```
+
+### Hierarchical Crew
+
+Manager agent delegates tasks to worker agents:
+
+```ts
+import { createHierarchicalCrew } from '@bowenqt/qiniu-ai-sdk';
+
+const manager = createAgent({
+  client,
+  model: 'claude-sonnet-4-20250514',
+  system: `You are a project manager. Delegate tasks to your team.
+Output JSON: { "delegations": [{ "agent": "agentId", "task": "description" }] }`,
+});
+
+const crew = createHierarchicalCrew({
+  manager,
+  workers: [frontendDev, backendDev, designer],
+});
+
+const result = await crew.kickoff({
+  prompt: 'Build a login page with authentication',
+});
+
+// Manager automatically delegates and aggregates results
+console.log('Final output:', result.finalOutput);
+```
+
+### Crew with Abort Signal
+
+Cancel all agents mid-execution:
+
+```ts
+const controller = new AbortController();
+
+// Cancel after 30 seconds
+setTimeout(() => controller.abort(), 30000);
+
+try {
+  const result = await crew.kickoff({
+    prompt: 'Complex multi-step task',
+    abortSignal: controller.signal,
+  });
+} catch (error) {
+  if (error.code === 'CANCELLED') {
+    console.log('Crew execution cancelled');
+  }
+}
 ```
