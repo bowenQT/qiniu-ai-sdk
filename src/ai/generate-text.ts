@@ -803,11 +803,25 @@ export async function generateTextWithGraph(
 
     // Save checkpoint AFTER post-response guardrails (use redacted content)
     if (checkpointer && threadId) {
-        // Update final text in state if redacted
-        const stateToSave = {
-            ...graphResult.state,
-            // Ensure final assistant message uses redacted content
-        };
+        // If content was redacted, update the final assistant message in state
+        const stateToSave = { ...graphResult.state };
+
+        if (finalText !== graphResult.text && stateToSave.messages?.length > 0) {
+            // Find and update the last assistant message with redacted content
+            const messages = [...stateToSave.messages];
+            for (let i = messages.length - 1; i >= 0; i--) {
+                if (messages[i].role === 'assistant') {
+                    messages[i] = {
+                        ...messages[i],
+                        content: finalText,
+                    };
+                    break;
+                }
+            }
+            stateToSave.messages = messages;
+            stateToSave.output = finalText;
+        }
+
         await checkpointer.save(threadId, stateToSave);
     }
 
