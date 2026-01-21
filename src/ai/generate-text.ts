@@ -543,6 +543,8 @@ export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
     memory?: MemoryManager;
     /** Guardrails for input/output filtering */
     guardrails?: Guardrail[];
+    /** Agent ID for guardrail attribution (defaults to threadId or 'default') */
+    agentId?: string;
 }
 
 /**
@@ -608,6 +610,9 @@ export async function generateTextWithGraph(
         guardrails,
     } = options;
 
+    // Resolve agentId for guardrail attribution
+    const resolvedAgentId = options.agentId ?? threadId ?? 'default';
+
     // Create guardrail chain if guardrails provided
     const guardrailChain = guardrails?.length ? new GuardrailChain(guardrails) : null;
 
@@ -648,7 +653,7 @@ export async function generateTextWithGraph(
 
             const preResult = await guardrailChain.execute('pre-request', {
                 content: userContent,
-                agentId: threadId ?? 'default',
+                agentId: resolvedAgentId,
                 threadId,
             });
 
@@ -777,7 +782,7 @@ export async function generateTextWithGraph(
         // Find blocking result for better error message
         const postResult = await guardrailChain.execute('post-response', {
             content: finalText,
-            agentId: threadId ?? 'default',
+            agentId: resolvedAgentId,
             threadId,
         });
 

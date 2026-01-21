@@ -38,10 +38,19 @@ export function createSequentialCrew(config: CrewConfig): Crew {
                 }
 
                 try {
-                    // Build prompt with context from previous agent
-                    const prompt = agentResults.length > 0
-                        ? `Previous agent output:\n${currentContext}\n\nYour task: ${options.task}`
-                        : options.task;
+                    // Build prompt with context
+                    let prompt = options.task;
+
+                    // Include initial context if provided
+                    if (options.context && agentResults.length === 0) {
+                        const contextStr = JSON.stringify(options.context, null, 2);
+                        prompt = `Context:\n${contextStr}\n\nTask: ${options.task}`;
+                    }
+
+                    // Include previous agent output
+                    if (agentResults.length > 0) {
+                        prompt = `Previous agent output:\n${currentContext}\n\nYour task: ${options.task}`;
+                    }
 
                     // Check abort signal
                     if (options.abortSignal?.aborted) {
