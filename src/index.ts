@@ -90,6 +90,31 @@ export type {
     JsonSchema,
 } from './ai/a2a';
 
+// Guardrails
+export {
+    GuardrailChain,
+    GuardrailBlockedError,
+    inputFilter,
+    outputFilter,
+    tokenLimiter,
+    auditLogger,
+    ACTION_PRIORITY,
+} from './ai/guardrails';
+export type {
+    Guardrail,
+    GuardrailPhase,
+    GuardrailAction,
+    GuardrailContext,
+    GuardrailResult,
+    GuardrailChainResult,
+    ContentFilterConfig,
+    ContentCategory,
+    TokenLimiterConfig,
+    GuardrailTokenStore,
+    AuditLoggerConfig,
+    AuditLogEntry,
+} from './ai/guardrails';
+
 // Shared types
 export * from './lib/types';
 
