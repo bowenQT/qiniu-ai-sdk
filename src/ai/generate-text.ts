@@ -826,14 +826,20 @@ export async function generateTextWithGraph(
     }
 
     // Build steps with redacted content for final assistant response
+    // Find the last 'text' type step index for redaction (not tool_call or tool_result)
+    const shouldRedact = finalText !== graphResult.text;
+    const lastTextStepIndex = shouldRedact
+        ? graphResult.steps.reduce((lastIdx, s, idx) =>
+            s.type === 'text' ? idx : lastIdx, -1)
+        : -1;
+
     const steps = graphResult.steps.map((s, index) => {
-        const isLastStep = index === graphResult.steps.length - 1;
-        const shouldRedact = isLastStep && finalText !== graphResult.text;
+        const isRedactTarget = index === lastTextStepIndex;
 
         return {
             type: s.type,
-            // Redact final assistant step content if guardrails modified it
-            content: shouldRedact ? finalText : s.content,
+            // Redact final assistant text step content if guardrails modified it
+            content: isRedactTarget ? finalText : s.content,
             reasoning: s.reasoning,
             toolCalls: s.toolCalls,
             toolResults: s.toolResults?.map(r => ({
