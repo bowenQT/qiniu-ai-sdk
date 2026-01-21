@@ -7,6 +7,8 @@ import type { ApprovalConfig, ApprovalHandler, ApprovalResult } from './tool-app
 import { checkApproval } from './tool-approval';
 import { normalizeContent } from '../lib/content-converter';
 import type { MemoryManager } from './memory';
+import type { Guardrail } from './guardrails';
+import { GuardrailChain, GuardrailBlockedError } from './guardrails';
 
 export interface ToolExecutionContext {
     toolCallId: string;
@@ -539,6 +541,8 @@ export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
     approvalConfig?: ApprovalConfig;
     /** Memory manager for conversation summarization */
     memory?: MemoryManager;
+    /** Guardrails for input/output filtering */
+    guardrails?: Guardrail[];
 }
 
 /**
@@ -601,7 +605,11 @@ export async function generateTextWithGraph(
         threadId,
         resumeFromCheckpoint = true,
         memory,
+        guardrails,
     } = options;
+
+    // Create guardrail chain if guardrails provided
+    const guardrailChain = guardrails?.length ? new GuardrailChain(guardrails) : null;
 
     // Validate checkpointer + threadId combination
     if (checkpointer && !threadId) {
@@ -626,7 +634,41 @@ export async function generateTextWithGraph(
     }
 
     // Normalize messages - use resumed messages if available, otherwise input
-    const messages = resumedMessages ?? normalizeMessages(options);
+    let messages = resumedMessages ?? normalizeMessages(options);
+
+    // Pre-request guardrails: filter user input
+    if (guardrailChain) {
+        // Find last user message (reverse to find from end)
+        const userMessages = messages.filter((m): m is ChatMessage => m.role === 'user');
+        const lastUserMessage = userMessages[userMessages.length - 1];
+        if (lastUserMessage) {
+            const userContent = typeof lastUserMessage.content === 'string'
+                ? lastUserMessage.content
+                : JSON.stringify(lastUserMessage.content);
+
+            const preResult = await guardrailChain.execute('pre-request', {
+                content: userContent,
+                agentId: threadId ?? 'default',
+                threadId,
+            });
+
+            if (!preResult.shouldProceed) {
+                throw new GuardrailBlockedError(
+                    preResult.results[0]?.reason ?? 'Request blocked by guardrail',
+                    preResult.results
+                );
+            }
+
+            // Apply redacted content if modified
+            if (preResult.content !== userContent) {
+                messages = messages.map(m =>
+                    m === lastUserMessage
+                        ? { ...m, content: preResult.content }
+                        : m
+                );
+            }
+        }
+    }
 
     // Track current messages for tool context (will be updated during execution)
     let currentMessages = [...messages];
@@ -732,8 +774,31 @@ export async function generateTextWithGraph(
     }
 
     // Build result
+    let finalText = graphResult.text;
+
+    // Post-response guardrails: filter assistant output
+    if (guardrailChain && finalText) {
+        const postResult = await guardrailChain.execute('post-response', {
+            content: finalText,
+            agentId: threadId ?? 'default',
+            threadId,
+        });
+
+        if (!postResult.shouldProceed) {
+            throw new GuardrailBlockedError(
+                postResult.results[0]?.reason ?? 'Response blocked by guardrail',
+                postResult.results
+            );
+        }
+
+        // Apply redacted content if modified
+        if (postResult.content !== finalText) {
+            finalText = postResult.content;
+        }
+    }
+
     return {
-        text: graphResult.text,
+        text: finalText,
         reasoning: graphResult.reasoning,
         steps: graphResult.steps.map(s => ({
             type: s.type,

@@ -116,6 +116,20 @@ export type {
     AuditLogEntry,
 } from './ai/guardrails';
 
+// Crew (Multi-Agent Orchestration)
+export {
+    createCrew,
+    createSequentialCrew,
+} from './ai/crew';
+export type {
+    OrchestrationMode,
+    CrewConfig,
+    CrewKickoffOptions,
+    AgentResult,
+    CrewResult,
+    Crew,
+} from './ai/crew';
+
 // Shared types
 export * from './lib/types';
 

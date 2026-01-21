@@ -9,6 +9,7 @@ import type { Skill } from '../modules/skills';
 import type { Checkpointer } from './graph/checkpointer';
 import type { ApprovalConfig } from './tool-approval';
 import type { MemoryManager } from './memory';
+import type { Guardrail } from './guardrails';
 import {
     generateTextWithGraph,
     type GenerateTextWithGraphResult,
@@ -56,6 +57,8 @@ export interface AgentConfig {
     checkpointer?: Checkpointer;
     /** Memory manager for conversation summarization */
     memory?: MemoryManager;
+    /** Guardrails for input/output filtering */
+    guardrails?: Guardrail[];
 }
 
 /** Options for single run (without thread) */
@@ -135,6 +138,7 @@ export function createAgent(config: AgentConfig): Agent {
         approvalConfig,
         checkpointer,
         memory,
+        guardrails,
     } = config;
 
     // Helper to build common options
@@ -161,6 +165,7 @@ export function createAgent(config: AgentConfig): Agent {
         abortSignal,
         approvalConfig,
         memory,
+        guardrails,
         threadId,
         onStepFinish,
         onNodeEnter,
