@@ -14,6 +14,7 @@ export type {
 
 // Factory
 export { createSequentialCrew } from './sequential';
+export { createParallelCrew } from './parallel';
 
 // ============================================================================
 // createCrew Factory
@@ -21,6 +22,7 @@ export { createSequentialCrew } from './sequential';
 
 import type { CrewConfig, Crew } from './types';
 import { createSequentialCrew } from './sequential';
+import { createParallelCrew } from './parallel';
 
 /**
  * Create a crew with the specified orchestration mode.
@@ -40,8 +42,7 @@ export function createCrew(config: CrewConfig): Crew {
         case 'sequential':
             return createSequentialCrew(config);
         case 'parallel':
-            // TODO: Implement parallel orchestration
-            throw new Error('Parallel orchestration not yet implemented');
+            return createParallelCrew(config);
         case 'hierarchical':
             // TODO: Implement hierarchical orchestration
             throw new Error('Hierarchical orchestration not yet implemented');
