@@ -409,4 +409,13 @@ export class KodoCheckpointer implements Checkpointer {
         const deleted = await this.client.delete(key);
         return deleted ? 1 : 0;
     }
+
+    /**
+     * Clear history, keeping only the latest checkpoint.
+     * Kodo uses single-file storage per thread, so this is always a no-op.
+     */
+    async clearHistory(_threadId: string): Promise<number> {
+        // Kodo stores one checkpoint per thread, so no history to clear
+        return 0;
+    }
 }

@@ -825,6 +825,11 @@ export async function generateTextWithGraph(
 
         // Save with completed status to overwrite any intermediate checkpoints
         await checkpointer.save(threadId, stateToSave, { status: 'completed' });
+
+        // Clear old checkpoints to prevent access to unredacted versions
+        if (finalText !== graphResult.text && checkpointer.clearHistory) {
+            await checkpointer.clearHistory(threadId);
+        }
     }
 
     // Build steps with redacted content for final assistant response

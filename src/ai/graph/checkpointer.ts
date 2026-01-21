@@ -176,6 +176,12 @@ export interface Checkpointer {
      * Clear all checkpoints for a thread.
      */
     clear(threadId: string): Promise<number>;
+
+    /**
+     * Clear history, keeping only the latest checkpoint.
+     * Used after guardrail redaction to remove unredacted versions.
+     */
+    clearHistory?(threadId: string): Promise<number>;
 }
 
 /**
@@ -288,6 +294,28 @@ export class MemoryCheckpointer implements Checkpointer {
                 this.checkpoints.delete(id);
                 count++;
             }
+        }
+
+        return count;
+    }
+
+    /**
+     * Clear history, keeping only the latest checkpoint.
+     */
+    async clearHistory(threadId: string): Promise<number> {
+        const checkpointsForThread = Array.from(this.checkpoints.entries())
+            .filter(([, cp]) => cp.metadata.threadId === threadId)
+            .sort((a, b) => b[1].metadata.createdAt - a[1].metadata.createdAt);
+
+        if (checkpointsForThread.length <= 1) {
+            return 0;
+        }
+
+        // Keep the latest (first after sort), delete the rest
+        let count = 0;
+        for (let i = 1; i < checkpointsForThread.length; i++) {
+            this.checkpoints.delete(checkpointsForThread[i][0]);
+            count++;
         }
 
         return count;

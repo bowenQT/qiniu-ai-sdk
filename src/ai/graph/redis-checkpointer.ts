@@ -164,4 +164,18 @@ export class RedisCheckpointer implements Checkpointer {
 
         return ids.length;
     }
+
+    async clearHistory(threadId: string): Promise<number> {
+        const checkpoints = await this.list(threadId);
+        if (checkpoints.length <= 1) return 0;
+
+        // Keep the latest (first in sorted list), delete the rest
+        let count = 0;
+        for (let i = 1; i < checkpoints.length; i++) {
+            await this.delete(checkpoints[i].id);
+            count++;
+        }
+
+        return count;
+    }
 }
