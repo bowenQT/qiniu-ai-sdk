@@ -71,6 +71,8 @@ export interface AgentRunOptions {
     onNodeEnter?: (nodeName: string) => void;
     /** Node exit callback */
     onNodeExit?: (nodeName: string) => void;
+    /** Abort signal for cancellation */
+    abortSignal?: AbortSignal;
 }
 
 /** Options for run with thread (persistent conversation) */
@@ -183,11 +185,13 @@ export function createAgent(config: AgentConfig): Agent {
          * Run agent once without persistence.
          */
         async run(options: AgentRunOptions): Promise<GenerateTextWithGraphResult> {
-            const { prompt, onStepFinish, onNodeEnter, onNodeExit } = options;
+            const { prompt, onStepFinish, onNodeEnter, onNodeExit, abortSignal: runAbortSignal } = options;
 
-            return generateTextWithGraph(
-                buildOptions(prompt, undefined, onStepFinish, onNodeEnter, onNodeExit),
-            );
+            return generateTextWithGraph({
+                ...buildOptions(prompt, undefined, onStepFinish, onNodeEnter, onNodeExit),
+                // Use run-level abort signal if provided, otherwise fall back to config-level
+                abortSignal: runAbortSignal ?? abortSignal,
+            });
         },
 
         /**

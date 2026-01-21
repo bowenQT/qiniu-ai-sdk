@@ -14,6 +14,31 @@ import type {
 } from './types';
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Safely serialize context to string, handling circular references.
+ */
+function safeStringify(obj: unknown): string {
+    try {
+        return JSON.stringify(obj, null, 2);
+    } catch {
+        // Handle circular references
+        const seen = new WeakSet();
+        return JSON.stringify(obj, (_key, value) => {
+            if (typeof value === 'object' && value !== null) {
+                if (seen.has(value)) {
+                    return '[Circular]';
+                }
+                seen.add(value);
+            }
+            return value;
+        }, 2);
+    }
+}
+
+// ============================================================================
 // Parallel Crew
 // ============================================================================
 
@@ -32,10 +57,10 @@ export function createParallelCrew(config: CrewConfig): Crew {
                 console.log(`[Crew] Starting parallel execution with ${agents.length} agents`);
             }
 
-            // Build context-aware prompt
+            // Build context-aware prompt with safe serialization
             let prompt = options.task;
             if (options.context) {
-                const contextStr = JSON.stringify(options.context, null, 2);
+                const contextStr = safeStringify(options.context);
                 prompt = `Context:\n${contextStr}\n\nTask: ${options.task}`;
             }
 
@@ -53,7 +78,11 @@ export function createParallelCrew(config: CrewConfig): Crew {
                         throw new Error('Crew execution aborted');
                     }
 
-                    const result = await agent.run({ prompt });
+                    // Pass abort signal to agent for in-flight cancellation
+                    const result = await agent.run({
+                        prompt,
+                        abortSignal: options.abortSignal,
+                    });
 
                     const agentResult: AgentResult = {
                         agentId: agent.id,

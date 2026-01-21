@@ -121,6 +121,7 @@ export {
     createCrew,
     createSequentialCrew,
     createParallelCrew,
+    createHierarchicalCrew,
 } from './ai/crew';
 export type {
     OrchestrationMode,
