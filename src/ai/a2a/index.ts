@@ -32,7 +32,7 @@ export {
 } from './validation';
 
 // Rate Limiter
-export { A2ARateLimiter, RateLimitError } from './rate-limiter';
+export { A2ARateLimiter, RateLimitError, AbortError } from './rate-limiter';
 
 // AgentExpert
 export { AgentExpert } from './expert';

@@ -15,6 +15,7 @@ interface RateLimitEntry {
 interface QueuedCall<T> {
     agentId: string;
     toolName: string;
+    signal?: AbortSignal;
     execute: () => Promise<T>;
     resolve: (value: T) => void;
     reject: (reason: unknown) => void;
@@ -64,15 +65,19 @@ export class A2ARateLimiter {
 
     /**
      * Execute a call with rate limiting.
-     * 
-     * @throws RateLimitError if onLimit is 'reject' and limit exceeded
-     * @throws RateLimitError if onLimit is 'queue' and wait times out (strict mode)
+     * Supports AbortSignal for cancellation during wait.
      */
     async execute<T>(
         agentId: string,
         toolName: string,
-        execute: () => Promise<T>
+        execute: () => Promise<T>,
+        signal?: AbortSignal
     ): Promise<T> {
+        // Check if already aborted
+        if (signal?.aborted) {
+            throw new AbortError('Request aborted');
+        }
+
         if (this.isAllowed(agentId, toolName)) {
             this.track(agentId, toolName);
             return execute();
@@ -86,23 +91,37 @@ export class A2ARateLimiter {
             );
         }
 
-        // Queue mode (strict): wait for slot or throw
-        return this.enqueue(agentId, toolName, execute);
+        // Queue mode: wait for slot with abort support
+        return this.enqueue(agentId, toolName, execute, signal);
     }
 
     /**
-     * Wait for a slot to become available (for external use).
-     * Throws if timeout exceeded.
+     * Wait for a slot to become available.
+     * Supports AbortSignal for cancellation.
      */
-    async waitForSlot(agentId: string, toolName: string, timeoutMs?: number): Promise<void> {
+    async waitForSlot(
+        agentId: string,
+        toolName: string,
+        timeoutMs?: number,
+        signal?: AbortSignal
+    ): Promise<void> {
+        if (signal?.aborted) {
+            throw new AbortError('Request aborted');
+        }
+
         const timeout = timeoutMs ?? this.config.windowMs * 2;
         const checkInterval = 50;
         let waited = 0;
 
         while (waited < timeout) {
+            if (signal?.aborted) {
+                throw new AbortError('Request aborted during rate limit wait');
+            }
+
             if (this.isAllowed(agentId, toolName)) {
                 return;
             }
+
             await new Promise(resolve => setTimeout(resolve, checkInterval));
             waited += checkInterval;
         }
@@ -186,16 +205,32 @@ export class A2ARateLimiter {
     private async enqueue<T>(
         agentId: string,
         toolName: string,
-        execute: () => Promise<T>
+        execute: () => Promise<T>,
+        signal?: AbortSignal
     ): Promise<T> {
         return new Promise<T>((resolve, reject) => {
-            this.queue.push({
+            const call: QueuedCall<unknown> = {
                 agentId,
                 toolName,
+                signal,
                 execute: execute as () => Promise<unknown>,
                 resolve: resolve as (value: unknown) => void,
                 reject,
-            });
+            };
+
+            // Handle abort while in queue
+            if (signal) {
+                const abortHandler = () => {
+                    const index = this.queue.indexOf(call);
+                    if (index !== -1) {
+                        this.queue.splice(index, 1);
+                        reject(new AbortError('Request aborted while queued'));
+                    }
+                };
+                signal.addEventListener('abort', abortHandler, { once: true });
+            }
+
+            this.queue.push(call);
             this.processQueue();
         });
     }
@@ -210,9 +245,23 @@ export class A2ARateLimiter {
         while (this.queue.length > 0) {
             const call = this.queue[0];
 
+            // Check if aborted before processing
+            if (call.signal?.aborted) {
+                this.queue.shift();
+                call.reject(new AbortError('Request aborted'));
+                continue;
+            }
+
             try {
-                // Strict wait - throws on timeout
-                await this.waitForSlot(call.agentId, call.toolName);
+                await this.waitForSlot(call.agentId, call.toolName, undefined, call.signal);
+
+                // Check again after wait
+                if (call.signal?.aborted) {
+                    this.queue.shift();
+                    call.reject(new AbortError('Request aborted after wait'));
+                    continue;
+                }
+
                 this.track(call.agentId, call.toolName);
                 this.queue.shift();
                 const result = await call.execute();
@@ -243,5 +292,14 @@ export class RateLimitError extends Error {
         this.agentId = agentId;
         this.toolName = toolName;
         this.retryAfterMs = retryAfterMs;
+    }
+}
+
+export class AbortError extends Error {
+    readonly code = 'CANCELLED' as const;
+
+    constructor(message: string = 'Request aborted') {
+        super(message);
+        this.name = 'AbortError';
     }
 }

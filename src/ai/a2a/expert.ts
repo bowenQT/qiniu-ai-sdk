@@ -13,12 +13,11 @@ import type {
 } from './types';
 import {
     generateRequestId,
-    createA2ARequest,
     createA2AResponse,
     createA2AError,
 } from './types';
 import { validateSchema, type JsonSchema } from './validation';
-import { A2ARateLimiter, RateLimitError } from './rate-limiter';
+import { A2ARateLimiter, RateLimitError, AbortError } from './rate-limiter';
 
 // ============================================================================
 // AgentExpert
@@ -71,7 +70,7 @@ export class AgentExpert {
             ? new A2ARateLimiter(config.rateLimit)
             : undefined;
 
-        // Build exposed tools
+        // Build exposed tools - all go through execute() for FIFO fairness
         const exposedTools: Record<string, Tool> = {};
 
         for (const toolName of config.expose) {
@@ -87,8 +86,7 @@ export class AgentExpert {
                 toolName,
                 expertId,
                 rateLimiter,
-                config.validateArgs ?? true,
-                config.rateLimit?.onLimit ?? 'reject'
+                config.validateArgs ?? true
             );
         }
 
@@ -97,7 +95,6 @@ export class AgentExpert {
 
     /**
      * Direct tool call with full request.
-     * Note: `from` field is ignored for rate limiting - expert.id is always used.
      */
     async callTool(request: CallToolRequest): Promise<A2AMessage> {
         const requestId = request.requestId ?? generateRequestId();
@@ -130,13 +127,17 @@ export class AgentExpert {
             return createA2AError(baseRequest, 'CANCELLED', 'Request was cancelled');
         }
 
-        // Rate limiting (use expert.id, not caller-provided from)
+        // Rate limiting via execute() for FIFO fairness with exposed tools
         if (this.rateLimiter) {
             try {
-                await this.rateLimiter.execute(this.id, tool, async () => { });
+                // Use execute() which handles queue fairness and abort
+                await this.rateLimiter.execute(this.id, tool, async () => { }, signal);
             } catch (error) {
                 if (error instanceof RateLimitError) {
                     return createA2AError(baseRequest, 'RATE_LIMITED', error.message);
+                }
+                if (error instanceof AbortError) {
+                    return createA2AError(baseRequest, 'CANCELLED', error.message);
                 }
                 throw error;
             }
@@ -205,15 +206,14 @@ export class AgentExpert {
 // ============================================================================
 
 /**
- * Create a wrapped tool preserving all metadata.
+ * Create a wrapped tool - all tools go through execute() for FIFO fairness.
  */
 function createWrappedTool(
     original: Tool,
     toolName: string,
     expertId: string,
     rateLimiter: A2ARateLimiter | undefined,
-    validateArgs: boolean,
-    onLimit: 'queue' | 'reject'
+    validateArgs: boolean
 ): Tool {
     return {
         description: original.description,
@@ -223,23 +223,9 @@ function createWrappedTool(
         source: original.source,
 
         execute: async (args, context) => {
-            // Rate limiting with proper queue support
+            // Rate limiting via execute() for FIFO fairness
             if (rateLimiter) {
-                if (onLimit === 'queue') {
-                    // Wait for slot (throws on timeout)
-                    await rateLimiter.waitForSlot(expertId, toolName);
-                    rateLimiter.track(expertId, toolName);
-                } else {
-                    // Reject immediately if not allowed
-                    if (!rateLimiter.isAllowed(expertId, toolName)) {
-                        throw new RateLimitError(
-                            expertId,
-                            toolName,
-                            rateLimiter.getTimeUntilSlot(expertId, toolName)
-                        );
-                    }
-                    rateLimiter.track(expertId, toolName);
-                }
+                await rateLimiter.execute(expertId, toolName, async () => { }, context.abortSignal);
             }
 
             // Validate
