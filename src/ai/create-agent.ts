@@ -191,6 +191,8 @@ export function createAgent(config: AgentConfig): Agent {
                 ...buildOptions(prompt, undefined, onStepFinish, onNodeEnter, onNodeExit),
                 // Use run-level abort signal if provided, otherwise fall back to config-level
                 abortSignal: runAbortSignal ?? abortSignal,
+                // Pass agent ID for guardrail attribution
+                agentId,
             });
         },
 
@@ -213,6 +215,8 @@ export function createAgent(config: AgentConfig): Agent {
                 ...buildOptions(prompt, threadId, onStepFinish, onNodeEnter, onNodeExit),
                 checkpointer,
                 resumeFromCheckpoint,
+                // Pass agent ID for guardrail attribution
+                agentId,
             });
         },
     };
