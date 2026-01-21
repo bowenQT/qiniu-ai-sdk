@@ -411,10 +411,10 @@ export class KodoCheckpointer implements Checkpointer {
     }
 
     /**
-     * Clear history, keeping only the latest checkpoint.
+     * Clear history, keeping only the specified checkpoint.
      * Kodo uses single-file storage per thread, so this is always a no-op.
      */
-    async clearHistory(_threadId: string): Promise<number> {
+    async clearHistory(_threadId: string, _keepId?: string): Promise<number> {
         // Kodo stores one checkpoint per thread, so no history to clear
         return 0;
     }

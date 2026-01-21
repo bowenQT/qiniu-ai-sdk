@@ -178,10 +178,12 @@ export interface Checkpointer {
     clear(threadId: string): Promise<number>;
 
     /**
-     * Clear history, keeping only the latest checkpoint.
+     * Clear history, keeping only the specified checkpoint (or latest if not specified).
      * Used after guardrail redaction to remove unredacted versions.
+     * @param threadId - Thread to clear history for
+     * @param keepId - Optional checkpoint ID to keep (if not specified, keeps latest by created_at)
      */
-    clearHistory?(threadId: string): Promise<number>;
+    clearHistory?(threadId: string, keepId?: string): Promise<number>;
 }
 
 /**
@@ -300,9 +302,9 @@ export class MemoryCheckpointer implements Checkpointer {
     }
 
     /**
-     * Clear history, keeping only the latest checkpoint.
+     * Clear history, keeping only the specified checkpoint (or latest if not specified).
      */
-    async clearHistory(threadId: string): Promise<number> {
+    async clearHistory(threadId: string, keepId?: string): Promise<number> {
         const checkpointsForThread = Array.from(this.checkpoints.entries())
             .filter(([, cp]) => cp.metadata.threadId === threadId)
             .sort((a, b) => b[1].metadata.createdAt - a[1].metadata.createdAt);
@@ -311,11 +313,16 @@ export class MemoryCheckpointer implements Checkpointer {
             return 0;
         }
 
-        // Keep the latest (first after sort), delete the rest
+        // Determine which ID to keep
+        const idToKeep = keepId || checkpointsForThread[0][0];
+
+        // Delete all except the one to keep
         let count = 0;
-        for (let i = 1; i < checkpointsForThread.length; i++) {
-            this.checkpoints.delete(checkpointsForThread[i][0]);
-            count++;
+        for (const [id] of checkpointsForThread) {
+            if (id !== idToKeep) {
+                this.checkpoints.delete(id);
+                count++;
+            }
         }
 
         return count;

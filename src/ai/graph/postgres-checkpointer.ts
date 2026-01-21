@@ -228,7 +228,18 @@ export class PostgresCheckpointer implements Checkpointer {
         return (result as { rowCount?: number }).rowCount ?? 0;
     }
 
-    async clearHistory(threadId: string): Promise<number> {
+    async clearHistory(threadId: string, keepId?: string): Promise<number> {
+        // If keepId provided, delete all except that ID
+        // Otherwise, delete all except the most recent by created_at
+        if (keepId) {
+            const result = await this.client.query(
+                `DELETE FROM ${this.table} 
+                 WHERE thread_id = $1 AND id != $2`,
+                [threadId, keepId]
+            );
+            return (result as { rowCount?: number }).rowCount ?? 0;
+        }
+
         // Delete all except the most recent checkpoint for this thread
         const result = await this.client.query(
             `DELETE FROM ${this.table} 

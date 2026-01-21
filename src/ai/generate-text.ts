@@ -824,11 +824,12 @@ export async function generateTextWithGraph(
         }
 
         // Save with completed status to overwrite any intermediate checkpoints
-        await checkpointer.save(threadId, stateToSave, { status: 'completed' });
+        const savedMetadata = await checkpointer.save(threadId, stateToSave, { status: 'completed' });
 
         // Clear old checkpoints to prevent access to unredacted versions
+        // Pass the saved checkpoint ID to ensure we keep the correct one
         if (finalText !== graphResult.text && checkpointer.clearHistory) {
-            await checkpointer.clearHistory(threadId);
+            await checkpointer.clearHistory(threadId, savedMetadata.id);
         }
     }
 
