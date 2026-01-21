@@ -5,6 +5,20 @@ const path = require('path');
 const esmDir = path.join(__dirname, '..', 'dist', 'esm');
 const distDir = path.join(__dirname, '..', 'dist');
 
+/**
+ * Check if a path is a directory in the dist folder
+ */
+function isDirectoryImport(importPath, currentFile) {
+    const currentDir = path.dirname(currentFile);
+    const targetPath = path.join(currentDir, importPath);
+
+    // Check if it's a directory with index.js
+    if (fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory()) {
+        return fs.existsSync(path.join(targetPath, 'index.js'));
+    }
+    return false;
+}
+
 function processDir(dir, baseDir) {
     if (!fs.existsSync(dir)) return;
 
@@ -25,12 +39,21 @@ function processDir(dir, baseDir) {
             }
 
             let content = fs.readFileSync(srcPath, 'utf8');
+
             // Fix imports to use .mjs extension
-            content = content.replace(/from\s+['"](\.[^'"]+)['"]/g, (match, p1) => {
-                if (!p1.endsWith('.js') && !p1.endsWith('.mjs')) {
-                    return `from '${p1}.mjs'`;
+            content = content.replace(/from\s+['"](\.\.?\/[^'"]+)['"]/g, (match, importPath) => {
+                // Skip if already has extension
+                if (importPath.endsWith('.js') || importPath.endsWith('.mjs')) {
+                    return match.replace('.js', '.mjs');
                 }
-                return match.replace('.js', '.mjs');
+
+                // Check if this is a directory import (has index.js)
+                if (isDirectoryImport(importPath, srcPath)) {
+                    return `from '${importPath}/index.mjs'`;
+                }
+
+                // Regular file import
+                return `from '${importPath}.mjs'`;
             });
 
             fs.writeFileSync(destPath, content);

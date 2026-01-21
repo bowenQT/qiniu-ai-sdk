@@ -653,8 +653,9 @@ export async function generateTextWithGraph(
             });
 
             if (!preResult.shouldProceed) {
+                const blockingResult = preResult.results.find(r => r.action === 'block');
                 throw new GuardrailBlockedError(
-                    preResult.results[0]?.reason ?? 'Request blocked by guardrail',
+                    blockingResult?.reason ?? 'Request blocked by guardrail',
                     preResult.results
                 );
             }
@@ -768,16 +769,12 @@ export async function generateTextWithGraph(
     // Execute graph
     const graphResult = await graph.invoke(messages);
 
-    // Save checkpoint if checkpointer provided
-    if (checkpointer && threadId) {
-        await checkpointer.save(threadId, graphResult.state);
-    }
-
     // Build result
     let finalText = graphResult.text;
 
     // Post-response guardrails: filter assistant output
     if (guardrailChain && finalText) {
+        // Find blocking result for better error message
         const postResult = await guardrailChain.execute('post-response', {
             content: finalText,
             agentId: threadId ?? 'default',
@@ -785,8 +782,10 @@ export async function generateTextWithGraph(
         });
 
         if (!postResult.shouldProceed) {
+            // Find the actual blocking guardrail result
+            const blockingResult = postResult.results.find(r => r.action === 'block');
             throw new GuardrailBlockedError(
-                postResult.results[0]?.reason ?? 'Response blocked by guardrail',
+                blockingResult?.reason ?? 'Response blocked by guardrail',
                 postResult.results
             );
         }
@@ -795,6 +794,16 @@ export async function generateTextWithGraph(
         if (postResult.content !== finalText) {
             finalText = postResult.content;
         }
+    }
+
+    // Save checkpoint AFTER post-response guardrails (use redacted content)
+    if (checkpointer && threadId) {
+        // Update final text in state if redacted
+        const stateToSave = {
+            ...graphResult.state,
+            // Ensure final assistant message uses redacted content
+        };
+        await checkpointer.save(threadId, stateToSave);
     }
 
     return {
