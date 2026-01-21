@@ -825,19 +825,28 @@ export async function generateTextWithGraph(
         await checkpointer.save(threadId, stateToSave);
     }
 
-    return {
-        text: finalText,
-        reasoning: graphResult.reasoning,
-        steps: graphResult.steps.map(s => ({
+    // Build steps with redacted content for final assistant response
+    const steps = graphResult.steps.map((s, index) => {
+        const isLastStep = index === graphResult.steps.length - 1;
+        const shouldRedact = isLastStep && finalText !== graphResult.text;
+
+        return {
             type: s.type,
-            content: s.content,
+            // Redact final assistant step content if guardrails modified it
+            content: shouldRedact ? finalText : s.content,
             reasoning: s.reasoning,
             toolCalls: s.toolCalls,
             toolResults: s.toolResults?.map(r => ({
                 toolCallId: r.toolCallId,
                 result: r.result,
             })),
-        })),
+        };
+    });
+
+    return {
+        text: finalText,
+        reasoning: graphResult.reasoning,
+        steps,
         usage: graphResult.usage,
         finishReason: graphResult.finishReason,
         graphInfo: {
