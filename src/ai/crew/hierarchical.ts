@@ -37,6 +37,44 @@ function safeStringify(obj: unknown): string {
     }
 }
 
+/**
+ * Validate and normalize delegation entry.
+ */
+function validateDelegation(
+    entry: unknown,
+    validAgentIds: Set<string>
+): { agent: string; task: string } | null {
+    if (typeof entry !== 'object' || entry === null) {
+        return null;
+    }
+
+    const obj = entry as Record<string, unknown>;
+    const agent = obj.agent;
+    const task = obj.task;
+
+    // Validate agent ID
+    if (typeof agent !== 'string' || !validAgentIds.has(agent)) {
+        return null;
+    }
+
+    // Validate task
+    if (typeof task !== 'string' || task.trim() === '') {
+        return null;
+    }
+
+    return { agent, task };
+}
+
+/**
+ * Build prompt with context.
+ */
+function buildPromptWithContext(task: string, context?: Record<string, unknown>): string {
+    if (!context) {
+        return task;
+    }
+    return `Context:\n${safeStringify(context)}\n\nTask: ${task}`;
+}
+
 // ============================================================================
 // Hierarchical Crew
 // ============================================================================
@@ -52,10 +90,14 @@ export function createHierarchicalCrew(config: CrewConfig): Crew {
         throw new Error('Hierarchical orchestration requires a manager agent');
     }
 
+    // Valid agent IDs for delegation validation
+    const validAgentIds = new Set(agents.map(a => a.id));
+
     return {
         async kickoff(options: CrewKickoffOptions): Promise<CrewResult> {
             const startTime = Date.now();
             const agentResults: AgentResult[] = [];
+            let aborted = false;
 
             if (verbose) {
                 console.log(`[Crew] Hierarchical execution with manager: ${manager.id}`);
@@ -84,10 +126,14 @@ Decide which worker(s) to assign and provide specific instructions for each.
 Respond with a JSON array: [{"agent": "agent_id", "task": "specific task"}]
 Only use agent IDs from the list above.`;
 
-            // Manager planning phase
+            // Phase 1: Manager planning
             const managerStart = Date.now();
+            let managerSucceeded = false;
+            let delegations: Array<{ agent: string; task: string }> = [];
+
             try {
                 if (options.abortSignal?.aborted) {
+                    aborted = true;
                     throw new Error('Crew execution aborted');
                 }
 
@@ -103,88 +149,46 @@ Only use agent IDs from the list above.`;
                     success: true,
                 });
 
+                managerSucceeded = true;
+
                 if (verbose) {
                     console.log(`[Crew] Manager delegated: ${managerResult.text}`);
                 }
 
-                // Parse manager's delegation
-                let delegations: Array<{ agent: string; task: string }> = [];
+                // Parse and validate manager's delegation
                 try {
-                    // Extract JSON from response
                     const jsonMatch = managerResult.text.match(/\[[\s\S]*\]/);
                     if (jsonMatch) {
-                        delegations = JSON.parse(jsonMatch[0]);
+                        const parsed = JSON.parse(jsonMatch[0]) as unknown[];
+                        for (const entry of parsed) {
+                            const validated = validateDelegation(entry, validAgentIds);
+                            if (validated) {
+                                delegations.push(validated);
+                            } else if (verbose) {
+                                console.warn('[Crew] Invalid delegation entry:', entry);
+                            }
+                        }
                     }
                 } catch {
                     if (verbose) {
-                        console.warn('[Crew] Failed to parse manager response, running all agents');
-                    }
-                    // Fallback: run all agents with original task
-                    delegations = agents.map(a => ({ agent: a.id, task: options.task }));
-                }
-
-                // Execute delegated tasks
-                const workerOutputs: string[] = [];
-                for (const delegation of delegations) {
-                    const worker = agents.find(a => a.id === delegation.agent);
-                    if (!worker) {
-                        if (verbose) {
-                            console.warn(`[Crew] Unknown agent: ${delegation.agent}`);
-                        }
-                        continue;
-                    }
-
-                    const workerStart = Date.now();
-
-                    if (options.abortSignal?.aborted) {
-                        throw new Error('Crew execution aborted');
-                    }
-
-                    try {
-                        const workerResult = await worker.run({
-                            prompt: delegation.task,
-                            abortSignal: options.abortSignal,
-                        });
-
-                        agentResults.push({
-                            agentId: worker.id,
-                            output: workerResult.text,
-                            durationMs: Date.now() - workerStart,
-                            success: true,
-                        });
-
-                        workerOutputs.push(`[${worker.id}]\n${workerResult.text}`);
-
-                        if (verbose) {
-                            console.log(`[Crew] Worker ${worker.id} completed`);
-                        }
-                    } catch (error) {
-                        agentResults.push({
-                            agentId: worker.id,
-                            output: '',
-                            durationMs: Date.now() - workerStart,
-                            success: false,
-                            error: error instanceof Error ? error : new Error(String(error)),
-                        });
-
-                        if (verbose) {
-                            console.error(`[Crew] Worker ${worker.id} failed:`, error);
-                        }
+                        console.warn('[Crew] Failed to parse manager response');
                     }
                 }
 
-                // Aggregate results
-                const output = workerOutputs.length > 0
-                    ? workerOutputs.join('\n\n---\n\n')
-                    : 'No workers completed successfully';
-
-                return {
-                    output,
-                    agentResults,
-                    totalDurationMs: Date.now() - startTime,
-                    orchestration: 'hierarchical',
-                };
+                // Fallback: run all agents with context-aware task
+                if (delegations.length === 0) {
+                    if (verbose) {
+                        console.log('[Crew] No valid delegations, running all agents');
+                    }
+                    const fallbackTask = buildPromptWithContext(options.task, options.context);
+                    delegations = agents.map(a => ({ agent: a.id, task: fallbackTask }));
+                }
             } catch (error) {
+                // Manager failed - check if aborted
+                if (options.abortSignal?.aborted) {
+                    aborted = true;
+                }
+
                 agentResults.push({
                     agentId: manager.id,
                     output: '',
@@ -194,15 +198,97 @@ Only use agent IDs from the list above.`;
                 });
 
                 return {
-                    output: 'Manager failed to delegate',
+                    output: aborted ? 'Execution aborted' : 'Manager failed to delegate',
                     agentResults,
                     totalDurationMs: Date.now() - startTime,
                     orchestration: 'hierarchical',
                 };
             }
+
+            // Phase 2: Execute delegated tasks
+            const workerOutputs: string[] = [];
+
+            for (const delegation of delegations) {
+                // Check abort before each worker
+                if (options.abortSignal?.aborted) {
+                    aborted = true;
+                    break;
+                }
+
+                const worker = agents.find(a => a.id === delegation.agent);
+                if (!worker) {
+                    // Should not happen due to validation, but be safe
+                    continue;
+                }
+
+                const workerStart = Date.now();
+
+                try {
+                    const workerResult = await worker.run({
+                        prompt: delegation.task,
+                        abortSignal: options.abortSignal,
+                    });
+
+                    agentResults.push({
+                        agentId: worker.id,
+                        output: workerResult.text,
+                        durationMs: Date.now() - workerStart,
+                        success: true,
+                    });
+
+                    workerOutputs.push(`[${worker.id}]\n${workerResult.text}`);
+
+                    if (verbose) {
+                        console.log(`[Crew] Worker ${worker.id} completed`);
+                    }
+                } catch (error) {
+                    // Check if this specific error is an abort
+                    if (options.abortSignal?.aborted) {
+                        aborted = true;
+                    }
+
+                    agentResults.push({
+                        agentId: worker.id,
+                        output: '',
+                        durationMs: Date.now() - workerStart,
+                        success: false,
+                        error: error instanceof Error ? error : new Error(String(error)),
+                    });
+
+                    if (verbose) {
+                        console.error(`[Crew] Worker ${worker.id} failed:`, error);
+                    }
+
+                    // Continue to next worker on error (don't abort entire crew)
+                }
+            }
+
+            // Build final output
+            let output: string;
+            if (aborted) {
+                output = workerOutputs.length > 0
+                    ? `Execution aborted (partial results):\n\n${workerOutputs.join('\n\n---\n\n')}`
+                    : 'Execution aborted';
+            } else if (workerOutputs.length > 0) {
+                output = workerOutputs.join('\n\n---\n\n');
+            } else {
+                output = 'No workers completed successfully';
+            }
+
+            return {
+                output,
+                agentResults,
+                totalDurationMs: Date.now() - startTime,
+                orchestration: 'hierarchical',
+            };
         },
 
         getAgents(): Agent[] {
+            // Deduplicate: don't include manager if it's also in agents
+            const agentIds = new Set(agents.map(a => a.id));
+            if (agentIds.has(manager.id)) {
+                return [...agents];
+            }
             return [manager, ...agents];
         },
     };
