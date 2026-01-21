@@ -1,5 +1,7 @@
 /**
  * Output Filter - Toxic content and PII detection in responses.
+ *
+ * Note: Uses string.match() instead of regex.test() to avoid stateful lastIndex issues.
  */
 
 import type {
@@ -11,32 +13,28 @@ import type {
 } from './types';
 
 // ============================================================================
-// PII Patterns (same as input filter)
+// PII Patterns
 // ============================================================================
 
-const PII_PATTERNS: Record<string, RegExp> = {
-    email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/gi,
-    phone: /\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b/g,
-    phoneZh: /\b1[3-9]\d{9}\b/g,
-    ssn: /\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b/g,
-    creditCard: /\b(?:\d{4}[-.\s]?){3}\d{4}\b/g,
-    idCardZh: /\b\d{17}[\dXx]\b/g,
-    ipAddress: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
+const PII_PATTERN_SOURCES: Record<string, { source: string; flags: string }> = {
+    email: { source: '\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b', flags: 'gi' },
+    phone: { source: '\\b(?:\\+?1[-.\\s]?)?\\(?[0-9]{3}\\)?[-.\\s]?[0-9]{3}[-.\\s]?[0-9]{4}\\b', flags: 'g' },
+    phoneZh: { source: '\\b1[3-9]\\d{9}\\b', flags: 'g' },
+    ssn: { source: '\\b\\d{3}[-.\\s]?\\d{2}[-.\\s]?\\d{4}\\b', flags: 'g' },
+    creditCard: { source: '\\b(?:\\d{4}[-.\\s]?){3}\\d{4}\\b', flags: 'g' },
+    idCardZh: { source: '\\b\\d{17}[\\dXx]\\b', flags: 'g' },
+    ipAddress: { source: '\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b', flags: 'g' },
 };
 
 // ============================================================================
 // Toxic Patterns
 // ============================================================================
 
-const TOXIC_PATTERNS: RegExp[] = [
-    // Hate speech indicators
-    /\b(hate|hatred)\s+(speech|crime)/i,
-    // Violent content
-    /\b(how\s+to\s+)?(kill|murder|harm|hurt)\s+(someone|people|a\s+person)/i,
-    // Self-harm
-    /\b(suicide|self[-\s]?harm)\b/i,
-    // Explicit content markers
-    /\b(explicit|nsfw|xxx)\b/i,
+const TOXIC_PATTERN_SOURCES: Array<{ source: string; flags: string }> = [
+    { source: '\\b(hate|hatred)\\s+(speech|crime)', flags: 'i' },
+    { source: '\\b(how\\s+to\\s+)?(kill|murder|harm|hurt)\\s+(someone|people|a\\s+person)', flags: 'i' },
+    { source: '\\b(suicide|self[-\\s]?harm)\\b', flags: 'i' },
+    { source: '\\b(explicit|nsfw|xxx)\\b', flags: 'i' },
 ];
 
 // ============================================================================
@@ -58,10 +56,11 @@ export function outputFilter(config: ContentFilterConfig): Guardrail {
             const content = context.content;
             const detections: string[] = [];
 
-            // Check toxic
+            // Check toxic (create fresh regex each call)
             if (categories.includes('toxic')) {
-                for (const pattern of TOXIC_PATTERNS) {
-                    if (pattern.test(content)) {
+                for (const { source, flags } of TOXIC_PATTERN_SOURCES) {
+                    const pattern = new RegExp(source, flags);
+                    if (content.match(pattern)) {
                         detections.push('toxic');
                         break;
                     }
@@ -70,8 +69,9 @@ export function outputFilter(config: ContentFilterConfig): Guardrail {
 
             // Check PII leakage
             if (categories.includes('pii')) {
-                for (const [type, pattern] of Object.entries(PII_PATTERNS)) {
-                    if (pattern.test(content)) {
+                for (const [type, { source, flags }] of Object.entries(PII_PATTERN_SOURCES)) {
+                    const pattern = new RegExp(source, flags);
+                    if (content.match(pattern)) {
                         detections.push(`pii:${type}`);
                     }
                 }
@@ -111,13 +111,15 @@ function redactContent(content: string, categories: ContentCategory[]): string {
     let result = content;
 
     if (categories.includes('pii')) {
-        for (const pattern of Object.values(PII_PATTERNS)) {
+        for (const { source, flags } of Object.values(PII_PATTERN_SOURCES)) {
+            const pattern = new RegExp(source, flags);
             result = result.replace(pattern, '[REDACTED]');
         }
     }
 
     if (categories.includes('toxic')) {
-        for (const pattern of TOXIC_PATTERNS) {
+        for (const { source, flags } of TOXIC_PATTERN_SOURCES) {
+            const pattern = new RegExp(source, flags);
             result = result.replace(pattern, '[REMOVED]');
         }
     }

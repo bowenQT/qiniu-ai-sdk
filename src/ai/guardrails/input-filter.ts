@@ -1,5 +1,7 @@
 /**
  * Input Filter - PII and injection detection.
+ * 
+ * Note: Uses string.match() instead of regex.test() to avoid stateful lastIndex issues.
  */
 
 import type {
@@ -11,52 +13,35 @@ import type {
 } from './types';
 
 // ============================================================================
-// PII Patterns
+// PII Patterns (use string literals, create new RegExp per call)
 // ============================================================================
 
-const PII_PATTERNS: Record<string, RegExp> = {
-    // Email
-    email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/gi,
-    // Phone (various formats)
-    phone: /\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b/g,
-    // Chinese phone
-    phoneZh: /\b1[3-9]\d{9}\b/g,
-    // SSN
-    ssn: /\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b/g,
-    // Credit card
-    creditCard: /\b(?:\d{4}[-.\s]?){3}\d{4}\b/g,
-    // Chinese ID
-    idCardZh: /\b\d{17}[\dXx]\b/g,
-    // IP Address
-    ipAddress: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
+const PII_PATTERN_SOURCES: Record<string, { source: string; flags: string }> = {
+    email: { source: '\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b', flags: 'gi' },
+    phone: { source: '\\b(?:\\+?1[-.\\s]?)?\\(?[0-9]{3}\\)?[-.\\s]?[0-9]{3}[-.\\s]?[0-9]{4}\\b', flags: 'g' },
+    phoneZh: { source: '\\b1[3-9]\\d{9}\\b', flags: 'g' },
+    ssn: { source: '\\b\\d{3}[-.\\s]?\\d{2}[-.\\s]?\\d{4}\\b', flags: 'g' },
+    creditCard: { source: '\\b(?:\\d{4}[-.\\s]?){3}\\d{4}\\b', flags: 'g' },
+    idCardZh: { source: '\\b\\d{17}[\\dXx]\\b', flags: 'g' },
+    ipAddress: { source: '\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b', flags: 'g' },
 };
 
-// ============================================================================
-// Injection Patterns
-// ============================================================================
-
-const INJECTION_PATTERNS: RegExp[] = [
-    // Common prompt injection patterns
-    /ignore\s+(previous|all|above)\s+instructions?/i,
-    /disregard\s+(previous|all|above)/i,
-    /forget\s+(everything|previous|all)/i,
-    /new\s+instructions?:/i,
-    /system\s*:\s*/i,
-    /\[\s*system\s*\]/i,
-    /###\s*instruction/i,
-    /you\s+are\s+now\s+an?\s+/i,
-    /pretend\s+(you\s+are|to\s+be)/i,
-    /jailbreak/i,
-    /DAN\s+mode/i,
+const INJECTION_PATTERN_SOURCES: Array<{ source: string; flags: string }> = [
+    { source: 'ignore\\s+(previous|all|above)\\s+instructions?', flags: 'i' },
+    { source: 'disregard\\s+(previous|all|above)', flags: 'i' },
+    { source: 'forget\\s+(everything|previous|all)', flags: 'i' },
+    { source: 'new\\s+instructions?:', flags: 'i' },
+    { source: 'system\\s*:\\s*', flags: 'i' },
+    { source: '\\[\\s*system\\s*\\]', flags: 'i' },
+    { source: '###\\s*instruction', flags: 'i' },
+    { source: 'you\\s+are\\s+now\\s+an?\\s+', flags: 'i' },
+    { source: 'pretend\\s+(you\\s+are|to\\s+be)', flags: 'i' },
+    { source: 'jailbreak', flags: 'i' },
+    { source: 'DAN\\s+mode', flags: 'i' },
 ];
 
-// ============================================================================
-// Toxic Patterns (basic)
-// ============================================================================
-
-const TOXIC_PATTERNS: RegExp[] = [
-    // Placeholder - extend with actual patterns
-    /\b(hate|kill|murder|terrorist)\b/i,
+const TOXIC_PATTERN_SOURCES: Array<{ source: string; flags: string }> = [
+    { source: '\\b(hate|kill|murder|terrorist)\\b', flags: 'i' },
 ];
 
 // ============================================================================
@@ -78,10 +63,11 @@ export function inputFilter(config: ContentFilterConfig): Guardrail {
             const content = context.content;
             const detections: string[] = [];
 
-            // Check PII
+            // Check PII (create fresh regex each call)
             if (categories.includes('pii')) {
-                for (const [type, pattern] of Object.entries(PII_PATTERNS)) {
-                    if (pattern.test(content)) {
+                for (const [type, { source, flags }] of Object.entries(PII_PATTERN_SOURCES)) {
+                    const pattern = new RegExp(source, flags);
+                    if (content.match(pattern)) {
                         detections.push(`pii:${type}`);
                     }
                 }
@@ -89,18 +75,20 @@ export function inputFilter(config: ContentFilterConfig): Guardrail {
 
             // Check injection
             if (categories.includes('injection')) {
-                for (const pattern of INJECTION_PATTERNS) {
-                    if (pattern.test(content)) {
+                for (const { source, flags } of INJECTION_PATTERN_SOURCES) {
+                    const pattern = new RegExp(source, flags);
+                    if (content.match(pattern)) {
                         detections.push('injection');
                         break;
                     }
                 }
             }
 
-            // Check toxic (if included)
+            // Check toxic
             if (categories.includes('toxic')) {
-                for (const pattern of TOXIC_PATTERNS) {
-                    if (pattern.test(content)) {
+                for (const { source, flags } of TOXIC_PATTERN_SOURCES) {
+                    const pattern = new RegExp(source, flags);
+                    if (content.match(pattern)) {
                         detections.push('toxic');
                         break;
                     }
@@ -141,7 +129,8 @@ function redactContent(content: string, categories: ContentCategory[]): string {
     let result = content;
 
     if (categories.includes('pii')) {
-        for (const pattern of Object.values(PII_PATTERNS)) {
+        for (const { source, flags } of Object.values(PII_PATTERN_SOURCES)) {
+            const pattern = new RegExp(source, flags);
             result = result.replace(pattern, '[REDACTED]');
         }
     }

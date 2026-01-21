@@ -27,4 +27,4 @@ export { GuardrailChain, GuardrailBlockedError } from './chain';
 export { inputFilter } from './input-filter';
 export { outputFilter } from './output-filter';
 export { tokenLimiter } from './token-limiter';
-export { auditLogger } from './audit-logger';
+export { auditLogger, AuditLoggerCollector } from './audit-logger';

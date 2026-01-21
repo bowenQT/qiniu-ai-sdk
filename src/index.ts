@@ -98,6 +98,7 @@ export {
     outputFilter,
     tokenLimiter,
     auditLogger,
+    AuditLoggerCollector,
     ACTION_PRIORITY,
 } from './ai/guardrails';
 export type {

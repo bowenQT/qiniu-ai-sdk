@@ -1,5 +1,9 @@
 /**
- * Audit Logger - Log guardrail events.
+ * Audit Logger - Log guardrail events with full decision trail.
+ *
+ * This logger can be used in two ways:
+ * 1. As a guardrail (logs entry point, limited info)
+ * 2. Via AuditLoggerCollector.flush() after chain execution (full trail)
  */
 
 import type {
@@ -8,15 +12,68 @@ import type {
     GuardrailResult,
     AuditLoggerConfig,
     AuditLogEntry,
+    GuardrailAction,
 } from './types';
 
 // ============================================================================
-// Audit Logger
+// Audit Logger Collector
+// ============================================================================
+
+/**
+ * Collector for audit log entries with full decision trail.
+ * Use this for complete audit logging after guardrail chain execution.
+ */
+export class AuditLoggerCollector {
+    private config: AuditLoggerConfig;
+    private sinkInfo: SinkInfo;
+
+    constructor(config: AuditLoggerConfig) {
+        this.config = config;
+        this.sinkInfo = parseSink(config.sink);
+    }
+
+    /**
+     * Log a complete audit entry with full decision trail.
+     */
+    async log(
+        context: GuardrailContext,
+        results: Array<{
+            guardrail: string;
+            action: GuardrailAction;
+            reason?: string;
+        }>,
+        finalContent?: string
+    ): Promise<void> {
+        const entry: AuditLogEntry = {
+            timestamp: Date.now(),
+            agentId: context.agentId,
+            threadId: context.threadId,
+            phase: context.phase,
+            content: this.config.content === 'original'
+                ? context.content
+                : (finalContent ?? context.content),
+            actions: results,
+        };
+
+        try {
+            await flushLogs(this.sinkInfo, [entry]);
+        } catch (err) {
+            if (this.config.onError === 'block') {
+                throw err;
+            }
+            console.warn('[AuditLogger] Failed to write logs:', err);
+        }
+    }
+}
+
+// ============================================================================
+// Audit Logger Guardrail
 // ============================================================================
 
 /**
  * Create an audit logger guardrail.
- * Note: This is a pass-through guardrail that logs but doesn't block.
+ * Note: This guardrail logs entry but cannot capture full decision trail.
+ * For complete auditing, use AuditLoggerCollector after chain execution.
  */
 export function auditLogger(config: AuditLoggerConfig): Guardrail {
     const {
@@ -26,11 +83,7 @@ export function auditLogger(config: AuditLoggerConfig): Guardrail {
         async: isAsync = true,
     } = config;
 
-    // Parse sink URL
     const sinkInfo = parseSink(sink);
-
-    // Collect entries for batch logging
-    const pendingLogs: AuditLogEntry[] = [];
 
     return {
         name: 'auditLogger',
@@ -42,23 +95,19 @@ export function auditLogger(config: AuditLoggerConfig): Guardrail {
                 agentId: context.agentId,
                 threadId: context.threadId,
                 phase: context.phase,
-                content: content === 'original' ? context.content : '[LOGGED]',
-                actions: [],
+                content: content === 'original' ? context.content : context.content,
+                actions: [], // Cannot know actions at this point
             };
 
-            pendingLogs.push(entry);
-
-            // Flush logs
             if (isAsync) {
-                // Fire and forget
-                flushLogs(sinkInfo, pendingLogs.splice(0)).catch(err => {
+                flushLogs(sinkInfo, [entry]).catch(err => {
                     if (onError === 'warn') {
                         console.warn('[AuditLogger] Failed to write logs:', err);
                     }
                 });
             } else {
                 try {
-                    await flushLogs(sinkInfo, pendingLogs.splice(0));
+                    await flushLogs(sinkInfo, [entry]);
                 } catch (err) {
                     if (onError === 'block') {
                         return {
@@ -122,14 +171,20 @@ async function flushLogs(sink: SinkInfo, entries: AuditLogEntry[]): Promise<void
             break;
 
         case 'kodo':
-            // TODO: Implement Kodo upload
-            // For now, just log
-            console.log(`[AuditLogger] Would upload ${entries.length} entries to kodo://${sink.bucket}/${sink.prefix}`);
+            // TODO: Implement Kodo upload via QiniuAI client
+            // For now, log with clear TODO marker
+            console.log('[AuditLogger:TODO] Kodo upload not implemented, entries:', entries.length);
+            for (const entry of entries) {
+                console.log('[Audit:kodo]', JSON.stringify(entry));
+            }
             break;
 
         case 'file':
             // TODO: Implement file writing
-            console.log(`[AuditLogger] Would write ${entries.length} entries to ${sink.path}`);
+            console.log('[AuditLogger:TODO] File write not implemented, entries:', entries.length);
+            for (const entry of entries) {
+                console.log('[Audit:file]', JSON.stringify(entry));
+            }
             break;
     }
 }
