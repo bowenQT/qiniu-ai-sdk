@@ -802,6 +802,7 @@ export async function generateTextWithGraph(
     }
 
     // Save checkpoint AFTER post-response guardrails (use redacted content)
+    // This overwrites the internal AgentGraph checkpoint with redacted version
     if (checkpointer && threadId) {
         // If content was redacted, update the final assistant message in state
         const stateToSave = { ...graphResult.state };
@@ -822,7 +823,8 @@ export async function generateTextWithGraph(
             stateToSave.output = finalText;
         }
 
-        await checkpointer.save(threadId, stateToSave);
+        // Save with completed status to overwrite any intermediate checkpoints
+        await checkpointer.save(threadId, stateToSave, { status: 'completed' });
     }
 
     // Build steps with redacted content for final assistant response
