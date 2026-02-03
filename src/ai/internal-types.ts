@@ -39,10 +39,23 @@ export interface InternalMessage extends ChatMessage {
 
 /**
  * Agent state for graph execution.
+ * 
+ * Implements the Dual Histories Pattern:
+ * - `internalMessages`: Source of truth containing all messages (including tool calls)
+ * - `messages`: Alias to internalMessages for backwards compatibility  
+ * - `userMessages`: Derived view containing only user-visible messages
  */
 export interface AgentState {
-    /** Current messages in conversation */
-    messages: InternalMessage[];
+    /** 
+     * Internal messages - source of truth for all messages.
+     * Contains tool calls, results, and internal reasoning.
+     */
+    internalMessages: InternalMessage[];
+    /** 
+     * @deprecated Use internalMessages. This is a readonly alias for backwards compatibility.
+     * Writing to this field is prohibited and will be ignored.
+     */
+    readonly messages: InternalMessage[];
     /** Injected skills with metadata */
     skills: InjectedSkill[];
     /** Available tools */

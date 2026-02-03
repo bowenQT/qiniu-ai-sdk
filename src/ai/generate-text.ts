@@ -627,7 +627,8 @@ export async function generateTextWithGraph(
         const checkpoint = await checkpointer.load(threadId);
         if (checkpoint) {
             // Extract historical messages and append new input
-            const historicalMessages = checkpoint.state.messages as ChatMessage[];
+            // v0.32.0+: prefer internalMessages, fallback to legacy messages for migration
+            const historicalMessages = (checkpoint.state.internalMessages ?? checkpoint.state.messages) as ChatMessage[];
             const newMessages = normalizeMessages(options);
             // Only append new messages if there are any (avoid duplicating history)
             if (newMessages.length > 0) {
@@ -807,19 +808,20 @@ export async function generateTextWithGraph(
         // If content was redacted, update the final assistant message in state
         const stateToSave = { ...graphResult.state };
 
-        if (finalText !== graphResult.text && stateToSave.messages?.length > 0) {
+        if (finalText !== graphResult.text && stateToSave.internalMessages?.length > 0) {
             // Find and update the last assistant message with redacted content
-            const messages = [...stateToSave.messages];
-            for (let i = messages.length - 1; i >= 0; i--) {
-                if (messages[i].role === 'assistant') {
-                    messages[i] = {
-                        ...messages[i],
+            // Must update internalMessages (source of truth for serialization)
+            const internalMsgs = [...stateToSave.internalMessages];
+            for (let i = internalMsgs.length - 1; i >= 0; i--) {
+                if (internalMsgs[i].role === 'assistant') {
+                    internalMsgs[i] = {
+                        ...internalMsgs[i],
                         content: finalText,
                     };
                     break;
                 }
             }
-            stateToSave.messages = messages;
+            stateToSave.internalMessages = internalMsgs;
             stateToSave.output = finalText;
         }
 

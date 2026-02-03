@@ -255,9 +255,11 @@ export class AgentGraph {
                 }
             }
 
-            // Initialize state
+            // Initialize state with Dual Histories pattern
+            const internalMsgs = [...messages];
             const initialState: AgentState = {
-                messages: [...messages],
+                internalMessages: internalMsgs,
+                get messages() { return this.internalMessages; },
                 skills: [],
                 tools: toolsMap,
                 stepCount: 0,
@@ -276,7 +278,7 @@ export class AgentGraph {
                     initialState.messages,
                     { threadId: this.options.threadId ?? 'default' }
                 );
-                initialState.messages = memoryResult.messages;
+                initialState.internalMessages = memoryResult.messages;
                 if (memoryResult.summarized) {
                     span.setAttribute('memory_summarized', true);
                 }
@@ -287,8 +289,8 @@ export class AgentGraph {
 
             // Inject skills if provided
             if (this.options.skills?.length) {
-                const injected = this.injectSkills(initialState.messages, this.options.skills);
-                initialState.messages = injected.messages;
+                const injected = this.injectSkills(initialState.internalMessages, this.options.skills);
+                initialState.internalMessages = injected.messages;
                 initialState.skills = injected.skills;
                 span.setAttribute('skills_injected', this.options.skills.length);
             }
@@ -301,7 +303,7 @@ export class AgentGraph {
             // Persist to long-term memory if configured
             if (this.options.memory) {
                 await this.options.memory.persist(
-                    finalState.messages,
+                    finalState.internalMessages,
                     this.options.threadId ?? 'default'
                 );
             }
@@ -448,8 +450,10 @@ export class AgentGraph {
                 // Enable skipApprovalCheck since we already pre-checked
                 state.skipApprovalCheck = true;
             } else {
+                const internalMsgs = [...messages];
                 state = {
-                    messages: [...messages],
+                    internalMessages: internalMsgs,
+                    get messages() { return this.internalMessages; },
                     skills: [],
                     tools: toolsMap,
                     stepCount: 0,
@@ -467,16 +471,16 @@ export class AgentGraph {
                 // Apply Memory processing if configured
                 if (this.options.memory) {
                     const memoryResult = await this.options.memory.process(
-                        state.messages,
+                        state.internalMessages,
                         { threadId: options.threadId }
                     );
-                    state.messages = memoryResult.messages;
+                    state.internalMessages = memoryResult.messages;
                 }
 
                 // Inject skills if provided
                 if (this.options.skills?.length) {
-                    const injected = this.injectSkills(state.messages, this.options.skills);
-                    state.messages = injected.messages;
+                    const injected = this.injectSkills(state.internalMessages, this.options.skills);
+                    state.internalMessages = injected.messages;
                     state.skills = injected.skills;
                 }
             }
@@ -555,7 +559,7 @@ export class AgentGraph {
                         }));
 
                         // Add rejection messages to state
-                        state.messages = [...state.messages, ...rejectionMessages.map(m => m as InternalMessage)];
+                        state.internalMessages = [...state.internalMessages, ...rejectionMessages.map(m => m as InternalMessage)];
 
                         // Create steps for rejected tools
                         for (const r of rejectedResults) {

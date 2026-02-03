@@ -79,9 +79,24 @@ export interface Checkpoint {
 /**
  * Serialized agent state (JSON-safe).
  * Note: Tools Map is converted to Record, non-serializable fields stripped.
+ * 
+ * v0.32.0+: Uses `internalMessages` as source of truth. Legacy checkpoints
+ * using `messages` field are auto-migrated on deserialize.
  */
 export interface SerializedAgentState {
-    messages: Array<{
+    /** Internal messages (v0.32.0+ source of truth) */
+    internalMessages?: Array<{
+        role: string;
+        content: unknown;
+        tool_calls?: unknown[];
+        tool_call_id?: string;
+        _meta?: {
+            skillId?: string;
+            droppable?: boolean;
+        };
+    }>;
+    /** @deprecated Legacy field, auto-migrated to internalMessages */
+    messages?: Array<{
         role: string;
         content: unknown;
         tool_calls?: unknown[];
@@ -107,12 +122,13 @@ export interface SerializedAgentState {
 /**
  * Serialize agent state to JSON-safe format.
  * Strips non-serializable fields (abortSignal, tools Map).
+ * Uses internalMessages as the source of truth.
  * 
  * @public Shared by all Checkpointer implementations.
  */
 export function serializeState(state: AgentState): SerializedAgentState {
     return {
-        messages: state.messages.map(msg => ({
+        internalMessages: state.internalMessages.map(msg => ({
             role: msg.role,
             content: msg.content,
             tool_calls: msg.tool_calls,
@@ -350,6 +366,7 @@ export class MemoryCheckpointer implements Checkpointer {
 
 /**
  * Deserialize checkpoint state back to AgentState.
+ * Automatically migrates legacy `messages` field to `internalMessages`.
  * Note: Tools must be re-provided, abortSignal reset to undefined.
  */
 export function deserializeCheckpoint(
@@ -358,8 +375,12 @@ export function deserializeCheckpoint(
 ): AgentState {
     const s = checkpoint.state;
 
-    return {
-        messages: s.messages as any,
+    // Auto-migrate: prefer internalMessages, fallback to legacy messages
+    const internalMessages = (s.internalMessages ?? s.messages ?? []) as any[];
+
+    const state: AgentState = {
+        internalMessages,
+        get messages() { return this.internalMessages; },
         skills: [], // Skills reconstructed from messages with _meta
         tools: tools ?? new Map(),
         stepCount: s.stepCount,
@@ -371,6 +392,8 @@ export function deserializeCheckpoint(
         usage: s.usage,
         abortSignal: undefined,
     };
+
+    return state;
 }
 
 /**
@@ -486,7 +509,7 @@ export async function resumeWithApproval(
             }
             // Add tool result messages to state
             for (const tr of toolResults) {
-                state.messages = [...state.messages, {
+                state.internalMessages = [...state.internalMessages, {
                     role: 'tool' as const,
                     content: tr.result,
                     tool_call_id: tr.toolCallId,
@@ -508,7 +531,7 @@ export async function resumeWithApproval(
                 toolResult = JSON.stringify({ approved: true, args: pending.args });
             }
             // Add tool result message to state
-            state.messages = [...state.messages, {
+            state.internalMessages = [...state.internalMessages, {
                 role: 'tool' as const,
                 content: toolResult,
                 tool_call_id: pending.toolCall.id,
@@ -524,14 +547,14 @@ export async function resumeWithApproval(
                 result: toolResult!,
             }));
             for (const tr of toolResults) {
-                state.messages = [...state.messages, {
+                state.internalMessages = [...state.internalMessages, {
                     role: 'tool' as const,
                     content: tr.result,
                     tool_call_id: tr.toolCallId,
                 } as any];
             }
         } else if (pending.toolCall) {
-            state.messages = [...state.messages, {
+            state.internalMessages = [...state.internalMessages, {
                 role: 'tool' as const,
                 content: toolResult,
                 tool_call_id: pending.toolCall.id,

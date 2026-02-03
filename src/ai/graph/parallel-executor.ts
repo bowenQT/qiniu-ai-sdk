@@ -67,7 +67,7 @@ export function cloneStateForBranch(
     groupAbort?: AbortController
 ): AgentState {
     // Clone messages with structuredClone (handles ArrayBuffer, Blob references)
-    const clonedMessages = state.messages.map((msg, localIndex) => {
+    const clonedMessages = state.internalMessages.map((msg, localIndex) => {
         // For content: use structuredClone if possible, fallback for non-cloneable
         let clonedContent: unknown;
         try {
@@ -92,7 +92,8 @@ export function cloneStateForBranch(
     });
 
     return {
-        messages: clonedMessages,
+        internalMessages: clonedMessages,
+        get messages() { return this.internalMessages; },
 
         // Scalar fields
         stepCount: state.stepCount,
@@ -188,7 +189,7 @@ export function defaultParallelReducer(results: AgentState[]): AgentState {
     }
 
     // Collect all messages from all branches
-    const allMessages = results.flatMap(r => r.messages);
+    const allMessages = results.flatMap(r => r.internalMessages);
     const sortedMessages = sortMessagesByBranch(allMessages);
     const cleanMessages = stripBranchMeta(sortedMessages);
 
@@ -209,7 +210,8 @@ export function defaultParallelReducer(results: AgentState[]): AgentState {
     const first = results[0];
 
     return {
-        messages: cleanMessages,
+        internalMessages: cleanMessages,
+        get messages() { return this.internalMessages; },
         stepCount: maxStepCount + 1,
         maxSteps: first.maxSteps,
         done: results.some(r => r.done),
