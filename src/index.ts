@@ -483,3 +483,29 @@ export type { Span, Tracer, TracerConfig } from './lib/tracer';
 
 // OTel Tracer (optional)
 export { OTelTracer } from './lib/otel-tracer';
+
+// Metrics (v0.32.0 - Structured Telemetry Export)
+export {
+    MetricsCollector,
+    createMetricsHandler,
+} from './lib/metrics';
+export type {
+    AgentMetrics,
+    ToolCallMetric,
+    TokenLimiterUsage,
+    MetricsLabels,
+    MetricsExportConfig,
+} from './lib/metrics';
+
+// MCP Schema Validation (v0.32.0)
+export {
+    validateAgainstSchema,
+    createToolValidator,
+    SUPPORTED_KEYWORDS,
+    UNSUPPORTED_KEYWORDS,
+} from './modules/mcp/schema-validator';
+export type {
+    JsonSchema as MCPJsonSchema,
+    ValidationResult as MCPValidationResult,
+    ValidationError as MCPValidationError,
+} from './modules/mcp/schema-validator';

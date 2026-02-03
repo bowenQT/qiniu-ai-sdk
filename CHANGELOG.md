@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.32.0-alpha
+
+### Features
+
+- **Structured Telemetry Export**: New `MetricsCollector` class for instance-level metrics with Prometheus export.
+  - Records steps, tokens, errors, guardrail blocks, and tool latency.
+  - Host-managed HTTP lifecycle via `createMetricsHandler`.
+- **MCP Schema Validation**: Dynamic JSON Schema validation for MCP tool inputs.
+  - `validateAgainstSchema()` with explicit supported/unsupported keyword sets.
+  - Integrated into `QiniuMCPServer.executeTool()` for dynamic tools.
+
+### Breaking Changes
+
+- None (additive features only).
+
 ## 0.9.0
 
 - Added `image.generate` and `image.waitForResult` to unify sync/async image responses.

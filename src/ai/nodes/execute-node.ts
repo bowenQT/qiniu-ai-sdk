@@ -18,8 +18,11 @@ export interface ExecutionContext {
 /** Tool result */
 export interface ToolExecutionResult {
     toolCallId: string;
+    toolName: string;
     result: string;
     isError: boolean;
+    /** Execution time in milliseconds */
+    latencyMs: number;
 }
 
 /**
@@ -44,8 +47,10 @@ export async function executeTools(
         if (context.abortSignal?.aborted) {
             results.push({
                 toolCallId: call.id,
+                toolName: call.function.name,
                 result: 'Execution cancelled',
                 isError: true,
+                latencyMs: 0,
             });
             continue;
         }
@@ -55,8 +60,10 @@ export async function executeTools(
         if (!tool) {
             results.push({
                 toolCallId: call.id,
+                toolName: call.function.name,
                 result: `Tool not found: ${call.function.name}`,
                 isError: true,
+                latencyMs: 0,
             });
             continue;
         }
@@ -66,13 +73,21 @@ export async function executeTools(
 
         if (skipApprovalCheck) {
             // Direct execution without approval check (pre-checked by invokeResumable)
+            const startTime = Date.now();
             try {
                 const result = tool.execute
                     ? await tool.execute(args, { toolCallId: call.id, messages: context.messages, abortSignal: context.abortSignal })
                     : undefined;
                 // Use shared serializeResult for consistent formatting
-                results.push({ toolCallId: call.id, result: serializeResult(result), isError: false });
+                results.push({
+                    toolCallId: call.id,
+                    toolName: call.function.name,
+                    result: serializeResult(result),
+                    isError: false,
+                    latencyMs: Date.now() - startTime,
+                });
             } catch (error) {
+                const latencyMs = Date.now() - startTime;
                 // FatalToolError: propagate for parallel fail-fast
                 if (error instanceof FatalToolError) {
                     throw error;
@@ -81,8 +96,10 @@ export async function executeTools(
                 if (error instanceof RecoverableError) {
                     results.push({
                         toolCallId: call.id,
+                        toolName: call.function.name,
                         result: error.toPrompt(),
                         isError: true,
+                        latencyMs,
                         // Attach metadata for auto-retry logic
                         _recoverable: {
                             retryable: error.retryable,
@@ -91,11 +108,18 @@ export async function executeTools(
                     } as ToolExecutionResult & { _recoverable?: unknown });
                 } else {
                     const errorMsg = error instanceof Error ? error.message : String(error);
-                    results.push({ toolCallId: call.id, result: `[Error] ${errorMsg}`, isError: true });
+                    results.push({
+                        toolCallId: call.id,
+                        toolName: call.function.name,
+                        result: `[Error] ${errorMsg}`,
+                        isError: true,
+                        latencyMs,
+                    });
                 }
             }
         } else {
             // Execute with approval check using unified function
+            const startTime = Date.now();
             const execResult = await executeToolWithApproval(
                 tool,
                 call,
@@ -107,8 +131,10 @@ export async function executeTools(
 
             results.push({
                 toolCallId: call.id,
+                toolName: call.function.name,
                 result: execResult.result,
                 isError: execResult.isError,
+                latencyMs: Date.now() - startTime,
             });
         }
     }

@@ -30,6 +30,7 @@ import type { ApprovalConfig } from './tool-approval';
 import { checkApprovalBatch } from './tool-approval';
 import type { Checkpointer, PendingApproval } from './graph/checkpointer';
 import { deserializeCheckpoint, resumeWithApproval } from './graph/checkpointer';
+import { MetricsCollector, type AgentMetrics } from '../lib/metrics';
 
 /** AgentGraph options */
 export interface AgentGraphOptions {
@@ -134,6 +135,8 @@ export class AgentGraph {
     private readonly options: AgentGraphOptions;
     private readonly graph: ReturnType<typeof this.buildGraph>;
     private steps: StepResult[] = [];
+    /** Metrics collector for observability (instance-level, no global pollution) */
+    private readonly metrics: MetricsCollector = new MetricsCollector();
     /** Compaction tracking */
     private compactionOccurred = false;
     private droppedSkills: string[] = [];
@@ -142,6 +145,26 @@ export class AgentGraph {
     constructor(options: AgentGraphOptions) {
         this.options = options;
         this.graph = this.buildGraph();
+    }
+
+    // ========================================================================
+    // Public Metrics API
+    // ========================================================================
+
+    /**
+     * Get current metrics snapshot.
+     * Metrics are accumulated per invoke() lifecycle.
+     */
+    getMetrics(): AgentMetrics {
+        return this.metrics.getMetrics();
+    }
+
+    /**
+     * Reset all metrics to initial state.
+     * Call this before a new invoke() if you want separate metrics per request.
+     */
+    resetMetrics(): void {
+        this.metrics.reset();
     }
 
     /**
@@ -677,6 +700,15 @@ export class AgentGraph {
             this.steps.push(textStep);
             events?.onStepFinish?.(textStep);
 
+            // Record metrics
+            this.metrics.recordStep();
+            if (result.usage) {
+                this.metrics.recordTokens(
+                    result.usage.prompt_tokens ?? 0,
+                    result.usage.completion_tokens ?? 0
+                );
+            }
+
             // Check if done - use hasToolCalls as primary gate
             // High fix: finishReason can be null/missing, but tool_calls presence is reliable
             const hasToolCalls = (result.message.tool_calls?.length ?? 0) > 0;
@@ -757,6 +789,15 @@ export class AgentGraph {
                 };
                 this.steps.push(resultStep);
                 events?.onStepFinish?.(resultStep);
+
+                // Record tool latency metrics
+                // Map ToolSourceType to metrics source type
+                const tool = state.tools.get(result.toolName);
+                const sourceType = tool?.source?.type ?? 'user';
+                const metricsSource: 'local' | 'mcp' | 'skill' =
+                    sourceType === 'mcp' ? 'mcp' :
+                        sourceType === 'skill' ? 'skill' : 'local';
+                this.metrics.recordToolLatency(result.toolName, result.latencyMs, metricsSource);
             }
 
             events?.onNodeExit?.('execute');

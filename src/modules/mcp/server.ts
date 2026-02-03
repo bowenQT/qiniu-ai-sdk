@@ -17,6 +17,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { QiniuAI } from '../../client';
 import { z } from 'zod';
+import { validateAgainstSchema, type JsonSchema } from './schema-validator';
 
 // ============================================================================
 // Configuration
@@ -214,6 +215,12 @@ export class QiniuMCPServer {
         // Check dynamic tools first
         const dynamicTool = this.dynamicTools.get(name);
         if (dynamicTool) {
+            // Validate input against schema before execution
+            const result = validateAgainstSchema(args, dynamicTool.inputSchema as JsonSchema);
+            if (!result.valid) {
+                const errorMessages = result.errors.map(e => `${e.path}: ${e.message}`).join('; ');
+                throw new Error(`Invalid arguments for tool "${name}": ${errorMessages}`);
+            }
             return dynamicTool.execute(args);
         }
 
