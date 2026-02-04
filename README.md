@@ -34,13 +34,14 @@
 
 ### Advanced Capabilities
 - 📋 **Skills Injection** — Markdown-based agent knowledge (Claude Skills compatible)
+- 🏪 **Skill Marketplace** — Remote skill loading with SHA256 integrity verification (v0.32.0+)
 - 🔗 **MCP Client** — Model Context Protocol with stdio + HTTP + OAuth 2.0 support
 - 🖥️ **MCP Server** — Built-in Qiniu MCP server for OCR/Censor/Vframe tools
 - 💾 **Checkpointer** — State persistence (Memory, Redis, PostgreSQL, Kodo)
 - 🧠 **Memory Manager** — Short-term + long-term memory with LLM summarization
 - ✅ **Tool Approval (HITL)** — Human-in-the-loop for sensitive operations
 - ⏸️ **Interrupt/Resume** — Resumable execution with checkpoint-based restore
-- 📊 **OpenTelemetry Tracing** — Distributed tracing with per-node spans
+- 📊 **Structured Telemetry** — MetricsCollector with Prometheus format export (v0.32.0+)
 - 🔌 **Vercel AI SDK Adapter** — Drop-in replacement for Vercel AI SDK
 
 ---
@@ -220,6 +221,33 @@ const result = await generateTextWithGraph({
   skills,
   maxContextTokens: 32000,
 });
+```
+
+### Skill Marketplace (v0.32.0+)
+
+```typescript
+import { SkillRegistry } from '@bowenqt/qiniu-ai-sdk';
+
+const registry = new SkillRegistry({
+  allowedDomains: ['skills.qiniu.com', '*.trusted.dev'],
+});
+
+// Remote skill with SHA256 integrity verification
+await registry.registerRemote('https://skills.qiniu.com/git-workflow', {
+  integrity: 'sha256:abc123...',
+});
+
+const skill = registry.get('git-workflow');
+```
+
+### Structured Telemetry (v0.32.0+)
+
+```typescript
+import { MetricsCollector, createMetricsHandler } from '@bowenqt/qiniu-ai-sdk';
+
+const metrics = new MetricsCollector();
+const handler = createMetricsHandler(metrics);
+// GET /metrics → Prometheus format output
 ```
 
 ### MCP Client (stdio + HTTP)

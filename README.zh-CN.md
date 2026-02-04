@@ -34,13 +34,14 @@
 
 ### 高级能力
 - 📋 **技能注入** — Markdown 格式的 Agent 知识库（兼容 Claude Skills）
+- 🏪 **Skill 市场** — 远程技能加载 + SHA256 完整性验证 (v0.32.0+)
 - 🔗 **MCP 客户端** — 支持 stdio + HTTP + OAuth 2.0 传输协议
 - 🖥️ **MCP 服务端** — 内置七牛 MCP Server（OCR/审核/抽帧）
 - 💾 **Checkpointer** — 状态持久化（Memory、Redis、PostgreSQL、Kodo）
 - 🧠 **Memory Manager** — 短期 + 长期记忆，LLM 自动摘要
 - ✅ **工具审批 (HITL)** — 敏感操作人工确认
 - ⏸️ **中断/恢复** — 基于检查点的可恢复执行
-- 📊 **OpenTelemetry 链路追踪** — 分布式追踪，节点级 Span
+- 📊 **结构化指标** — MetricsCollector + Prometheus 格式导出 (v0.32.0+)
 - 🔌 **Vercel AI SDK 适配器** — 无缝对接 Vercel AI SDK
 
 ---
@@ -220,6 +221,33 @@ const result = await generateTextWithGraph({
   skills,
   maxContextTokens: 32000,
 });
+```
+
+### Skill 市场 (v0.32.0+)
+
+```typescript
+import { SkillRegistry } from '@bowenqt/qiniu-ai-sdk';
+
+const registry = new SkillRegistry({
+  allowedDomains: ['skills.qiniu.com', '*.trusted.dev'],
+});
+
+// 远程技能加载 + SHA256 完整性验证
+await registry.registerRemote('https://skills.qiniu.com/git-workflow', {
+  integrity: 'sha256:abc123...',
+});
+
+const skill = registry.get('git-workflow');
+```
+
+### 结构化指标 (v0.32.0+)
+
+```typescript
+import { MetricsCollector, createMetricsHandler } from '@bowenqt/qiniu-ai-sdk';
+
+const metrics = new MetricsCollector();
+const handler = createMetricsHandler(metrics);
+// GET /metrics → Prometheus 格式输出
 ```
 
 ### MCP 客户端（stdio + HTTP）

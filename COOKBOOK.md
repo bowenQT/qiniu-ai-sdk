@@ -25,6 +25,7 @@ This cookbook provides focused, copy‑ready examples for common workflows.
 14. [Memory Manager - Conversation Memory](#14-memory-manager---conversation-memory)
 15. [Vector Store - Long-term Episodic Memory](#15-vector-store---long-term-episodic-memory)
 16. [Skills Injection](#16-skills-injection)
+16b. [Skill Marketplace - Remote Registry (v0.32.0+)](#16b-skill-marketplace---remote-registry-v0320)
 17. [Checkpointer - State Persistence](#17-checkpointer---state-persistence)
 18. [Tool Approval (HITL)](#18-tool-approval-hitl)
 19. [Interrupt/Resume - Resumable Execution](#19-interruptresume---resumable-execution)
@@ -32,6 +33,7 @@ This cookbook provides focused, copy‑ready examples for common workflows.
 21. [Asset Resolver - Qiniu URI Resolution](#21-asset-resolver---qiniu-uri-resolution)
 22. [Built-in Cloud Tools (OCR/Censor/Vframe)](#22-built-in-cloud-tools-ocrcensorvframe)
 23. [OpenTelemetry Tracing](#23-opentelemetry-tracing)
+23b. [Structured Telemetry - Prometheus Export (v0.32.0+)](#23b-structured-telemetry---prometheus-export-v0320)
 24. [Full Agent Example - Combining All Features](#24-full-agent-example---combining-all-features)
 25. [Guardrails - Content Safety](#25-guardrails---content-safety)
 26. [Multi-Agent Crew - Orchestration](#26-multi-agent-crew---orchestration)
@@ -579,6 +581,72 @@ description: Git best practices for commit messages and branching
 - `feature/*` for new features
 
 [Reference](./patterns/branching.md)
+```
+
+## 16b. Skill Marketplace - Remote Registry (v0.32.0+)
+
+Manage skills from local and remote sources with integrity verification:
+
+```ts
+import {
+  SkillRegistry,
+  SkillManifest,
+  parseManifest,
+  generateTextWithGraph,
+} from '@bowenqt/qiniu-ai-sdk';
+
+// Create registry with security settings
+const registry = new SkillRegistry({
+  allowedDomains: [
+    'skills.qiniu.com',    // Exact domain
+    '*.trusted.dev',       // Wildcard subdomain
+  ],
+});
+
+// Register local skill
+await registry.registerLocal('./skills/git-workflow');
+
+// Register remote skill with SHA256 integrity verification
+await registry.registerRemote('https://skills.qiniu.com/code-review', {
+  integrity: 'sha256:a3b4c5d6e7f8...',  // Required for security
+});
+
+// Search skills by name, tags, or description
+const results = registry.search('git');
+console.log('Found skills:', results.map(s => s.name));
+
+// Get skill for injection
+const skill = registry.get('git-workflow');
+if (skill) {
+  const result = await generateTextWithGraph({
+    client,
+    model: 'deepseek-v3',
+    prompt: 'How should I structure my commits?',
+    skills: [skill],
+  });
+}
+
+// List all registered skills
+const allSkills = registry.list();
+console.log('Registered skills:', allSkills.length);
+
+// Refresh remote skills (re-download and verify)
+await registry.refreshSkill('code-review');
+```
+
+**skill.json Manifest Format:**
+
+```json
+{
+  "name": "code-review",
+  "version": "1.2.0",
+  "description": "Code review best practices",
+  "sdkVersion": "^0.32.0",
+  "priority": 10,
+  "droppable": true,
+  "tags": ["development", "review"],
+  "entryPoint": "SKILL.md"
+}
 ```
 
 ## 17. Checkpointer - State Persistence
@@ -1152,6 +1220,56 @@ const result = await generateTextWithGraph({
 });
 
 // Spans are automatically exported to your tracing backend
+```
+
+## 23b. Structured Telemetry - Prometheus Export (v0.32.0+)
+
+Export structured metrics in Prometheus format for monitoring:
+
+```ts
+import { 
+  MetricsCollector, 
+  createMetricsHandler,
+  AgentGraph,
+} from '@bowenqt/qiniu-ai-sdk';
+
+// Create metrics collector
+const metrics = new MetricsCollector();
+
+// Create HTTP handler for /metrics endpoint
+const handler = createMetricsHandler(metrics);
+
+// Use with Express/Hono/native HTTP
+import { createServer } from 'http';
+createServer(handler).listen(9090);
+
+// Metrics are automatically recorded during AgentGraph execution
+const graph = new AgentGraph({
+  client,
+  model: 'gemini-2.5-flash',
+  tools,
+  metricsCollector: metrics, // Inject collector
+});
+
+const result = await graph.invoke([
+  { role: 'user', content: 'Hello' },
+]);
+
+// Access metrics programmatically
+const snapshot = metrics.toPrometheus();
+console.log(snapshot);
+// Output:
+// # HELP agent_steps_total Total number of agent steps
+// # TYPE agent_steps_total counter
+// agent_steps_total{status="success"} 3
+// # HELP agent_tokens_total Total tokens used
+// # TYPE agent_tokens_total counter
+// agent_tokens_total{type="prompt"} 150
+// agent_tokens_total{type="completion"} 45
+// ...
+
+// Reset metrics for new instance
+metrics.reset();
 ```
 
 ## 24. Full Agent Example - Combining All Features
