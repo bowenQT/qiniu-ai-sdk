@@ -4,7 +4,6 @@
  * 学习目标：
  * - 多工具协同工作
  * - Checkpointer 状态持久化
- * - invokeResumable 断点续跑
  * - generateTextWithGraph 进阶用法
  * 
  * 运行方式：
@@ -15,8 +14,8 @@ import {
     QiniuAI,
     generateTextWithGraph,
     MemoryCheckpointer,
+    type Tool,
 } from '@bowenqt/qiniu-ai-sdk';
-import { z } from 'zod';
 
 // ============================================================================
 // 配置
@@ -38,18 +37,23 @@ const checkpointer = new MemoryCheckpointer({ maxItems: 100 });
 const notesStorage: Map<string, { title: string; content: string; timestamp: Date }> = new Map();
 
 // ============================================================================
-// 工具定义
+// 工具定义（使用 JSON Schema）
 // ============================================================================
 
-const tools = {
+const tools: Record<string, Tool> = {
     // 工具 1: 网络搜索
     webSearch: {
         description: '搜索互联网获取最新信息',
-        parameters: z.object({
-            query: z.string().describe('搜索关键词'),
-            maxResults: z.number().optional().describe('返回结果数量，默认 5'),
-        }),
-        execute: async ({ query, maxResults = 5 }: { query: string; maxResults?: number }) => {
+        parameters: {
+            type: 'object',
+            properties: {
+                query: { type: 'string', description: '搜索关键词' },
+                maxResults: { type: 'number', description: '返回结果数量，默认 5' },
+            },
+            required: ['query'],
+        },
+        execute: async (args: unknown) => {
+            const { query, maxResults = 5 } = args as { query: string; maxResults?: number };
             console.log(`  🔍 搜索: "${query}"`);
             await new Promise(resolve => setTimeout(resolve, 800));
 
@@ -68,11 +72,20 @@ const tools = {
     // 工具 2: 内容分析
     analyzeContent: {
         description: '分析和总结文本内容，提取关键信息',
-        parameters: z.object({
-            content: z.string().describe('要分析的文本内容'),
-            focusAreas: z.array(z.string()).optional().describe('关注的重点领域'),
-        }),
-        execute: async ({ content, focusAreas }: { content: string; focusAreas?: string[] }) => {
+        parameters: {
+            type: 'object',
+            properties: {
+                content: { type: 'string', description: '要分析的文本内容' },
+                focusAreas: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: '关注的重点领域'
+                },
+            },
+            required: ['content'],
+        },
+        execute: async (args: unknown) => {
+            const { focusAreas } = args as { content: string; focusAreas?: string[] };
             console.log(`  📊 分析内容 (关注: ${focusAreas?.join(', ') || '全部'})`);
             await new Promise(resolve => setTimeout(resolve, 600));
 
@@ -91,11 +104,16 @@ const tools = {
     // 工具 3: 保存笔记
     saveNote: {
         description: '将研究成果保存为笔记',
-        parameters: z.object({
-            title: z.string().describe('笔记标题'),
-            content: z.string().describe('笔记内容'),
-        }),
-        execute: async ({ title, content }: { title: string; content: string }) => {
+        parameters: {
+            type: 'object',
+            properties: {
+                title: { type: 'string', description: '笔记标题' },
+                content: { type: 'string', description: '笔记内容' },
+            },
+            required: ['title', 'content'],
+        },
+        execute: async (args: unknown) => {
+            const { title, content } = args as { title: string; content: string };
             console.log(`  💾 保存笔记: "${title}"`);
 
             const noteId = `note_${Date.now()}`;
@@ -116,7 +134,10 @@ const tools = {
     // 工具 4: 列出已有笔记
     listNotes: {
         description: '列出所有已保存的研究笔记',
-        parameters: z.object({}),
+        parameters: {
+            type: 'object',
+            properties: {},
+        },
         execute: async () => {
             console.log(`  📋 列出笔记`);
 
@@ -229,9 +250,9 @@ async function main() {
     await demoCheckpointerResume();
 
     console.log('\n\n📋 最终笔记存储:');
-    for (const [id, note] of notesStorage) {
+    notesStorage.forEach((note, id) => {
         console.log(`  - [${id}] ${note.title}`);
-    }
+    });
 }
 
 // ============================================================================

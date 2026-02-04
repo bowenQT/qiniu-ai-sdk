@@ -3,15 +3,14 @@
  * 
  * 学习目标：
  * - generateText 基本用法
- * - 工具定义（Zod Schema）
+ * - 工具定义（JSON Schema）
  * - 工具执行流程
  * 
  * 运行方式：
  * npx tsx examples/01-basic-weather-agent.ts
  */
 
-import { QiniuAI, generateText } from '@bowenqt/qiniu-ai-sdk';
-import { z } from 'zod';
+import { QiniuAI, generateText, type Tool } from '@bowenqt/qiniu-ai-sdk';
 
 // ============================================================================
 // 配置
@@ -51,14 +50,22 @@ async function fetchWeather(city: string): Promise<{
     return mockData[city] || { temperature: 20, condition: '未知', humidity: 50 };
 }
 
-// 使用 Zod 定义工具参数（SDK 会自动转换为 JSON Schema）
-const tools = {
+// 使用 JSON Schema 定义工具参数
+const tools: Record<string, Tool> = {
     getWeather: {
         description: '获取指定城市的天气信息 / Get weather information for a city',
-        parameters: z.object({
-            city: z.string().describe('城市名称，如 "北京"、"Shanghai"'),
-        }),
-        execute: async ({ city }: { city: string }) => {
+        parameters: {
+            type: 'object',
+            properties: {
+                city: {
+                    type: 'string',
+                    description: '城市名称，如 "北京"、"Shanghai"'
+                },
+            },
+            required: ['city'],
+        },
+        execute: async (args: unknown) => {
+            const { city } = args as { city: string };
             console.log(`  📡 调用天气 API: ${city}`);
             const weather = await fetchWeather(city);
             return {

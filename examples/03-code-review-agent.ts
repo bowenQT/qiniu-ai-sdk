@@ -15,12 +15,12 @@ import {
     QiniuAI,
     generateTextWithGraph,
     MemoryManager,
-    createInputFilterGuardrail,
-    createOutputFilterGuardrail,
     type Skill,
     type Guardrail,
+    type GuardrailContext,
+    type GuardrailResult,
+    type Tool,
 } from '@bowenqt/qiniu-ai-sdk';
-import { z } from 'zod';
 
 // ============================================================================
 // 配置
@@ -42,7 +42,6 @@ const MODEL = 'deepseek-v3';
  */
 const codeReviewSkill: Skill = {
     name: 'code-review-standards',
-    description: '代码审查最佳实践和规范',
     content: `# 代码审查规范
 
 ## 审查重点
@@ -74,14 +73,12 @@ const codeReviewSkill: Skill = {
 3. **问题描述**: 具体问题
 4. **修复建议**: 如何改进
 `,
+    references: [],
     tokenCount: 300,
-    priority: 10,
-    droppable: false,
 };
 
 const securitySkill: Skill = {
     name: 'security-checklist',
-    description: '安全检查清单',
     content: `# 安全检查清单
 
 - [ ] 输入验证
@@ -90,9 +87,8 @@ const securitySkill: Skill = {
 - [ ] 日志审计
 - [ ] 敏感数据加密
 `,
+    references: [],
     tokenCount: 100,
-    priority: 5,
-    droppable: true,
 };
 
 // ============================================================================
@@ -119,49 +115,99 @@ const memory = new MemoryManager({
 });
 
 // ============================================================================
-// Guardrails 配置
+// Guardrails 配置（实现 Guardrail 接口）
 // ============================================================================
 
 /**
  * 输入过滤：屏蔽可能的恶意代码注入
  */
-const inputGuardrail: Guardrail = createInputFilterGuardrail({
-    blockedPatterns: [
-        /eval\s*\(/gi,          // 阻止 eval
-        /document\.cookie/gi,   // 阻止 cookie 访问
-        /__proto__/gi,          // 阻止原型污染
-    ],
-    maxLength: 50000,           // 最大输入长度
-    onBlock: (reason) => {
-        console.log(`  🛡️  输入被过滤: ${reason}`);
+const inputGuardrail: Guardrail = {
+    name: 'input-filter',
+    phase: 'pre-request',
+    async process(context: GuardrailContext): Promise<GuardrailResult> {
+        const blockedPatterns = [
+            /eval\s*\(/gi,          // 阻止 eval
+            /document\.cookie/gi,   // 阻止 cookie 访问
+            /__proto__/gi,          // 阻止原型污染
+        ];
+
+        for (const pattern of blockedPatterns) {
+            if (pattern.test(context.content)) {
+                console.log(`  🛡️  输入被过滤: 检测到可疑模式`);
+                return {
+                    action: 'block',
+                    reason: `检测到可疑代码模式: ${pattern.source}`,
+                    guardrailName: 'input-filter',
+                };
+            }
+        }
+
+        // 检查最大长度
+        if (context.content.length > 50000) {
+            return {
+                action: 'block',
+                reason: '输入内容超过最大长度限制',
+                guardrailName: 'input-filter',
+            };
+        }
+
+        return { action: 'pass', guardrailName: 'input-filter' };
     },
-});
+};
 
 /**
  * 输出过滤：防止泄露敏感信息
  */
-const outputGuardrail: Guardrail = createOutputFilterGuardrail({
-    redactPatterns: [
-        { pattern: /sk-[a-zA-Z0-9]{20,}/g, replacement: '[API_KEY_REDACTED]' },
-        { pattern: /password\s*[:=]\s*['"][^'"]+['"]/gi, replacement: 'password: "[REDACTED]"' },
-    ],
-    onRedact: (original, redacted) => {
-        console.log(`  🔒 输出已脱敏`);
+const outputGuardrail: Guardrail = {
+    name: 'output-redactor',
+    phase: 'post-response',
+    async process(context: GuardrailContext): Promise<GuardrailResult> {
+        const redactPatterns = [
+            { pattern: /sk-[a-zA-Z0-9]{20,}/g, replacement: '[API_KEY_REDACTED]' },
+            { pattern: /password\s*[:=]\s*['"][^'"]+['"]/gi, replacement: 'password: "[REDACTED]"' },
+        ];
+
+        let modifiedContent = context.content;
+        let wasRedacted = false;
+
+        for (const { pattern, replacement } of redactPatterns) {
+            if (pattern.test(modifiedContent)) {
+                modifiedContent = modifiedContent.replace(pattern, replacement);
+                wasRedacted = true;
+            }
+        }
+
+        if (wasRedacted) {
+            console.log(`  🔒 输出已脱敏`);
+            return {
+                action: 'redact',
+                modifiedContent,
+                reason: '敏感信息已脱敏',
+                guardrailName: 'output-redactor',
+            };
+        }
+
+        return { action: 'pass', guardrailName: 'output-redactor' };
     },
-});
+};
 
 // ============================================================================
 // 工具定义
 // ============================================================================
 
-const tools = {
+const tools: Record<string, Tool> = {
     // 获取代码文件（模拟）
     getCodeFile: {
         description: '获取指定文件的代码内容',
-        parameters: z.object({
-            filePath: z.string().describe('文件路径'),
-        }),
-        execute: async ({ filePath }: { filePath: string }) => {
+        parameters: {
+            type: 'object',
+            properties: {
+                filePath: { type: 'string', description: '文件路径' },
+            },
+            required: ['filePath'],
+        },
+        execute: async (args: unknown) => {
+            const { filePath } = args as { filePath: string };
             console.log(`  📄 读取文件: ${filePath}`);
 
             // 模拟代码文件
@@ -209,19 +255,32 @@ export async function handleRequest(req: Request) {
     // 保存审查报告
     saveReviewReport: {
         description: '保存代码审查报告',
-        parameters: z.object({
-            filePath: z.string().describe('被审查的文件'),
-            issues: z.array(z.object({
-                severity: z.enum(['critical', 'major', 'minor', 'suggestion']),
-                line: z.number().optional(),
-                description: z.string(),
-                suggestion: z.string(),
-            })).describe('发现的问题列表'),
-        }),
-        execute: async ({ filePath, issues }: {
-            filePath: string;
-            issues: Array<{ severity: string; line?: number; description: string; suggestion: string }>
-        }) => {
+        parameters: {
+            type: 'object',
+            properties: {
+                filePath: { type: 'string', description: '被审查的文件' },
+                issues: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            severity: { type: 'string', enum: ['critical', 'major', 'minor', 'suggestion'] },
+                            line: { type: 'number' },
+                            description: { type: 'string' },
+                            suggestion: { type: 'string' },
+                        },
+                        required: ['severity', 'description', 'suggestion'],
+                    },
+                    description: '发现的问题列表',
+                },
+            },
+            required: ['filePath', 'issues'],
+        },
+        execute: async (args: unknown) => {
+            const { filePath, issues } = args as {
+                filePath: string;
+                issues: Array<{ severity: string; line?: number; description: string; suggestion: string }>
+            };
             console.log(`  📝 保存审查报告: ${filePath}`);
 
             const stats = {
