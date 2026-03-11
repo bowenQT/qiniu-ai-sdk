@@ -45,6 +45,37 @@ describe('Phase 1: Model Catalog Alignment', () => {
             expect(VIDEO_MODELS.KLING_V3_OMNI).toBe('kling-v3-omni');
         });
 
+        // New Veo 2.0 models (alignment gap)
+        it('should include veo-2.0-generate-exp', () => {
+            expect(VIDEO_MODELS.VEO_2_0_GENERATE_EXP).toBe('veo-2.0-generate-exp');
+        });
+
+        it('should include veo-2.0-generate-preview', () => {
+            expect(VIDEO_MODELS.VEO_2_0_GENERATE_PREVIEW).toBe('veo-2.0-generate-preview');
+        });
+
+        // Existing Veo models should remain
+        it('should include veo-2.0-generate-001', () => {
+            expect(VIDEO_MODELS.VEO_2_0_GENERATE_001).toBe('veo-2.0-generate-001');
+        });
+
+        it('should include veo-3.0-generate-001 (live)', () => {
+            expect(VIDEO_MODELS.VEO_3_0_GENERATE_001).toBe('veo-3.0-generate-001');
+        });
+
+        it('should include veo-3.0-fast-generate-001 (live)', () => {
+            expect(VIDEO_MODELS.VEO_3_0_FAST_GENERATE_001).toBe('veo-3.0-fast-generate-001');
+        });
+
+        // Deprecated preview models (sunset 2026-04-02)
+        it('should still include deprecated veo-3.0-generate-preview', () => {
+            expect(VIDEO_MODELS.VEO_3_0_GENERATE_PREVIEW).toBe('veo-3.0-generate-preview');
+        });
+
+        it('should still include deprecated veo-3.0-fast-generate-preview', () => {
+            expect(VIDEO_MODELS.VEO_3_0_FAST_GENERATE_PREVIEW).toBe('veo-3.0-fast-generate-preview');
+        });
+
         it('should include viduq1', () => {
             expect(VIDEO_MODELS.VIDUQ1).toBe('viduq1');
         });

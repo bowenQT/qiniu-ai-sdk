@@ -219,6 +219,10 @@ export type {
     KlingImageListItem,
     VideoReference,
     VideoRemixRequest,
+    MultiPromptItem,
+    CameraControl,
+    DynamicMask,
+    KlingDurationSeconds,
 } from './modules/video';
 
 // Module types - Tools

@@ -27,6 +27,56 @@ export interface FrameInput {
 }
 
 /**
+ * Valid Kling V3/Omni duration values (in seconds)
+ */
+export type KlingDurationSeconds = '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | '11' | '12' | '13' | '14' | '15';
+
+/**
+ * Multi-shot prompt item for KlingV3/Omni multi-shot video generation
+ */
+export interface MultiPromptItem {
+    /** Shot sequence number */
+    index: number;
+    /** Prompt for this shot (max 512 chars) */
+    prompt: string;
+    /** Duration of this shot in seconds (must be >= 1 and <= total duration) */
+    duration: KlingDurationSeconds;
+}
+
+/**
+ * Camera motion control for Kling video generation
+ */
+export interface CameraControl {
+    /** Camera motion type */
+    type: 'simple' | 'down_back' | 'forward_up' | 'right_turn_forward' | 'left_turn_forward';
+    /** Camera motion config (required when type=simple, only one value should be non-zero) */
+    config?: {
+        /** Horizontal pan along x-axis [-10, 10] */
+        horizontal?: number;
+        /** Vertical pan along y-axis [-10, 10] */
+        vertical?: number;
+        /** Horizontal rotation around y-axis [-10, 10] */
+        pan?: number;
+        /** Vertical rotation around x-axis [-10, 10] */
+        tilt?: number;
+        /** Rotation around z-axis [-10, 10] */
+        roll?: number;
+        /** Zoom (focal length change) [-10, 10] */
+        zoom?: number;
+    };
+}
+
+/**
+ * Dynamic mask for brush-based motion control in Kling video generation
+ */
+export interface DynamicMask {
+    /** Mask image URL or base64 */
+    mask: string;
+    /** Motion trajectory coordinates (2-77 points) */
+    trajectories: Array<{ x: number; y: number }>;
+}
+
+/**
  * Kling image_list item for multi-frame video generation
  * Used with kling-video-o1 model
  */
@@ -130,6 +180,38 @@ export interface VideoGenerationRequest {
     sample_count?: number;
     /** Person generation control (Veo only) */
     person_generation?: 'allow_adult' | 'dont_allow';
+
+    // === KlingV3/Omni specific parameters ===
+    /** Multi-shot mode toggle (KlingV3/Omni). When true, prompt is ignored; use multi_prompt instead */
+    multi_shot?: boolean;
+    /** Shot type — only 'customize' is supported (KlingV3/Omni) */
+    shot_type?: 'customize';
+    /** Per-shot prompts and durations (KlingV3/Omni, 1-6 shots) */
+    multi_prompt?: MultiPromptItem[];
+    /** Video duration in seconds (KlingV3/Omni). Enum: '3'~'15' */
+    seconds?: KlingDurationSeconds;
+    /** Generate sound along with video (KlingV3/Omni: 'on'|'off') */
+    sound?: 'on' | 'off';
+    /** Watermark control (KlingV3/Omni) */
+    watermark_info?: { enabled: boolean };
+    /** Camera motion control (Kling legacy i2v interface) */
+    camera_control?: CameraControl;
+    /** Static brush mask area (Kling legacy i2v interface) */
+    static_mask?: string;
+    /** Dynamic brush masks with trajectories (Kling legacy i2v, max 6) */
+    dynamic_masks?: DynamicMask[];
+
+    // === Veo extended parameters ===
+    /** Enable prompt enhancement (Veo) */
+    enhance_prompt?: boolean;
+    /** Video frame rate (Veo) */
+    fps?: number;
+    /** Resize mode for image-to-video (Veo 3 only) */
+    resize_mode?: 'pad' | 'crop';
+    /** Callback URL for task completion notification (Veo) */
+    callback_url?: string;
+    /** Video compression quality (Veo) */
+    compression_quality?: 'low' | 'medium' | 'high';
 
     // === viduq specific parameters ===
     /** Movement amplitude (viduq only) */
@@ -237,6 +319,9 @@ interface VeoPayload {
         seed?: number;
         negativePrompt?: string;
         personGeneration?: string;
+        enhancePrompt?: boolean;
+        fps?: number;
+        resizeMode?: string;
     };
 }
 
@@ -488,12 +573,33 @@ function transformToVeoPayload(params: VideoGenerationRequest): VeoPayload {
     if (params.person_generation) {
         parameters.personGeneration = params.person_generation;
     }
+    if (params.enhance_prompt !== undefined) {
+        parameters.enhancePrompt = params.enhance_prompt;
+    }
+    if (params.fps !== undefined) {
+        parameters.fps = params.fps;
+    }
+    if (params.resize_mode) {
+        parameters.resizeMode = params.resize_mode;
+    }
 
-    return {
+    // Build instance with compression quality
+    if (params.compression_quality) {
+        (instance as Record<string, unknown>).compressionQuality = params.compression_quality;
+    }
+
+    const veoPayload: VeoPayload = {
         model: params.model,
         instances: [instance],
         parameters: Object.keys(parameters).length > 0 ? parameters : undefined,
     };
+
+    // Top-level Veo fields
+    if (params.callback_url) {
+        (veoPayload as unknown as Record<string, unknown>).callback_url = params.callback_url;
+    }
+
+    return veoPayload;
 }
 
 /**
@@ -538,12 +644,36 @@ function transformToKlingPayload(params: VideoGenerationRequest): Record<string,
     if (params.image_tail) payload.image_tail = params.image_tail;
     if (params.input_reference) payload.input_reference = params.input_reference;
     if (params.video_list) payload.video_list = params.video_list;
-    if (params.duration) payload.duration = params.duration;
     if (params.size) payload.size = params.size;
     if (params.aspect_ratio) payload.aspect_ratio = params.aspect_ratio;
     if (params.mode) payload.mode = params.mode;
     if (params.negative_prompt) payload.negative_prompt = params.negative_prompt;
     if (params.cfg_scale) payload.cfg_scale = params.cfg_scale;
+
+    // Duration handling: V3/Omni use 'seconds', legacy models use 'duration'
+    const isV3Model = params.model.includes('v3');
+    if (isV3Model) {
+        // For V3: map duration → seconds automatically (seconds takes precedence)
+        if (params.seconds) {
+            payload.seconds = params.seconds;
+        } else if (params.duration) {
+            payload.seconds = String(params.duration);
+        }
+        // V3 does NOT send 'duration'
+    } else {
+        // Legacy models: send duration as-is
+        if (params.duration) payload.duration = params.duration;
+    }
+
+    // KlingV3/Omni parameters (excluding seconds, handled above)
+    if (params.multi_shot !== undefined) payload.multi_shot = params.multi_shot;
+    if (params.shot_type) payload.shot_type = params.shot_type;
+    if (params.multi_prompt) payload.multi_prompt = params.multi_prompt;
+    if (params.sound) payload.sound = params.sound;
+    if (params.watermark_info) payload.watermark_info = params.watermark_info;
+    if (params.camera_control) payload.camera_control = params.camera_control;
+    if (params.static_mask) payload.static_mask = params.static_mask;
+    if (params.dynamic_masks) payload.dynamic_masks = params.dynamic_masks;
 
     return payload;
 }
