@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.37.0] - 2026-03-11
+
+### ✨ New Features
+
+**Cloud Sandbox — Secure Code Execution**
+- Full lifecycle management: `create`, `createAndWait`, `pause`, `resume`, `kill`
+- Command execution with streaming output, env vars, cwd, and user selection
+- Filesystem operations: `read`, `readText`, `write`, `list`, `makeDir`, `remove`, `exists`
+- PTY terminal sessions with resize support for interactive use cases
+- Process management: `listProcesses`, `killProcess`, `sendInput`
+- Template management: `templates.list`, `templates.get`
+- ConnectRPC Connect protocol with proper binary envelope framing
+- `waitUntilReady()` — two-phase readiness check (control-plane + envd health probe)
+
+**ChildTransport Enhancements**
+- `postRaw()` supports `Uint8Array`, `ArrayBuffer`, and `FormData` body types
+- Automatic Content-Type handling for multipart file uploads
+
+### 📦 Exports
+
+```typescript
+// New modules
+export { Sandbox, SandboxConfig } from './modules/sandbox';
+export type {
+  SandboxInstance, SandboxInfo, SandboxCommands, SandboxFilesystem,
+  SandboxPty, CommandHandle, CommandResult, EntryInfo,
+} from './modules/sandbox';
+```
+
+---
+
 ## [0.36.0] - 2026-03-11
 
 ### ✨ New Features

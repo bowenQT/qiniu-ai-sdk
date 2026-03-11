@@ -37,6 +37,7 @@ This cookbook provides focused, copy‑ready examples for common workflows.
 24. [Full Agent Example - Combining All Features](#24-full-agent-example---combining-all-features)
 25. [Guardrails - Content Safety](#25-guardrails---content-safety)
 26. [Multi-Agent Crew - Orchestration](#26-multi-agent-crew---orchestration)
+27. [Cloud Sandbox - Code Execution (v0.37.0+)](#27-cloud-sandbox---code-execution-v0370)
 
 ---
 
@@ -1778,5 +1779,114 @@ try {
   if (error.code === 'CANCELLED') {
     console.log('Crew execution cancelled');
   }
+}
+```
+
+## 27. Cloud Sandbox - Code Execution (v0.37.0+)
+
+Securely execute code in isolated cloud sandboxes.
+
+在隔离的云沙箱中安全执行代码。
+
+### Lifecycle Management
+
+```ts
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+
+// Create and wait for sandbox to be fully ready
+const instance = await client.sandbox.createAndWait(
+  { templateId: 'base' },
+  { timeoutMs: 60_000 },
+);
+console.log('Sandbox ready:', instance.sandboxId);
+
+// Pause / Resume
+await instance.pause();
+await instance.resume();
+
+// Cleanup
+await instance.kill();
+```
+
+### Command Execution
+
+```ts
+// Run a command and wait for result
+const result = await instance.commands.run('echo $MY_VAR', {
+  cwd: '/tmp',
+  envs: { MY_VAR: 'hello' },
+  user: 'user',
+});
+console.log(result.exitCode); // 0
+console.log(result.stdout);   // 'hello\n'
+
+// Streaming output
+const handle = await instance.commands.start('for i in 1 2 3; do echo $i; sleep 1; done', {
+  onStdout: (data) => process.stdout.write(data),
+  onStderr: (data) => process.stderr.write(data),
+});
+const final = await handle.wait();
+console.log('Exit code:', final.exitCode);
+
+// Process management
+const procs = await instance.commands.listProcesses();
+await instance.commands.killProcess(handle.pid);
+```
+
+### Filesystem Operations
+
+```ts
+// Write file
+await instance.files.write('/tmp/data.txt', 'Hello from SDK');
+
+// Read file
+const text = await instance.files.readText('/tmp/data.txt');
+const binary = await instance.files.read('/tmp/image.png');
+
+// List directory
+const entries = await instance.files.list('/tmp');
+for (const entry of entries) {
+  console.log(`${entry.name} (${entry.type}, ${entry.size} bytes)`);
+}
+
+// Check existence
+const exists = await instance.files.exists('/tmp/data.txt');
+
+// Directory operations
+await instance.files.makeDir('/tmp/output');
+await instance.files.remove('/tmp/data.txt');
+```
+
+### PTY Terminal Sessions
+
+```ts
+// Create interactive terminal
+const pty = await instance.pty.create(
+  { cols: 80, rows: 24 },
+  {
+    onData: (data) => process.stdout.write(data),
+    envs: { TERM: 'xterm-256color' },
+  },
+);
+
+// Send input to terminal
+await pty.sendInput('ls -la\n');
+
+// Resize terminal
+await instance.pty.resize(pty.pid, { cols: 120, rows: 40 });
+
+// Cleanup
+await pty.kill();
+```
+
+### Templates
+
+```ts
+// List available sandbox templates
+const templates = await client.sandbox.templates.list();
+for (const tpl of templates) {
+  console.log(`${tpl.name} (${tpl.templateId})`);
 }
 ```

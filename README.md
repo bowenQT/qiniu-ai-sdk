@@ -43,6 +43,7 @@
 - ⏸️ **Interrupt/Resume** — Resumable execution with checkpoint-based restore
 - 📊 **Structured Telemetry** — MetricsCollector with Prometheus format export (v0.32.0+)
 - 📋 **Log Export** — Request log export with filtering and pagination (v0.36.0+)
+- 📦 **Cloud Sandbox** — Secure code execution with commands, filesystem, and PTY (v0.37.0+)
 - 🔌 **Vercel AI SDK Adapter** — Drop-in replacement for Vercel AI SDK
 
 ---
@@ -328,6 +329,36 @@ setGlobalTracer(otelTracer);
 // - agent_graph.invoke
 // - agent_graph.predict
 // - agent_graph.execute
+```
+
+### Cloud Sandbox (v0.37.0+)
+
+```typescript
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+
+// Create sandbox and wait for readiness
+const instance = await client.sandbox.createAndWait(
+  { templateId: 'base' },
+  { timeoutMs: 60_000 },
+);
+
+// Run commands
+const result = await instance.commands.run('echo hello', {
+  cwd: '/tmp',
+  envs: { MY_VAR: 'test' },
+});
+console.log(result.stdout); // 'hello\n'
+console.log(result.exitCode); // 0
+
+// File operations
+await instance.files.write('/tmp/data.txt', 'Hello from SDK');
+const content = await instance.files.readText('/tmp/data.txt');
+const entries = await instance.files.list('/tmp');
+
+// Cleanup
+await instance.kill();
 ```
 
 ---

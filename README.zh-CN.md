@@ -43,6 +43,7 @@
 - ⏸️ **中断/恢复** — 基于检查点的可恢复执行
 - 📊 **结构化指标** — MetricsCollector + Prometheus 格式导出 (v0.32.0+)
 - 📋 **日志导出** — 请求日志导出，支持筛选和分页 (v0.36.0+)
+- 📦 **云沙箱** — 安全代码执行，支持命令、文件系统和 PTY 终端 (v0.37.0+)
 - 🔌 **Vercel AI SDK 适配器** — 无缝对接 Vercel AI SDK
 
 ---
@@ -328,6 +329,36 @@ setGlobalTracer(otelTracer);
 // - agent_graph.invoke
 // - agent_graph.predict
 // - agent_graph.execute
+```
+
+### 云沙箱 (v0.37.0+)
+
+```typescript
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+
+// 创建沙箱并等待就绪
+const instance = await client.sandbox.createAndWait(
+  { templateId: 'base' },
+  { timeoutMs: 60_000 },
+);
+
+// 执行命令
+const result = await instance.commands.run('echo hello', {
+  cwd: '/tmp',
+  envs: { MY_VAR: 'test' },
+});
+console.log(result.stdout); // 'hello\n'
+console.log(result.exitCode); // 0
+
+// 文件操作
+await instance.files.write('/tmp/data.txt', 'Hello from SDK');
+const content = await instance.files.readText('/tmp/data.txt');
+const entries = await instance.files.list('/tmp');
+
+// 清理
+await instance.kill();
 ```
 
 ---

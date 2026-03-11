@@ -1,5 +1,6 @@
 import { request, RequestContext, RequestOptions } from './lib/request';
 import { IQiniuClient } from './lib/types';
+import { ChildTransport } from './lib/child-transport';
 import { Logger, noopLogger, consoleLogger, LogLevel, createFilteredLogger } from './lib/logger';
 import {
     FetchAdapter,
@@ -24,6 +25,8 @@ import { File as QiniuFile } from './modules/file/index';
 import { Anthropic } from './modules/anthropic/index';
 import { ResponseAPI } from './modules/response/index';
 import { Log } from './modules/log/index';
+import { Sandbox } from './modules/sandbox/index';
+import type { SandboxConfig } from './modules/sandbox/types';
 
 export interface QiniuAIOptions {
     apiKey: string; // The Sk-xxxx key
@@ -49,6 +52,8 @@ export interface QiniuAIOptions {
      * Executed in order, wrapping the core request.
      */
     middleware?: Middleware[];
+    /** Sandbox service configuration (optional) */
+    sandbox?: SandboxConfig;
 }
 
 export class QiniuAI implements IQiniuClient {
@@ -67,6 +72,7 @@ export class QiniuAI implements IQiniuClient {
     /** @experimental Response API — invite-only, subject to change. */
     public response: ResponseAPI;
     public log: Log;
+    public sandbox: Sandbox;
 
     private apiKey: string;
     private baseUrl: string;
@@ -134,6 +140,7 @@ export class QiniuAI implements IQiniuClient {
         this.anthropic = new Anthropic(this);
         this.response = new ResponseAPI(this);
         this.log = new Log(this);
+        this.sandbox = new Sandbox(this, options.sandbox);
     }
 
     /**
@@ -282,6 +289,22 @@ export class QiniuAI implements IQiniuClient {
      */
     getBaseUrl(): string {
         return this.baseUrl;
+    }
+
+    /**
+     * Get the API key (for child modules that need custom auth).
+     */
+    getApiKey(): string {
+        return this.apiKey;
+    }
+
+    /**
+     * Create a child transport that inherits adapter/middleware/logger/timeout
+     * but uses a different baseUrl and auth headers.
+     * Used by modules that talk to endpoints other than the main API.
+     */
+    createChildTransport(baseUrl: string, extraHeaders?: Record<string, string>): ChildTransport {
+        return new ChildTransport(baseUrl, this.requestContext, extraHeaders);
     }
 }
 

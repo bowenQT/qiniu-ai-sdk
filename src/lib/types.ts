@@ -286,6 +286,7 @@ export interface ChatCompletionChunk {
 
 import type { Logger } from './logger';
 import type { RequestOptions } from './request';
+import type { ChildTransport } from './child-transport';
 
 export interface IQiniuClient {
     post<T>(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<T>;
@@ -295,8 +296,11 @@ export interface IQiniuClient {
     getAbsolute<T>(absoluteUrl: string, params?: Record<string, string>, requestId?: string, options?: RequestOptions): Promise<T>;
     /** POST using absolute URL (skips baseUrl prepend) */
     postAbsolute<T>(absoluteUrl: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<T>;
+    /** Create a child transport with a different baseUrl and auth headers */
+    createChildTransport(baseUrl: string, extraHeaders?: Record<string, string>): ChildTransport;
     getLogger(): Logger;
     getBaseUrl(): string;
+    getApiKey(): string;
 }
 
 /** Compaction info returned in GenerateTextResult */

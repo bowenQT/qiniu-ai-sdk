@@ -347,4 +347,5 @@ export type { CreateKeysRequest, ApiKey } from '../modules/admin';
 // - RedisCheckpointer (requires redis client)
 // - PostgresCheckpointer (requires pg client)
 // - OTelTracer (requires @opentelemetry/api)
+// - Sandbox (envd ConnectRPC may violate CORS; server-side agent use case)
 // ============================================================================

@@ -278,6 +278,36 @@ export type {
     LogEntry,
 } from './modules/log';
 
+// Module types - Sandbox (Node-only, NOT exported from browser entry)
+export { Sandbox as QiniuSandbox } from './modules/sandbox';
+export { SandboxInstance, CommandHandle, SandboxPty } from './modules/sandbox';
+export { Templates as SandboxTemplates, TemplateCreateResponse } from './modules/sandbox';
+export { ChildTransport } from './lib/child-transport';
+export type {
+    SandboxConfig,
+    CreateSandboxParams,
+    SandboxInfo,
+    SandboxState,
+    CommandResult,
+    EntryInfo,
+    ListSandboxParams,
+    ListedSandbox,
+    RunCommandOptions,
+    WaitUntilReadyOptions,
+    // Phase 2
+    StreamCommandOptions,
+    ProcessEvent,
+    ProcessInfo,
+    PtySize,
+    PtyOptions,
+    TemplateInfo,
+    TemplateBuildInfo,
+    TemplateBuildLogs,
+    CreateTemplateParams,
+    UpdateTemplateParams,
+    WaitForBuildOptions,
+} from './modules/sandbox';
+
 // Re-export VideoTaskHandle (Phase 4)
 export type { VideoTaskHandle } from './modules/video';
 

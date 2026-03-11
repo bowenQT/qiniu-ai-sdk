@@ -112,3 +112,41 @@ export function createSSEResponse(chunks: unknown[], done = true): Response {
         },
     });
 }
+
+/**
+ * Creates a single binary Response for testing raw/binary endpoints.
+ */
+export function createBinaryResponse(
+    data: Uint8Array,
+    contentType = 'application/octet-stream',
+    status = 200
+): Response {
+    return new Response(data.buffer as ArrayBuffer, {
+        status,
+        headers: { 'Content-Type': contentType },
+    });
+}
+
+/**
+ * Creates a mock fetch adapter that returns binary responses.
+ * Records all calls for assertions.
+ */
+export function createBinaryMockFetch(
+    data: Uint8Array,
+    contentType = 'application/octet-stream'
+): {
+    adapter: FetchAdapter;
+    calls: MockFetchCall[];
+} {
+    const calls: MockFetchCall[] = [];
+
+    const adapter: FetchAdapter = {
+        fetch: async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+            const urlString = typeof url === 'string' ? url : url instanceof URL ? url.toString() : url.url;
+            calls.push({ url: urlString, init, timestamp: Date.now() });
+            return createBinaryResponse(data, contentType);
+        },
+    };
+
+    return { adapter, calls };
+}
