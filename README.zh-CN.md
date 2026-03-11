@@ -18,8 +18,8 @@
 
 ### 核心 AI 模块
 - 🚀 **对话补全** — 兼容 OpenAI 接口，支持流式输出
-- 🖼️ **图像生成** — 支持 Kling、Gemini 模型，统一的同步/异步 API
-- 🎥 **视频生成** — 支持 Kling、Sora、Veo 模型，首尾帧控制
+- 🖼️ **图像生成** — 支持 Kling、kling-image-o1、Gemini 模型，统一的同步/异步 API
+- 🎥 **视频生成** — 支持 Kling、Sora、Veo、viduq 模型，首尾帧控制
 - 🔍 **网页搜索** — 实时网络搜索集成
 - 📝 **OCR 文字识别** — 图片和 PDF 高精度文字识别
 - 🎤 **ASR 语音识别** — 多语言语音识别（嘈杂环境 95%+ 准确率）
@@ -42,6 +42,7 @@
 - ✅ **工具审批 (HITL)** — 敏感操作人工确认
 - ⏸️ **中断/恢复** — 基于检查点的可恢复执行
 - 📊 **结构化指标** — MetricsCollector + Prometheus 格式导出 (v0.32.0+)
+- 📋 **日志导出** — 请求日志导出，支持筛选和分页 (v0.36.0+)
 - 🔌 **Vercel AI SDK 适配器** — 无缝对接 Vercel AI SDK
 
 ---
@@ -178,6 +179,26 @@ const videoTask = await client.video.create({
 });
 const videoResult = await client.video.waitForCompletion(videoTask.id);
 console.log(videoResult.task_result?.videos[0].url);
+
+// viduq 视频生成 (v0.36.0+)
+const viduqTask = await client.video.create({
+  model: 'viduq2',
+  prompt: '宁静的山水景观，云雾缭绕',
+  movement_amplitude: 'medium',
+});
+// 使用完整句柄进行可靠轮询
+const viduqResult = await client.video.waitForCompletion(viduqTask);
+console.log(viduqResult.task_result?.videos[0].url);
+
+// kling-image-o1 高质量图像 (v0.36.0+)
+const klingImg = await client.image.generate({
+  model: 'kling-image-o1',
+  prompt: '影棚灯光下的写实人像照',
+  num_images: 2,
+  resolution: '2K',
+});
+const klingResult = await client.image.waitForResult(klingImg);
+console.log(klingResult.data?.map(d => d.url));
 ```
 
 ---
@@ -332,16 +353,17 @@ setGlobalTracer(otelTracer);
 
 | 厂商 | 模型 |
 |------|------|
-| **Kling（可灵）** | kling-v1, kling-v1-5, kling-v2, kling-v2-1 |
+| **Kling（可灵）** | kling-v1, kling-v1-5, kling-v2, kling-v2-1, kling-image-o1 |
 | **Gemini** | gemini-3.0-pro-image, gemini-2.5-flash-image |
 
 ### 视频生成模型
 
 | 厂商 | 模型 |
 |------|------|
-| **Kling（可灵）** | kling-video-o1, kling-v2-1, kling-v2-5-turbo |
-| **Sora** | sora-2 |
+| **Kling（可灵）** | kling-video-o1, kling-v2-1, kling-v2-5-turbo, kling-v2-6, kling-v3, kling-v3-omni |
+| **Sora** | sora-2, sora-2-pro |
 | **Veo** | veo-2.0, veo-3.0, veo-3.1 |
+| **viduq** | viduq1, viduq2, viduq2-pro, viduq2-turbo |
 
 ---
 

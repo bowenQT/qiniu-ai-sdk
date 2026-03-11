@@ -18,8 +18,8 @@
 
 ### Core AI Modules
 - 🚀 **Chat Completions** — OpenAI-compatible interface with streaming support
-- 🖼️ **Image Generation** — Kling, Gemini models with unified sync/async API
-- 🎥 **Video Generation** — Kling, Sora, Veo models with first/last frame control
+- 🖼️ **Image Generation** — Kling, kling-image-o1, Gemini models with unified sync/async API
+- 🎥 **Video Generation** — Kling, Sora, Veo, viduq models with first/last frame control
 - 🔍 **Web Search** — Real-time web search integration
 - 📝 **OCR** — High-precision text recognition for images and PDFs
 - 🎤 **ASR** — Multi-language speech recognition (95%+ accuracy in noisy environments)
@@ -42,6 +42,7 @@
 - ✅ **Tool Approval (HITL)** — Human-in-the-loop for sensitive operations
 - ⏸️ **Interrupt/Resume** — Resumable execution with checkpoint-based restore
 - 📊 **Structured Telemetry** — MetricsCollector with Prometheus format export (v0.32.0+)
+- 📋 **Log Export** — Request log export with filtering and pagination (v0.36.0+)
 - 🔌 **Vercel AI SDK Adapter** — Drop-in replacement for Vercel AI SDK
 
 ---
@@ -178,6 +179,26 @@ const videoTask = await client.video.create({
 });
 const videoResult = await client.video.waitForCompletion(videoTask.id);
 console.log(videoResult.task_result?.videos[0].url);
+
+// viduq video generation (v0.36.0+)
+const viduqTask = await client.video.create({
+  model: 'viduq2',
+  prompt: 'A serene mountain landscape with flowing clouds',
+  movement_amplitude: 'medium',
+});
+// Use full handle for reliable polling
+const viduqResult = await client.video.waitForCompletion(viduqTask);
+console.log(viduqResult.task_result?.videos[0].url);
+
+// kling-image-o1 high-quality image (v0.36.0+)
+const klingImg = await client.image.generate({
+  model: 'kling-image-o1',
+  prompt: 'A photorealistic portrait in studio lighting',
+  num_images: 2,
+  resolution: '2K',
+});
+const klingResult = await client.image.waitForResult(klingImg);
+console.log(klingResult.data?.map(d => d.url));
 ```
 
 ---
@@ -332,16 +353,17 @@ setGlobalTracer(otelTracer);
 
 | Provider | Models |
 |----------|--------|
-| **Kling** | kling-v1, kling-v1-5, kling-v2, kling-v2-1 |
+| **Kling** | kling-v1, kling-v1-5, kling-v2, kling-v2-1, kling-image-o1 |
 | **Gemini** | gemini-3.0-pro-image, gemini-2.5-flash-image |
 
 ### Video Generation
 
 | Provider | Models |
 |----------|--------|
-| **Kling** | kling-video-o1, kling-v2-1, kling-v2-5-turbo |
-| **Sora** | sora-2 |
+| **Kling** | kling-video-o1, kling-v2-1, kling-v2-5-turbo, kling-v2-6, kling-v3, kling-v3-omni |
+| **Sora** | sora-2, sora-2-pro |
 | **Veo** | veo-2.0, veo-3.0, veo-3.1 |
+| **viduq** | viduq1, viduq2, viduq2-pro, viduq2-turbo |
 
 ---
 

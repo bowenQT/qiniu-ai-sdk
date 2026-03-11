@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.36.0] - 2026-03-11
+
+### ✨ New Features
+
+**viduq Video Models (fal-ai queue routing)**
+- Full support for `viduq1`, `viduq2`, `viduq2-pro`, `viduq2-turbo` models
+- Auto-detect input type (text-to-video / image-to-video) and route to correct fal-ai endpoint
+- `VideoTaskHandle` return type with `statusUrl`/`responseUrl` for reliable async polling
+- Internal statusUrl cache for seamless `get(id)` / `waitForCompletion(id)` workflows
+- New fields: `movement_amplitude`, `audio`, `voice_id`, `is_rec`
+
+**kling-image-o1 (fal-ai queue routing)**
+- Route `kling-image-o1` to `/queue/fal-ai/kling-image/o1` endpoint
+- Auto-detect `qimage-` prefix in `get()` for status polling via fal-ai
+- Response normalization: `COMPLETED/FAILED` → `succeed/failed`, `result.images[]` → `data[]`
+- New fields: `image_urls` (reference images), `num_images`, `resolution`
+- Both `generate()` and `create()` support fal-ai routing
+
+**Log Export API**
+- New `client.log.export()` for `GET /v2/stat/export_log_file`
+- Runtime validation: 35-day window, size 1-500, page ≥ 1, RFC3339 dates
+- Supports model/apikey/code filtering and pagination
+
+**Absolute URL Request Methods**
+- `IQiniuClient.getAbsolute()` / `postAbsolute()` — skip baseUrl prepend, inherit auth/middleware
+- Enables clean access to non-v1 API endpoints
+
+### 🔧 Improvements
+
+- **account.usage()**: Migrated `/../v2/stat/usage` path hack to use `getAbsolute()`
+- **truncateHistory**: Added token cost estimates for video (200), file (100), audio (100), thinking (text-based) content parts; unknown types default to 50 tokens instead of 0
+
+### 📦 Exports
+
+```typescript
+// New modules
+export { Log, LogExportRequest, LogEntry } from './modules/log';
+export type { VideoTaskHandle } from './modules/video';
+```
+
+---
+
 ## [0.32.0] - 2026-02-04
 
 ### ✨ New Features

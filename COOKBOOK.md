@@ -312,6 +312,102 @@ const result = await client.video.waitForCompletion(task.id);
 console.log(result.task_result?.videos[0].url);
 ```
 
+## 11b. viduq Video Generation (v0.36.0+)
+
+viduq models use the fal-ai queue system. `create()` returns a `VideoTaskHandle` for reliable async polling.
+
+viduq 模型使用 fal-ai 队列系统，`create()` 返回 `VideoTaskHandle` 句柄用于可靠的异步轮询。
+
+```ts
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+
+// Text-to-video / 文字转视频
+const handle = await client.video.create({
+  model: 'viduq2',
+  prompt: 'A serene mountain landscape with flowing clouds',
+  movement_amplitude: 'medium', // 'auto' | 'small' | 'medium' | 'large'
+  audio: true,                  // Enable audio generation / 开启音频生成
+});
+
+// Poll with full handle (recommended) / 使用完整句柄轮询（推荐）
+const result = await client.video.waitForCompletion(handle);
+console.log(result.task_result?.videos[0].url);
+
+// Image-to-video / 图转视频
+const i2vHandle = await client.video.create({
+  model: 'viduq2-pro', // pro/turbo require image input / pro/turbo 必须提供图片
+  prompt: 'The person in the image walks into a garden',
+  image_url: 'https://example.com/portrait.jpg',
+});
+const i2vResult = await client.video.waitForCompletion(i2vHandle);
+console.log(i2vResult.task_result?.videos[0].url);
+```
+
+**Supported models / 支持的模型:** `viduq1`, `viduq2`, `viduq2-pro`, `viduq2-turbo`
+
+> `viduq2-pro` and `viduq2-turbo` require image input (`image_url`, `image`, or `frames.first`).
+
+## 11c. kling-image-o1 High-Quality Image (v0.36.0+)
+
+`kling-image-o1` uses the fal-ai queue system with reference image support.
+
+`kling-image-o1` 使用 fal-ai 队列系统，支持参考图。
+
+```ts
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+
+// Basic generation / 基础生成
+const result = await client.image.generate({
+  model: 'kling-image-o1',
+  prompt: 'A photorealistic portrait in studio lighting',
+  num_images: 2,    // 1-9 images / 1-9 张图
+  resolution: '2K', // '1K' or '2K'
+});
+
+const final = await client.image.waitForResult(result);
+console.log(final.data?.map(d => d.url));
+
+// With reference images / 使用参考图
+const refResult = await client.image.generate({
+  model: 'kling-image-o1',
+  prompt: 'A <<<image_1>>> style cat sitting on a throne',
+  image_urls: ['https://example.com/art-style.jpg'], // Up to 10 / 最多 10 张
+  resolution: '2K',
+});
+const refFinal = await client.image.waitForResult(refResult);
+console.log(refFinal.data?.[0]?.url);
+```
+
+## 11d. Log Export (v0.36.0+)
+
+Export request logs for monitoring and analysis.
+
+导出请求日志用于监控和分析。
+
+```ts
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+
+const logs = await client.log.export({
+  start: '2025-12-01T00:00:00Z',
+  end: '2025-12-31T00:00:00Z',
+  model: 'deepseek/deepseek-v3.1', // Optional filter / 可选过滤
+  size: 100,                        // Per page, 1-500 / 每页条数
+  page: 1,
+});
+
+for (const entry of logs) {
+  console.log(`${entry.model_id} | ${entry.state} | ${entry.usage?.input}→${entry.usage?.output}`);
+}
+```
+
+> **Limits / 限制:** Time range ≤ 35 days, size 1-500, page ≥ 1.
+
 ## 12. Multi-Step Agent with Step Callbacks
 
 ```ts
