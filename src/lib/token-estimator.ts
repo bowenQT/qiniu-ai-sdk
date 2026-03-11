@@ -64,6 +64,23 @@ export function createTokenEstimator(config: TokenEstimatorConfig = {}): Content
                 } else if (part.type === 'image_url' || part.type === 'image') {
                     // Both image_url (API format) and image (SDK sugar) count as image tokens
                     total += imageTokenCost;
+                } else if (part.type === 'video_url' || part.type === 'video') {
+                    // Video content: higher cost than images (multiple frames)
+                    total += imageTokenCost * 10;
+                } else if (part.type === 'file' || part.type === 'file_url') {
+                    // File/document content: estimate as moderate cost
+                    total += imageTokenCost * 5;
+                } else if (part.type === 'input_audio') {
+                    // Audio: estimate as moderate cost
+                    total += imageTokenCost * 3;
+                } else if (part.type === 'thinking') {
+                    // Thinking blocks: estimate text content if present
+                    if ('thinking' in part && typeof part.thinking === 'string') {
+                        total += estimateText(part.thinking, charsPerToken, cjkMultiplier);
+                    }
+                } else {
+                    // Unknown type: conservative fallback cost
+                    total += imageTokenCost;
                 }
             }
             return total;

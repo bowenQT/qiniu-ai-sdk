@@ -20,6 +20,10 @@ import { Tts } from './modules/tts/index';
 import { Account } from './modules/account/index';
 import { Admin } from './modules/admin/index';
 import { Censor } from './modules/censor/index';
+import { File as QiniuFile } from './modules/file/index';
+import { Anthropic } from './modules/anthropic/index';
+import { ResponseAPI } from './modules/response/index';
+import { Log } from './modules/log/index';
 
 export interface QiniuAIOptions {
     apiKey: string; // The Sk-xxxx key
@@ -58,6 +62,11 @@ export class QiniuAI implements IQiniuClient {
     public account: Account;
     public admin: Admin;
     public censor: Censor;
+    public file: QiniuFile;
+    public anthropic: Anthropic;
+    /** @experimental Response API — invite-only, subject to change. */
+    public response: ResponseAPI;
+    public log: Log;
 
     private apiKey: string;
     private baseUrl: string;
@@ -121,6 +130,10 @@ export class QiniuAI implements IQiniuClient {
         this.account = new Account(this);
         this.admin = new Admin(this);
         this.censor = new Censor(this);
+        this.file = new QiniuFile(this);
+        this.anthropic = new Anthropic(this);
+        this.response = new ResponseAPI(this);
+        this.log = new Log(this);
     }
 
     /**
@@ -227,6 +240,41 @@ export class QiniuAI implements IQiniuClient {
         } finally {
             clearTimeout(timeoutId);
         }
+    }
+
+    /**
+     * GET using absolute URL (skips baseUrl prepend).
+     * Auth headers, middleware, and timeout are inherited.
+     */
+    async getAbsolute<T>(absoluteUrl: string, params?: Record<string, string>, requestId?: string, options?: RequestOptions): Promise<T> {
+        const url = new URL(absoluteUrl);
+        if (params) {
+            Object.entries(params).forEach(([key, value]) => {
+                url.searchParams.append(key, value);
+            });
+        }
+
+        return request<T>(
+            url.toString(),
+            'GET',
+            undefined,
+            this.requestContext,
+            { ...options, requestId }
+        );
+    }
+
+    /**
+     * POST using absolute URL (skips baseUrl prepend).
+     * Auth headers, middleware, and timeout are inherited.
+     */
+    async postAbsolute<T>(absoluteUrl: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<T> {
+        return request<T>(
+            absoluteUrl,
+            'POST',
+            body,
+            this.requestContext,
+            { ...options, requestId }
+        );
     }
 
     /**

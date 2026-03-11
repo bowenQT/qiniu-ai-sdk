@@ -15,7 +15,7 @@ import {
     generateTextWithGraph,
     MemoryCheckpointer,
     type Tool,
-} from '@bowenqt/qiniu-ai-sdk';
+} from '../src';
 
 // ============================================================================
 // 配置

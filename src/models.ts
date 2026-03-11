@@ -19,10 +19,12 @@ export const CHAT_MODELS = {
     QWEN3_NEXT_80B_A3B_THINKING: 'qwen3-next-80b-a3b-thinking',
     QWEN3_NEXT_80B_A3B_INSTRUCT: 'qwen3-next-80b-a3b-instruct',
     QWEN3_CODER_480B_A35B_INSTRUCT: 'qwen3-coder-480b-a35b-instruct',
+    QWEN3_MAX_2026_01_23: 'qwen3-max-2026-01-23',
     QWEN_MAX_2025_01_25: 'qwen-max-2025-01-25',
     QWEN_TURBO: 'qwen-turbo',
 
     // Claude
+    CLAUDE_4_6_OPUS: 'claude-4.6-opus',
     CLAUDE_4_5_OPUS: 'claude-4.5-opus',
     CLAUDE_4_5_HAIKU: 'claude-4.5-haiku',
     CLAUDE_4_5_SONNET: 'claude-4.5-sonnet',
@@ -77,12 +79,14 @@ export const CHAT_MODELS = {
     GROK_CODE_FAST_1: 'x-ai/grok-code-fast-1',
 
     // OpenAI
+    GPT_5_2_CODEX: 'openai/gpt-5.2-codex',
     GPT_5_2: 'openai/gpt-5.2',
     GPT_5: 'openai/gpt-5',
     GPT_OSS_20B: 'gpt-oss-20b',
     GPT_OSS_120B: 'gpt-oss-120b',
 
     // Kimi
+    KIMI_K2_5: 'moonshotai/kimi-k2.5',
     KIMI_K2_THINKING: 'moonshotai/kimi-k2-thinking',
     KIMI_K2_0905: 'moonshotai/kimi-k2-0905',
     KIMI_K2: 'kimi-k2',
@@ -116,8 +120,10 @@ export const IMAGE_MODELS = {
     KLING_V2: 'kling-v2',
     KLING_V2_NEW: 'kling-v2-new',
     KLING_V2_1: 'kling-v2-1',
+    KLING_IMAGE_O1: 'kling-image-o1',
 
     // Gemini
+    GEMINI_3_1_FLASH_IMAGE_PREVIEW: 'gemini-3.1-flash-image-preview',
     GEMINI_3_0_PRO_IMAGE_PREVIEW: 'gemini-3.0-pro-image-preview',
     GEMINI_2_5_FLASH_IMAGE: 'gemini-2.5-flash-image',
 
@@ -142,6 +148,7 @@ export const VIDEO_MODELS = {
 
     // Sora
     SORA_2: 'sora-2',
+    SORA_2_PRO: 'sora-2-pro',
 
     // Veo
     VEO_2_0_GENERATE_001: 'veo-2.0-generate-001',
@@ -151,6 +158,17 @@ export const VIDEO_MODELS = {
     VEO_3_0_FAST_GENERATE_PREVIEW: 'veo-3.0-fast-generate-preview',
     VEO_3_1_GENERATE_PREVIEW: 'veo-3.1-generate-preview',
     VEO_3_1_FAST_GENERATE_PREVIEW: 'veo-3.1-fast-generate-preview',
+
+    // Kling (extended)
+    KLING_V2_6: 'kling-v2-6',
+    KLING_V3: 'kling-v3',
+    KLING_V3_OMNI: 'kling-v3-omni',
+
+    // Vidu
+    VIDUQ1: 'viduq1',
+    VIDUQ2: 'viduq2',
+    VIDUQ2_PRO: 'viduq2-pro',
+    VIDUQ2_TURBO: 'viduq2-turbo',
 
     // Other
     MINIMAX_M2_VIDEO: 'minimax/minimax-m2',

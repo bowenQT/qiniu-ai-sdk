@@ -84,7 +84,28 @@ function estimateTokensFromPart(part: ContentPart): number {
         return 50;
     }
 
-    return 0;
+    // Video content: ~200 tokens per video reference
+    if (part.type === 'video_url' || part.type === 'video') {
+        return 200;
+    }
+
+    // File references: ~100 tokens
+    if (part.type === 'file' || part.type === 'file_url') {
+        return 100;
+    }
+
+    // Audio input: ~100 tokens
+    if (part.type === 'input_audio') {
+        return 100;
+    }
+
+    // Thinking/reasoning blocks: estimate from text if present
+    if (part.type === 'thinking' && 'thinking' in part) {
+        return estimateTokensFromText((part as { thinking: string }).thinking);
+    }
+
+    // Unknown types: conservative 50-token estimate
+    return 50;
 }
 
 function estimateTokensFromText(text: string): number {

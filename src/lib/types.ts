@@ -1,12 +1,18 @@
 // Basic OpenAI-compatible types for Chat Completions
 
 export interface ChatMessage {
-    role: 'system' | 'user' | 'assistant' | 'tool';
+    role: 'system' | 'user' | 'assistant' | 'tool' | 'function';
     content: string | ContentPart[];
     name?: string;
     tool_calls?: ToolCall[];
     /** Required for tool role messages to match the corresponding tool_call */
     tool_call_id?: string;
+    /** Reasoning/thinking content from models like Gemini, DeepSeek */
+    reasoning_content?: string;
+    /** Thinking blocks from Claude models */
+    thinking_blocks?: ThinkingBlock[];
+    /** Image objects in response */
+    images?: ImageObject[];
 }
 
 /** Cross-platform image source types */
@@ -40,8 +46,90 @@ export interface ImageContentPart {
     detail?: 'auto' | 'low' | 'high';
 }
 
+/** Video URL content part */
+export interface VideoUrlContentPart {
+    type: 'video_url';
+    video_url: { url: string };
+}
+
+/** File content part (file_id reference) */
+export interface FileContentPart {
+    type: 'file';
+    file: {
+        file_data?: string;
+        file_id?: string;
+        format?: string;
+    };
+}
+
+/** Audio input content part */
+export interface InputAudioContentPart {
+    type: 'input_audio';
+    input_audio: {
+        data: string;
+        format: 'wav' | 'mp3' | 'ogg' | 'pcm';
+    };
+}
+
+/** File URL content part (docx/xlsx/pptx/pdf) */
+export interface FileUrlContentPart {
+    type: 'file_url';
+    file_url: {
+        url: string;
+        detail?: string;
+    };
+}
+
+/** Thinking content part (Claude) */
+export interface ThinkingContentPart {
+    type: 'thinking';
+    thinking: string;
+    signature?: string;
+}
+
+/** Video content part (URL list) */
+export interface VideoContentPart {
+    type: 'video';
+    video: string[];
+}
+
+/** Cache control content part */
+export interface CacheControlContentPart {
+    type: string;
+    cache_control: {
+        type: string;
+        ttl?: string;
+    };
+}
+
+/** Thinking block object (Claude response) */
+export interface ThinkingBlock {
+    type: string;
+    thinking: string;
+    signature?: string;
+}
+
+/** Image object in response messages */
+export interface ImageObject {
+    type?: string;
+    image_url?: {
+        url: string;
+        checksum?: string;
+    };
+    index?: number;
+}
+
 /** Content part for multimodal messages */
-export type ContentPart = TextContentPart | ImageUrlContentPart | ImageContentPart;
+export type ContentPart =
+    | TextContentPart
+    | ImageUrlContentPart
+    | ImageContentPart
+    | VideoUrlContentPart
+    | FileContentPart
+    | InputAudioContentPart
+    | FileUrlContentPart
+    | ThinkingContentPart
+    | VideoContentPart;
 
 export interface ToolCall {
     id: string;
@@ -52,17 +140,53 @@ export interface ToolCall {
     };
 }
 
+/** Thinking mode configuration */
+export interface ThinkType {
+    type: 'disabled' | 'enabled' | 'auto';
+    budget_tokens?: number;
+}
+
+/** Reasoning configuration (OpenAI/DeepSeek) */
+export interface ReasoningType {
+    effort?: 'low' | 'medium' | 'high';
+    max_tokens?: number;
+    exclude?: boolean;
+    /** Enable DeepSeek v3.1 thinking mode */
+    enabled?: boolean;
+}
+
+/** Image configuration for Gemini image generation */
+export interface ChatImageConfig {
+    aspect_ratio?: string;
+    image_size?: string;
+}
+
+/** Safety setting for Gemini models */
+export interface SafetySetting {
+    category: string;
+    threshold: 'BLOCK_NONE' | 'BLOCK_ONLY_HIGH' | 'BLOCK_MEDIUM_AND_ABOVE' | 'BLOCK_LOW_AND_ABOVE';
+}
+
+/** Chat template kwargs (Tencent models) */
+export interface ChatTemplateKwargs {
+    thinking?: boolean;
+    enable_thinking?: boolean;
+    thinking_budget?: number;
+}
+
 export interface ChatCompletionRequest {
     model: string;
     messages: ChatMessage[];
     temperature?: number;
     top_p?: number;
+    top_k?: number;
     n?: number;
     stream?: boolean;
     stop?: string | string[];
     max_tokens?: number;
     presence_penalty?: number;
     frequency_penalty?: number;
+    repetition_penalty?: number;
     logit_bias?: Record<string, number>;
     user?: string;
     tools?: {
@@ -70,12 +194,31 @@ export interface ChatCompletionRequest {
         function: {
             name: string;
             description?: string;
+            url?: string;
             parameters: Record<string, any>;
         };
     }[];
     tool_choice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
     /** Controls the output format (JSON mode) */
     response_format?: ResponseFormat;
+    /** Request type */
+    type?: string;
+    /** Enable thinking mode */
+    enable_thinking?: boolean;
+    /** Thinking configuration */
+    thinking?: ThinkType;
+    /** Reasoning configuration (OpenAI/DeepSeek) */
+    reasoning?: ReasoningType;
+    /** Reasoning effort level */
+    reasoning_effort?: 'low' | 'medium' | 'high' | 'minimal' | 'none';
+    /** Supported modality types */
+    modalities?: string[];
+    /** Image config for Gemini image generation */
+    image_config?: ChatImageConfig;
+    /** Safety settings for Gemini models */
+    safety_settings?: SafetySetting[];
+    /** Chat template kwargs (Tencent) */
+    chat_template_kwargs?: ChatTemplateKwargs;
 }
 
 /** Response format configuration for structured output */
@@ -148,6 +291,10 @@ export interface IQiniuClient {
     post<T>(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<T>;
     get<T>(endpoint: string, params?: Record<string, string>, requestId?: string, options?: RequestOptions): Promise<T>;
     postStream(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions & { signal?: AbortSignal }): Promise<Response>;
+    /** GET using absolute URL (skips baseUrl prepend) */
+    getAbsolute<T>(absoluteUrl: string, params?: Record<string, string>, requestId?: string, options?: RequestOptions): Promise<T>;
+    /** POST using absolute URL (skips baseUrl prepend) */
+    postAbsolute<T>(absoluteUrl: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<T>;
     getLogger(): Logger;
     getBaseUrl(): string;
 }

@@ -220,18 +220,17 @@ export class Account {
         logger.debug('Fetching usage statistics', { ...params });
 
         const baseUrl = this.client.getBaseUrl();
-        const endpointPath = '/v2/stat/usage';
-        const endpoint = baseUrl.endsWith('/v1') ? '/../v2/stat/usage' : endpointPath;
+        const absoluteUrl = baseUrl.replace(/\/v1$/, '') + '/v2/stat/usage';
 
-        let options: Parameters<IQiniuClient['get']>[3] | undefined;
+        let options: Parameters<IQiniuClient['getAbsolute']>[3] | undefined;
         if (query.authorization) {
             options = { headers: { Authorization: query.authorization } };
         } else if (query.auth) {
-            const url = new URL(baseUrl.endsWith('/v1') ? baseUrl.replace(/\/v1$/, '') : baseUrl);
+            const url = new URL(baseUrl.replace(/\/v1$/, ''));
             const queryString = buildQueryString(params);
             const signingStrOptions = {
                 method: 'GET',
-                path: endpointPath,
+                path: '/v2/stat/usage',
                 query: queryString,
                 host: url.host,
                 contentType: 'application/json',
@@ -240,7 +239,7 @@ export class Account {
             options = { headers: { Authorization: `Qiniu ${token}` } };
         }
 
-        const response = await this.client.get<UsageApiResponse>(endpoint, params, undefined, options);
+        const response = await this.client.getAbsolute<UsageApiResponse>(absoluteUrl, params, undefined, options);
 
         if (response.status === false) {
             return {

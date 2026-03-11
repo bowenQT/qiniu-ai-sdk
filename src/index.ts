@@ -239,6 +239,44 @@ export type { UsageQuery, UsageResponse, UsageModelStat, UsageItem, UsageCategor
 // Module types - Admin
 export type { CreateKeysRequest, ApiKey } from './modules/admin';
 
+// Module types - File (Phase 2)
+export { File as QiniuFile } from './modules/file';
+export type {
+    FileCreateRequest,
+    FileResponse,
+    FileListResponse,
+    FileListOptions,
+} from './modules/file';
+
+// Module types - Anthropic Protocol (Phase 3)
+export { Anthropic } from './modules/anthropic';
+export type {
+    AnthropicRequest,
+    AnthropicResponse,
+    AnthropicMessage,
+    AnthropicContentBlock,
+} from './modules/anthropic';
+
+// Module types - Response API (Phase 3, @experimental)
+export { ResponseAPI } from './modules/response';
+export type {
+    ResponseCreateRequest,
+    ResponseCreateResponse,
+    ResponseInputMessage,
+    ResponseOutput,
+    ResponseContentBlock,
+} from './modules/response';
+
+// Module types - Log Export (Phase 4)
+export { Log } from './modules/log';
+export type {
+    LogExportRequest,
+    LogEntry,
+} from './modules/log';
+
+// Re-export VideoTaskHandle (Phase 4)
+export type { VideoTaskHandle } from './modules/video';
+
 // ============================================================================
 // Agent SDK v7 - Skills, MCP, Graph, Checkpointer
 // ============================================================================

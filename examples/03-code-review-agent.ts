@@ -20,7 +20,7 @@ import {
     type GuardrailContext,
     type GuardrailResult,
     type Tool,
-} from '@bowenqt/qiniu-ai-sdk';
+} from '../src';
 
 // ============================================================================
 // 配置

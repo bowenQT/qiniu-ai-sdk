@@ -36,6 +36,13 @@ export interface ImageGenerationRequest {
     style_image?: ImageReference;
     // Gemini config
     image_config?: ImageConfig;
+    // kling-image-o1 fal-ai fields
+    /** Reference image URLs, use <<<image_1>>> in prompt to reference (max 10) */
+    image_urls?: string[];
+    /** Number of images to generate 1-9 (kling-image-o1) */
+    num_images?: number;
+    /** Resolution: 1K or 2K (kling-image-o1) */
+    resolution?: '1K' | '2K';
 }
 
 export interface ImageEditRequest {
@@ -112,6 +119,8 @@ export interface SyncImageResponse {
 export interface AsyncImageResponse {
     isSync: false;
     task_id: string;
+    /** fal-ai status URL for kling-image-o1 */
+    statusUrl?: string;
 }
 
 export type ImageCreateResult = SyncImageResponse | AsyncImageResponse;
@@ -144,6 +153,29 @@ export interface WaitOptions {
 }
 
 const TERMINAL_STATUSES = ['succeed', 'failed'];
+const FAL_TERMINAL_STATUSES = ['COMPLETED', 'FAILED'];
+
+function isFalAiImageModel(model: string): boolean {
+    return model === 'kling-image-o1';
+}
+
+/** Normalize fal-ai status to SDK status */
+function normalizeFalAiImageStatus(status: string): string {
+    if (status === 'COMPLETED') return 'succeed';
+    if (status === 'FAILED') return 'failed';
+    return 'processing';
+}
+
+/** Normalize fal-ai image response to ImageTaskResponse */
+function normalizeFalAiImageResponse(raw: Record<string, unknown>): ImageTaskResponse {
+    const result = raw.result as { images?: { url: string; content_type: string }[] } | undefined;
+    const images = result?.images || [];
+    return {
+        task_id: raw.request_id as string,
+        status: normalizeFalAiImageStatus(raw.status as string),
+        data: images.map((img, index) => ({ index, url: img.url })),
+    };
+}
 
 export class Image {
     private client: IQiniuClient;
@@ -158,6 +190,20 @@ export class Image {
      * @deprecated Use generate() for unified sync/async handling.
      */
     async create(params: ImageGenerationRequest): Promise<{ task_id: string }> {
+        if (isFalAiImageModel(params.model)) {
+            // kling-image-o1: use fal-ai queue endpoint
+            const baseUrl = this.client.getBaseUrl();
+            const absoluteUrl = baseUrl.replace(/\/v1$/, '') + '/queue/fal-ai/kling-image/o1';
+            const payload: Record<string, unknown> = { prompt: params.prompt };
+            if (params.image_urls) payload.image_urls = params.image_urls;
+            if (params.num_images !== undefined) payload.num_images = params.num_images;
+            if (params.resolution) payload.resolution = params.resolution;
+            if (params.aspect_ratio) payload.aspect_ratio = params.aspect_ratio;
+
+            const raw = await this.client.postAbsolute<Record<string, unknown>>(absoluteUrl, payload);
+            return { task_id: raw.request_id as string };
+        }
+
         const response = await this.client.post<unknown>('/images/generations', params);
         const result = response as Record<string, unknown>;
         if (!result.task_id || typeof result.task_id !== 'string') {
@@ -174,6 +220,24 @@ export class Image {
      * Unified image generation API for both sync and async models.
      */
     async generate(params: ImageGenerationRequest): Promise<ImageCreateResult> {
+        if (isFalAiImageModel(params.model)) {
+            // kling-image-o1: use fal-ai queue endpoint
+            const baseUrl = this.client.getBaseUrl();
+            const absoluteUrl = baseUrl.replace(/\/v1$/, '') + '/queue/fal-ai/kling-image/o1';
+            const payload: Record<string, unknown> = { prompt: params.prompt };
+            if (params.image_urls) payload.image_urls = params.image_urls;
+            if (params.num_images !== undefined) payload.num_images = params.num_images;
+            if (params.resolution) payload.resolution = params.resolution;
+            if (params.aspect_ratio) payload.aspect_ratio = params.aspect_ratio;
+
+            const raw = await this.client.postAbsolute<Record<string, unknown>>(absoluteUrl, payload);
+            return {
+                isSync: false,
+                task_id: raw.request_id as string,
+                statusUrl: raw.status_url as string | undefined,
+            };
+        }
+
         const response = await this.client.post<unknown>('/images/generations', params);
         return normalizeCreateResponse(response);
     }
@@ -203,9 +267,17 @@ export class Image {
     }
 
     /**
-     * Get image generation task status
+     * Get image generation task status.
+     * Automatically routes kling-image-o1 tasks to fal-ai endpoint.
      */
     async get(taskId: string): Promise<ImageTaskResponse> {
+        // Detect fal-ai tasks by qimage- prefix
+        if (taskId.startsWith('qimage-')) {
+            const baseUrl = this.client.getBaseUrl();
+            const absoluteUrl = baseUrl.replace(/\/v1$/, '') + `/queue/fal-ai/kling-image/requests/${taskId}/status`;
+            const raw = await this.client.getAbsolute<Record<string, unknown>>(absoluteUrl);
+            return normalizeFalAiImageResponse(raw);
+        }
         return this.client.get<ImageTaskResponse>(`/images/tasks/${taskId}`);
     }
 
@@ -236,7 +308,8 @@ export class Image {
                     logger.warn('Image task response missing status field', { taskId, result: r });
                     return false;
                 }
-                return TERMINAL_STATUSES.includes(r.status);
+                return TERMINAL_STATUSES.includes(r.status) ||
+                    FAL_TERMINAL_STATUSES.includes(r.status);
             },
             getStatus: (id) => this.get(id),
         });

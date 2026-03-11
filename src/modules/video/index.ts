@@ -124,12 +124,22 @@ export interface VideoGenerationRequest {
     generate_audio?: boolean;
     /** Output resolution (Veo 3 only) */
     resolution?: '720p' | '1080p';
-    /** Seed for deterministic output (Veo only) */
+    /** Seed for deterministic output (Veo/viduq) */
     seed?: number;
     /** Number of samples to generate (Veo only, 1-4) */
     sample_count?: number;
     /** Person generation control (Veo only) */
     person_generation?: 'allow_adult' | 'dont_allow';
+
+    // === viduq specific parameters ===
+    /** Movement amplitude (viduq only) */
+    movement_amplitude?: 'auto' | 'small' | 'medium' | 'large';
+    /** Enable audio-video generation (viduq only) */
+    audio?: boolean;
+    /** Voice ID for audio (viduq only) */
+    voice_id?: string;
+    /** Use recommended prompts (viduq only, costs 10 additional credits) */
+    is_rec?: boolean;
 }
 
 /**
@@ -259,6 +269,76 @@ const TERMINAL_STATUSES = ['completed', 'failed', 'Completed', 'Failed'];
  */
 function isVeoModel(model: string): boolean {
     return model.startsWith('veo-');
+}
+
+/**
+ * Check if a model is a viduq model
+ */
+function isViduqModel(model: string): boolean {
+    return model.startsWith('viduq');
+}
+
+/**
+ * Infer viduq input type from request params
+ */
+type ViduqInputType = 'text-to-video' | 'image-to-video';
+
+function inferViduqInputType(params: VideoGenerationRequest): ViduqInputType {
+    if (params.image_url || params.image || params.frames?.first) {
+        return 'image-to-video';
+    }
+    return 'text-to-video';
+}
+
+/**
+ * Build viduq fal-ai endpoint path
+ */
+function buildViduqEndpoint(model: string, inputType: ViduqInputType, baseUrl: string): string {
+    // viduq1 → q1, viduq2 → q2, viduq2-pro → q2/...pro, viduq2-turbo → q2/...turbo
+    let path: string;
+    if (model === 'viduq1') {
+        path = `/queue/fal-ai/vidu/q1/${inputType}`;
+    } else if (model === 'viduq2') {
+        path = `/queue/fal-ai/vidu/q2/${inputType}`;
+    } else if (model === 'viduq2-pro') {
+        path = `/queue/fal-ai/vidu/q2/${inputType}/pro`;
+    } else if (model === 'viduq2-turbo') {
+        path = `/queue/fal-ai/vidu/q2/${inputType}/turbo`;
+    } else {
+        // Forward-compat: try to infer from model name
+        const variant = model.replace('viduq', '');  // e.g., "3", "3-pro"
+        path = `/queue/fal-ai/vidu/q${variant}/${inputType}`;
+    }
+    return baseUrl.replace(/\/v1$/, '') + path;
+}
+
+/**
+ * Transform VideoGenerationRequest to viduq payload
+ */
+function transformToViduqPayload(params: VideoGenerationRequest): Record<string, unknown> {
+    const payload: Record<string, unknown> = {
+        prompt: params.prompt,
+    };
+
+    // Image input (image_url takes precedence)
+    if (params.image_url) {
+        payload.image_url = params.image_url;
+    } else if (params.image) {
+        payload.image_url = params.image; // viduq uses image_url for both
+    } else if (params.frames?.first) {
+        payload.image_url = params.frames.first.url || params.frames.first.base64;
+    }
+
+    // viduq specific fields
+    if (params.seed !== undefined) payload.seed = params.seed;
+    if (params.duration !== undefined) payload.duration = typeof params.duration === 'string' ? parseInt(params.duration, 10) : params.duration;
+    if (params.resolution) payload.resolution = params.resolution;
+    if (params.movement_amplitude) payload.movement_amplitude = params.movement_amplitude;
+    if (params.audio !== undefined) payload.audio = params.audio;
+    if (params.voice_id) payload.voice_id = params.voice_id;
+    if (params.is_rec !== undefined) payload.is_rec = params.is_rec;
+
+    return payload;
 }
 
 /**
@@ -499,55 +579,88 @@ function normalizeVeoResponse(raw: VeoRawResponse): VideoTaskResponse {
 // Video Class
 // ============================================================================
 
+/**
+ * Video task handle returned by create().
+ * Backward compatible: { id } still works, with optional statusUrl/responseUrl for fal-ai models.
+ */
+export interface VideoTaskHandle {
+    /** Task ID (universal) */
+    id: string;
+    /** fal-ai status query URL (viduq only) */
+    statusUrl?: string;
+    /** fal-ai result query URL (viduq only) */
+    responseUrl?: string;
+}
+
+/** Normalize fal-ai queue create response to VideoTaskHandle */
+function normalizeViduqCreateResponse(raw: Record<string, unknown>): VideoTaskHandle {
+    return {
+        id: raw.request_id as string,
+        statusUrl: raw.status_url as string | undefined,
+        responseUrl: raw.response_url as string | undefined,
+    };
+}
+
+/** Normalize fal-ai queue status response to VideoTaskResponse */
+function normalizeViduqStatusResponse(raw: Record<string, unknown>): VideoTaskResponse {
+    const result = raw.result as { video?: { url: string; content_type: string } } | undefined;
+    const normalized: VideoTaskResponse = {
+        id: raw.request_id as string,
+        status: (raw.status as string || '').toLowerCase(),
+    };
+    if (result?.video) {
+        normalized.task_result = {
+            videos: [{ url: result.video.url, mimeType: result.video.content_type }],
+        };
+    }
+    return normalized;
+}
+
 export class Video {
     private client: IQiniuClient;
+    /** Internal cache: id → statusUrl for viduq tasks created in this process */
+    private viduqStatusUrls = new Map<string, string>();
 
     constructor(client: IQiniuClient) {
         this.client = client;
     }
 
     /**
-     * Create a video generation task
-     * 
-     * Automatically routes to the correct API endpoint and transforms
-     * the request based on the model type.
-     * 
-     * @example
-     * ```typescript
-     * // Basic text-to-video
-     * const task = await client.video.create({
-     *   model: 'kling-video-o1',
-     *   prompt: 'A cat playing with a ball',
-     * });
-     * 
-     * // Kling first/last frame
-     * const task = await client.video.create({
-     *   model: 'kling-video-o1',
-     *   prompt: '视频连贯在一起',
-     *   frames: {
-     *     first: { url: 'https://example.com/start.jpg' },
-     *     last: { url: 'https://example.com/end.jpg' }
-     *   },
-     *   mode: 'pro'
-     * });
-     * 
-     * // Veo first/last frame
-     * const task = await client.video.create({
-     *   model: 'veo-2.0-generate-001',
-     *   prompt: 'A cat jumping from chair to table',
-     *   frames: {
-     *     first: { url: 'https://example.com/cat-chair.jpg' },
-     *     last: { url: 'https://example.com/cat-table.jpg' }
-     *   },
-     *   generate_audio: true
-     * });
-     * ```
+     * Create a video generation task.
+     * Returns a VideoTaskHandle. For viduq models, the handle includes
+     * statusUrl/responseUrl for fal-ai queue polling.
      */
-    async create(params: VideoGenerationRequest): Promise<{ id: string }> {
+    async create(params: VideoGenerationRequest): Promise<VideoTaskHandle> {
         const logger = this.client.getLogger();
 
+        if (isViduqModel(params.model)) {
+            // viduq: validate input for pro/turbo
+            const inputType = inferViduqInputType(params);
+            if ((params.model === 'viduq2-pro' || params.model === 'viduq2-turbo') && inputType === 'text-to-video') {
+                throw new Error(`${params.model} requires image input (image_url, image, or frames.first)`);
+            }
+
+            const absoluteUrl = buildViduqEndpoint(params.model, inputType, this.client.getBaseUrl());
+            const payload = transformToViduqPayload(params);
+
+            logger.debug('Video create (viduq adapter)', {
+                model: params.model,
+                endpoint: absoluteUrl,
+                inputType,
+            });
+
+            const raw = await this.client.postAbsolute<Record<string, unknown>>(absoluteUrl, payload);
+            const handle = normalizeViduqCreateResponse(raw);
+
+            // Cache statusUrl for string-based lookups
+            if (handle.statusUrl) {
+                this.viduqStatusUrls.set(handle.id, handle.statusUrl);
+            }
+
+            return handle;
+        }
+
         if (isVeoModel(params.model)) {
-            // Veo models use different endpoint and payload structure
             const veoPayload = transformToVeoPayload(params);
 
             logger.debug('Video create (Veo adapter)', {
@@ -574,17 +687,33 @@ export class Video {
     }
 
     /**
-     * Get video generation task status
-     * 
-     * Automatically routes to the correct API endpoint based on task ID prefix.
+     * Get video generation task status.
+     * Accepts a string ID (Kling/Veo) or a VideoTaskHandle (viduq).
      */
-    async get(id: string): Promise<VideoTaskResponse> {
+    async get(idOrHandle: string | VideoTaskHandle): Promise<VideoTaskResponse> {
         const logger = this.client.getLogger();
+
+        // If handle with statusUrl, use absolute URL
+        if (typeof idOrHandle !== 'string' && idOrHandle.statusUrl) {
+            logger.debug('Video get (viduq fal-ai endpoint)', { statusUrl: idOrHandle.statusUrl });
+            const raw = await this.client.getAbsolute<Record<string, unknown>>(idOrHandle.statusUrl);
+            return normalizeViduqStatusResponse(raw);
+        }
+
+        const id = typeof idOrHandle === 'string' ? idOrHandle : idOrHandle.id;
+
+        // Check internal cache for viduq tasks created in this process
+        const cachedStatusUrl = this.viduqStatusUrls.get(id);
+        if (cachedStatusUrl) {
+            logger.debug('Video get (viduq fal-ai via cache)', { id, statusUrl: cachedStatusUrl });
+            const raw = await this.client.getAbsolute<Record<string, unknown>>(cachedStatusUrl);
+            return normalizeViduqStatusResponse(raw);
+        }
+
         const taskType = inferTaskType(id);
 
         if (taskType === 'veo') {
             logger.debug('Video get (Veo endpoint)', { id, endpoint: `/videos/generations/${id}` });
-
             const raw = await this.client.get<VeoRawResponse>(`/videos/generations/${id}`);
             return normalizeVeoResponse(raw);
         }
@@ -605,9 +734,10 @@ export class Video {
     }
 
     /**
-     * Poll for completion with retry and cancellation support
+     * Poll for completion with retry and cancellation support.
+     * Accepts a string ID (Kling/Veo) or VideoTaskHandle (viduq).
      */
-    async waitForCompletion(id: string, options: WaitOptions = {}): Promise<VideoTaskResponse> {
+    async waitForCompletion(idOrHandle: string | VideoTaskHandle, options: WaitOptions = {}): Promise<VideoTaskResponse> {
         const {
             intervalMs = 3000,
             timeoutMs = 600000, // 10 minutes default for video
@@ -616,8 +746,9 @@ export class Video {
         } = options;
 
         const logger = this.client.getLogger();
+        const displayId = typeof idOrHandle === 'string' ? idOrHandle : idOrHandle.id;
 
-        const { result } = await pollUntilComplete<VideoTaskResponse>(id, {
+        const { result } = await pollUntilComplete<VideoTaskResponse>(displayId, {
             intervalMs,
             timeoutMs,
             maxRetries,
@@ -625,14 +756,14 @@ export class Video {
             logger,
             isTerminal: (r) => {
                 if (r.status === undefined || r.status === null) {
-                    logger.warn('Video task response missing status field', { id, result: r });
+                    logger.warn('Video task response missing status field', { id: displayId, result: r });
                     return false;
                 }
                 // Check both original and lowercase status for cross-model compatibility
                 return TERMINAL_STATUSES.includes(r.status) ||
                     TERMINAL_STATUSES.includes(r.status.toLowerCase());
             },
-            getStatus: (taskId) => this.get(taskId),
+            getStatus: (_taskId) => this.get(idOrHandle),
         });
 
         return result;
