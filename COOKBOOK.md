@@ -38,6 +38,7 @@ This cookbook provides focused, copy‑ready examples for common workflows.
 25. [Guardrails - Content Safety](#25-guardrails---content-safety)
 26. [Multi-Agent Crew - Orchestration](#26-multi-agent-crew---orchestration)
 27. [Cloud Sandbox - Code Execution (v0.37.0+)](#27-cloud-sandbox---code-execution-v0370)
+28. [MCP Tool Policy & Skill CLI (v0.38.0+)](#28-mcp-tool-policy--skill-cli-v0380)
 
 ---
 
@@ -1889,4 +1890,70 @@ const templates = await client.sandbox.templates.list();
 for (const tpl of templates) {
   console.log(`${tpl.name} (${tpl.templateId})`);
 }
+```
+
+---
+
+## 28. MCP Tool Policy & Skill CLI (v0.38.0+)
+
+### MCP Tool Policy — Per-Server Timeout & Output Control
+
+```ts
+import { NodeMCPHost } from '@bowenqt/qiniu-ai-sdk/node';
+
+const host = new NodeMCPHost({
+  servers: [
+    {
+      name: 'code-search',
+      transport: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-github'],
+      toolPolicy: {
+        timeout: 15000,               // SDK-native request timeout (ms)
+        resetTimeoutOnProgress: true,  // Reset timeout on progress notifications
+        maxTotalTimeout: 120000,       // Absolute ceiling (ms)
+        maxOutputLength: 500_000,      // Host-layer output truncation (chars)
+        requiresApproval: true,        // Require HITL approval per tool call
+      },
+    },
+    {
+      name: 'filesystem',
+      transport: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'],
+      // Uses defaults: timeout=30s, no approval
+    },
+  ],
+});
+
+await host.connect();
+const tools = host.getTools();
+console.log(tools.map(t => `${t.name} (approval: ${t.requiresApproval})`));
+```
+
+### Deny-First Tool Approval
+
+```ts
+import { generateText } from '@bowenqt/qiniu-ai-sdk';
+
+const result = await generateText({
+  client,
+  model: 'deepseek-v3',
+  prompt: 'Search the codebase for auth bugs',
+  tools: myTools,
+  approval: {
+    denySources: ['mcp:untrusted-server'],
+    autoApproveSources: ['mcp:filesystem'],
+    // deny > autoApprove > handler > fail-closed
+  },
+});
+```
+
+### Skill CLI
+
+```bash
+npx qiniu-ai skill list           # List installed skills
+npx qiniu-ai skill verify          # Verify integrity (path + hash)
+npx qiniu-ai skill verify --fix    # Reconstruct lockfile from local dirs
+npx qiniu-ai skill remove <name>   # Remove skill + lockfile entry
 ```

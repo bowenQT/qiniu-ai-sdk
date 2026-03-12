@@ -47,6 +47,10 @@ interface ServerConnection {
 
 /**
  * MCP Client manages connections to MCP servers.
+ *
+ * @deprecated Since v0.38.0. Use `NodeMCPHost` from `@bowenqt/qiniu-ai-sdk/node` instead.
+ * `NodeMCPHost` provides unified tool registry, dynamic tool refresh, and SDK-native timeouts.
+ * `MCPClient` will be removed in v0.40.0.
  */
 export class MCPClient {
     private readonly config: Required<MCPClientConfig>;

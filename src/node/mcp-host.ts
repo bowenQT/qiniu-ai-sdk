@@ -14,6 +14,7 @@ import type {
     MCPHostProvider,
     MCPResource,
     MCPPrompt,
+    MCPToolPolicy,
 } from '../lib/mcp-host-types';
 import type { RegisteredTool } from '../lib/tool-registry';
 import { SDK_VERSION } from '../lib/version';
@@ -35,6 +36,8 @@ export interface MCPServerConfig {
     url?: string;
     /** Environment vars for stdio */
     env?: Record<string, string>;
+    /** Per-server tool execution policy */
+    toolPolicy?: MCPToolPolicy;
 }
 
 export interface NodeMCPHostConfig {
@@ -234,25 +237,49 @@ export class NodeMCPHost implements MCPHostProvider {
 
         for (const [serverName, client] of this.clients) {
             try {
+                const policy = this.getPolicyForServer(serverName);
                 const result = await client.listTools();
                 for (const t of result.tools) {
                     allTools.push({
                         name: t.name,
                         description: t.description ?? '',
                         parameters: (t.inputSchema as any) ?? { type: 'object' as const, properties: {} },
-                        source: { type: 'mcp' as const, namespace: `mcp:${serverName}` },
+                        source: { type: 'mcp' as const, namespace: serverName },
+                        requiresApproval: policy.requiresApproval ?? false,
                         execute: async (args: Record<string, unknown>, _context?: any) => {
-                            const callResult = await client.callTool({
-                                name: t.name,
-                                arguments: args as Record<string, unknown>,
-                            });
+                            const maxLen = policy.maxOutputLength ?? 1_048_576;
+
+                            // SDK-native timeout/cancel via RequestOptions
+                            const requestOptions: Record<string, unknown> = {
+                                timeout: policy.timeout ?? 30000,
+                                resetTimeoutOnProgress: policy.resetTimeoutOnProgress ?? false,
+                            };
+                            if (policy.maxTotalTimeout != null) {
+                                requestOptions.maxTotalTimeout = policy.maxTotalTimeout;
+                            }
+
+                            const callResult = await client.callTool(
+                                { name: t.name, arguments: args as Record<string, unknown> },
+                                undefined,
+                                requestOptions as any,
+                            );
+
                             // Extract text from content array
+                            let output: string;
                             if (Array.isArray(callResult.content)) {
-                                return callResult.content
+                                output = callResult.content
                                     .map((c: any) => c.text ?? JSON.stringify(c))
                                     .join('\n');
+                            } else {
+                                output = JSON.stringify(callResult.content);
                             }
-                            return JSON.stringify(callResult.content);
+
+                            // Host-layer output truncation
+                            if (output.length > maxLen) {
+                                output = output.slice(0, maxLen) + `\n[TRUNCATED: exceeded ${maxLen} chars]`;
+                            }
+
+                            return output;
                         },
                     });
                 }
@@ -267,5 +294,13 @@ export class NodeMCPHost implements MCPHostProvider {
         for (const cb of this.changeCallbacks) {
             cb(allTools);
         }
+    }
+
+    /**
+     * Get tool policy for a given server name.
+     */
+    private getPolicyForServer(serverName: string): MCPToolPolicy {
+        const serverConfig = this.config.servers.find(s => s.name === serverName);
+        return serverConfig?.toolPolicy ?? {};
     }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@bowenqt/qiniu-ai-sdk",
-  "version": "0.37.0",
+  "version": "0.38.0",
   "description": "TypeScript SDK for Qiniu Cloud AI Token API - Chat, Image, Video generation and more",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -52,7 +52,8 @@
     }
   },
   "bin": {
-    "qiniu-mcp-server": "./bin/qiniu-mcp-server.mjs"
+    "qiniu-mcp-server": "./bin/qiniu-mcp-server.mjs",
+    "qiniu-ai": "./bin/qiniu-ai.mjs"
   },
   "files": [
     "dist",

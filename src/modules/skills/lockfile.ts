@@ -18,6 +18,8 @@ export interface SkillLockEntry {
     version: string;
     manifestHash: string;
     files: Record<string, { sha256: string; size: number }>;
+    /** Install-time policy: were action extensions permitted? */
+    allowActions: boolean;
     installedAt: string;
 }
 
@@ -33,6 +35,7 @@ export function createLockEntry(data: {
     version: string;
     manifestHash: string;
     files: Record<string, { sha256: string; size: number }>;
+    allowActions: boolean;
 }): SkillLockEntry {
     return {
         ...data,

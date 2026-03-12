@@ -101,7 +101,7 @@ describe('NodeMCPHost', () => {
 
         expect(tools[0].name).toBe('search');
         expect(tools[0].description).toBe('Search the web');
-        expect(tools[0].source).toEqual({ type: 'mcp', namespace: 'mcp:web' });
+        expect(tools[0].source).toEqual({ type: 'mcp', namespace: 'web' });
         expect(tools[0].execute).toBeTypeOf('function');
         expect(tools[0].parameters).toHaveProperty('type', 'object');
     });

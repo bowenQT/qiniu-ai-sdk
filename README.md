@@ -35,11 +35,13 @@
 ### Advanced Capabilities
 - 📋 **Skills Injection** — Markdown-based agent knowledge (Claude Skills compatible)
 - 🏪 **Skill Marketplace** — Remote skill loading with SHA256 integrity verification (v0.32.0+)
-- 🔗 **MCP Client** — Model Context Protocol with stdio + HTTP + OAuth 2.0 support
+- 🔐 **Security Hardening** — Atomic remote install, cumulative size limits, deny-first tool policy (v0.38.0+)
+- ⚡ **MCP Tool Policy** — SDK-native timeout, progress reset, output truncation per server (v0.38.0+)
+- 🔗 **MCP Host** — `NodeMCPHost` with stdio + HTTP transport + per-server tool policies
 - 🖥️ **MCP Server** — Built-in Qiniu MCP server for OCR/Censor/Vframe tools
 - 💾 **Checkpointer** — State persistence (Memory, Redis, PostgreSQL, Kodo)
 - 🧠 **Memory Manager** — Short-term + long-term memory with LLM summarization
-- ✅ **Tool Approval (HITL)** — Human-in-the-loop for sensitive operations
+- ✅ **Tool Approval (HITL)** — Human-in-the-loop with deny-first source policy (v0.38.0+)
 - ⏸️ **Interrupt/Resume** — Resumable execution with checkpoint-based restore
 - 📊 **Structured Telemetry** — MetricsCollector with Prometheus format export (v0.32.0+)
 - 📋 **Log Export** — Request log export with filtering and pagination (v0.36.0+)
@@ -272,25 +274,31 @@ const handler = createMetricsHandler(metrics);
 // GET /metrics → Prometheus format output
 ```
 
-### MCP Client (stdio + HTTP)
+### MCP Host with Tool Policy (v0.38.0+)
 
 ```typescript
-import { MCPClient } from '@bowenqt/qiniu-ai-sdk';
+import { NodeMCPHost } from '@bowenqt/qiniu-ai-sdk/node';
 
-const mcpClient = new MCPClient({
+const host = new NodeMCPHost({
   servers: [
     {
       name: 'github',
       transport: 'stdio',
       command: 'npx',
       args: ['-y', '@modelcontextprotocol/server-github'],
-      token: process.env.GITHUB_TOKEN,
+      toolPolicy: {
+        timeout: 15000,              // SDK-native request timeout
+        resetTimeoutOnProgress: true, // Reset on progress notifications
+        maxTotalTimeout: 120000,      // Absolute ceiling
+        maxOutputLength: 500_000,     // Output truncation
+        requiresApproval: false,      // HITL per server
+      },
     },
   ],
 });
 
-await mcpClient.connect();
-const tools = mcpClient.getAllTools();
+await host.connect();
+const tools = host.getTools();
 ```
 
 ### Checkpointer (State Persistence)
@@ -410,12 +418,21 @@ await instance.kill();
 
 ---
 
-## 🛠️ CLI: MCP Server
+## 🛠️ CLI Tools
 
-Run the built-in Qiniu MCP Server:
+### MCP Server
 
 ```bash
 npx qiniu-mcp-server
+```
+
+### Skill Manager (v0.38.0+)
+
+```bash
+npx qiniu-ai skill list          # List installed skills
+npx qiniu-ai skill verify         # Verify integrity (path + hash)
+npx qiniu-ai skill verify --fix   # Reconstruct lockfile from local dirs
+npx qiniu-ai skill remove <name>  # Remove skill + lockfile entry
 ```
 
 **Environment variables:**

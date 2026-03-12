@@ -111,6 +111,7 @@ describe('Skill lockfile (skill-lock.json)', () => {
                 'SKILL.md': { sha256: 'aaa111', size: 100 },
                 'scripts/run.sh': { sha256: 'bbb222', size: 200 },
             },
+            allowActions: false,
         });
 
         expect(entry.name).toBe('my-skill');
@@ -131,6 +132,7 @@ describe('Skill lockfile (skill-lock.json)', () => {
             version: '1.0.0',
             manifestHash: 'hash-a',
             files: { 'SKILL.md': { sha256: 'aaa', size: 10 } },
+            allowActions: false,
         });
 
         const entry2 = createLockEntry({
@@ -138,6 +140,7 @@ describe('Skill lockfile (skill-lock.json)', () => {
             version: '2.0.0',
             manifestHash: 'hash-b',
             files: { 'SKILL.md': { sha256: 'bbb', size: 20 } },
+            allowActions: false,
         });
 
         writeLockfile(lockPath, [entry1, entry2]);

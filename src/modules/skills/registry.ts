@@ -11,6 +11,8 @@
  */
 
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 import { RecoverableError } from '../../lib/errors';
 import { parseManifest, parseManifestStrict, checkCompatibility, type SkillManifest } from './manifest';
 import { SkillLoader, SkillNotFoundError } from './loader';
@@ -39,6 +41,8 @@ export interface SkillRegistryConfig {
     };
     /** Current SDK version for compatibility checks */
     sdkVersion?: string;
+    /** Custom fetch function for testing (default: global fetch) */
+    fetcher?: typeof fetch;
 }
 
 /** Remote skill source */
@@ -49,14 +53,20 @@ export interface RemoteSkillSource {
     integrityHash?: string;
     /** Authorization header for private repos */
     authorization?: string;
+    /** Base URL for file downloads (default: derived from manifest URL) */
+    baseUrl?: string;
 }
 
 /** Registered skill entry */
 export interface RegisteredSkill {
     manifest: SkillManifest;
     source: 'local' | 'remote';
-    /** For remote skills */
+    /** For remote skills: manifest URL */
     remoteUrl?: string;
+    /** Persisted base URL for file downloads */
+    remoteBaseUrl?: string;
+    /** Persisted authorization for private repos */
+    remoteAuthorization?: string;
     /** Loaded skill content */
     skill?: Skill;
     /** Last fetch timestamp */
@@ -87,7 +97,16 @@ const DEFAULT_CONFIG: Required<SkillRegistryConfig> = {
     verifyIntegrity: true,
     cache: { enabled: true, ttlSeconds: 3600 },
     sdkVersion: '0.32.0',
+    fetcher: undefined as unknown as typeof fetch,
 };
+
+/**
+ * Derive base URL for file downloads from manifest URL.
+ * E.g., 'https://host/skills/my-skill/skill.json' → 'https://host/skills/my-skill/'
+ */
+function deriveBaseUrl(manifestUrl: string): string {
+    return new URL('./', manifestUrl).href;
+}
 
 // ============================================================================
 // SkillRegistry Class
@@ -216,7 +235,7 @@ export class SkillRegistry {
         }
 
         // Fetch manifest
-        const content = await this.fetchWithTimeout(source.url, source.authorization);
+        const content = await this.fetchTextWithTimeout(source.url, source.authorization);
 
         // Verify integrity
         if (this.config.verifyIntegrity && source.integrityHash) {
@@ -247,6 +266,8 @@ export class SkillRegistry {
             manifest,
             source: 'remote',
             remoteUrl: source.url,
+            remoteBaseUrl: source.baseUrl ?? deriveBaseUrl(source.url),
+            remoteAuthorization: source.authorization,
             fetchedAt: new Date(),
             integrityHash: source.integrityHash,
         });
@@ -279,6 +300,157 @@ export class SkillRegistry {
      */
     unregister(name: string): boolean {
         return this.skills.delete(name);
+    }
+
+    /**
+     * Install a previously registered remote skill.
+     *
+     * Downloads all files listed in the manifest, validates via SkillInstaller,
+     * and atomically swaps into the target directory.
+     *
+     * @param name - Skill name (must be previously registered via `registerRemote`)
+     * @param opts - Installation options
+     */
+    async installRemote(
+        name: string,
+        opts?: {
+            installDir?: string;
+            allowActions?: boolean;
+            maxPackageSize?: number;
+        },
+    ): Promise<void> {
+        const skill = this.skills.get(name);
+        if (!skill || skill.source !== 'remote') {
+            throw new RecoverableError(
+                `Remote skill "${name}" not found. Register it first with registerRemote()`,
+                'skill-registry',
+                'Call registerRemote() first',
+            );
+        }
+
+        // Guard: explicit install root
+        const installRoot = opts?.installDir ?? this.config.skillsDir;
+        if (!installRoot) {
+            throw new RecoverableError(
+                'No install directory configured. Set skillsDir or pass installDir option.',
+                'skill-registry',
+                'Provide an explicit installDir or configure skillsDir',
+            );
+        }
+
+        const allowActions = opts?.allowActions ?? false;
+        const maxPackageSize = opts?.maxPackageSize ?? 50 * 1024 * 1024; // 50MB default
+        const targetDir = path.join(installRoot, name);
+        const tempDir = path.join(installRoot, `${name}-install-${Date.now()}`);
+        const backupDir = path.join(installRoot, `${name}-backup-${Date.now()}`);
+
+        // Base URL for downloading files
+        const baseUrl = skill.remoteBaseUrl ?? deriveBaseUrl(skill.remoteUrl!);
+        const authorization = skill.remoteAuthorization;
+
+        try {
+            // Step 1: Create temp dir and download files
+            fs.mkdirSync(tempDir, { recursive: true });
+
+            let cumulativeBytes = 0;
+            const manifestFiles = skill.manifest.files ?? {};
+
+            for (const [filePath, _expected] of Object.entries(manifestFiles)) {
+                const fileUrl = new URL(filePath, baseUrl).href;
+                const content = await this.fetchBinaryWithTimeout(fileUrl, authorization);
+
+                // Cumulative byte limit check (actual downloaded bytes, not manifest-declared)
+                cumulativeBytes += content.length;
+                if (cumulativeBytes > maxPackageSize) {
+                    throw new RecoverableError(
+                        `Package size limit exceeded (${cumulativeBytes} > ${maxPackageSize} bytes)`,
+                        'skill-registry',
+                        'Increase maxPackageSize or use a smaller skill',
+                    );
+                }
+
+                const destPath = path.join(tempDir, filePath);
+                const destDir = path.dirname(destPath);
+                fs.mkdirSync(destDir, { recursive: true });
+                fs.writeFileSync(destPath, content);
+            }
+
+            // Step 2: Validate via SkillInstaller
+            const { SkillInstaller } = await import('./installer');
+            const installer = new SkillInstaller({ allowActions });
+            const validation = await installer.validate(tempDir, skill.manifest);
+
+            if (!validation.valid) {
+                throw new RecoverableError(
+                    `Skill validation failed: ${validation.errors.join('; ')}`,
+                    'skill-registry',
+                    'Check manifest integrity and file contents',
+                );
+            }
+
+            // Step 3: Atomic backup-swap (target→backup → temp→target → delete backup)
+            const targetExists = fs.existsSync(targetDir);
+            if (targetExists) {
+                fs.renameSync(targetDir, backupDir);
+            }
+
+            try {
+                fs.renameSync(tempDir, targetDir);
+            } catch (renameError) {
+                // Restore backup if rename fails
+                if (targetExists) {
+                    try {
+                        fs.renameSync(backupDir, targetDir);
+                    } catch {
+                        // Critical: both old and new are lost
+                    }
+                }
+                throw renameError;
+            }
+
+            // Clean up backup on success
+            if (targetExists) {
+                try {
+                    fs.rmSync(backupDir, { recursive: true, force: true });
+                } catch {
+                    // Non-fatal: backup cleanup failed
+                }
+            }
+
+            // Step 4: Write lockfile (degraded state on failure — no rollback)
+            try {
+                const lockPath = path.join(installRoot, 'skill-lock.json');
+                const { createLockEntry, writeLockfile, readLockfile } = await import('./lockfile');
+
+                const existing = readLockfile(lockPath);
+                const filtered = existing.filter(e => e.name !== name);
+                const entry = createLockEntry({
+                    name,
+                    version: skill.manifest.version,
+                    manifestHash: (skill.integrityHash ?? '').replace('sha256:', ''),
+                    files: manifestFiles,
+                    allowActions,
+                });
+                filtered.push(entry);
+                writeLockfile(lockPath, filtered);
+            } catch (lockError) {
+                console.warn(
+                    `[skill-registry] Lockfile write failed for "${name}". ` +
+                    `Installation succeeded but lockfile may be inconsistent. ` +
+                    `Run 'verify --fix' to reconstruct.`,
+                );
+            }
+        } catch (error) {
+            // Clean up temp dir on any failure
+            try {
+                if (fs.existsSync(tempDir)) {
+                    fs.rmSync(tempDir, { recursive: true, force: true });
+                }
+            } catch {
+                // Ignore cleanup errors
+            }
+            throw error;
+        }
     }
 
     // ========================================================================
@@ -398,7 +570,7 @@ export class SkillRegistry {
         });
     }
 
-    private async fetchWithTimeout(url: string, authorization?: string): Promise<string> {
+    private async fetchBinaryWithTimeout(url: string, authorization?: string): Promise<Buffer> {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), this.config.remoteTimeout);
 
@@ -408,7 +580,8 @@ export class SkillRegistry {
                 headers['Authorization'] = authorization;
             }
 
-            const response = await fetch(url, {
+            const fetcher = this.config.fetcher ?? globalThis.fetch;
+            const response = await fetcher(url, {
                 signal: controller.signal,
                 headers,
             });
@@ -421,7 +594,14 @@ export class SkillRegistry {
                 );
             }
 
-            return await response.text();
+            // Prefer arrayBuffer for binary-safe path; fall back to text() for lightweight mocks
+            if (typeof response.arrayBuffer === 'function') {
+                const arrayBuf = await response.arrayBuffer();
+                return Buffer.from(arrayBuf);
+            }
+            // Fallback: text-based response (e.g., minimal fetch stubs)
+            const text = await response.text();
+            return Buffer.from(text, 'utf-8');
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
                 throw new RecoverableError(
@@ -434,6 +614,11 @@ export class SkillRegistry {
         } finally {
             clearTimeout(timeout);
         }
+    }
+
+    private async fetchTextWithTimeout(url: string, authorization?: string): Promise<string> {
+        const buf = await this.fetchBinaryWithTimeout(url, authorization);
+        return buf.toString('utf-8');
     }
 
     private computeHash(content: string): string {

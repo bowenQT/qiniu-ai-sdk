@@ -35,11 +35,13 @@
 ### 高级能力
 - 📋 **技能注入** — Markdown 格式的 Agent 知识库（兼容 Claude Skills）
 - 🏪 **Skill 市场** — 远程技能加载 + SHA256 完整性验证 (v0.32.0+)
-- 🔗 **MCP 客户端** — 支持 stdio + HTTP + OAuth 2.0 传输协议
+- 🔐 **安全加固** — 原子远程安装、累计大小限制、deny-first 工具策略 (v0.38.0+)
+- ⚡ **MCP 工具策略** — SDK 原生 timeout、进度重置、输出截断，按服务器配置 (v0.38.0+)
+- 🔗 **MCP Host** — `NodeMCPHost` 支持 stdio + HTTP 传输 + 按服务器工具策略
 - 🖥️ **MCP 服务端** — 内置七牛 MCP Server（OCR/审核/抽帧）
 - 💾 **Checkpointer** — 状态持久化（Memory、Redis、PostgreSQL、Kodo）
 - 🧠 **Memory Manager** — 短期 + 长期记忆，LLM 自动摘要
-- ✅ **工具审批 (HITL)** — 敏感操作人工确认
+- ✅ **工具审批 (HITL)** — 敏感操作人工确认 + deny-first 来源策略 (v0.38.0+)
 - ⏸️ **中断/恢复** — 基于检查点的可恢复执行
 - 📊 **结构化指标** — MetricsCollector + Prometheus 格式导出 (v0.32.0+)
 - 📋 **日志导出** — 请求日志导出，支持筛选和分页 (v0.36.0+)

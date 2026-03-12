@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.38.0] - 2026-03-12
+
+### ✨ New Features
+
+**Security Hardening (Phase 3)**
+- `installRemote()` — End-to-end remote skill installation with:
+  - Atomic backup-swap: `target→backup → temp→target → delete backup` (rollback on failure)
+  - Cumulative byte limit enforcement (actual downloaded bytes, not manifest-declared)
+  - Binary-safe download via `fetchBinaryWithTimeout()` (handles non-text payloads)
+  - Lockfile graceful degradation: directory swap succeeds even if lockfile write fails
+  - Empty `skillsDir` guard: explicit error when no install root is configured
+- `MCPToolPolicy` — SDK-native timeout and output controls for MCP tools:
+  - `timeout` → Passed to SDK `RequestOptions.timeout` (default: 30000ms)
+  - `resetTimeoutOnProgress` → SDK resets timeout on progress notifications
+  - `maxTotalTimeout` → Absolute ceiling regardless of progress resets
+  - `maxOutputLength` → Host-layer output truncation (default: 1MB)
+  - `requiresApproval` → Per-server HITL requirement
+- `denySources` — Deny-first source policy for tool approval (`deny > autoApprove > handler > fail-closed`)
+- `SkillManifest.signature` — Type reservation for future trust chain verification
+
+**CLI / Ecosystem (Phase 4)**
+- `qiniu-ai` CLI — New bin for skill management:
+  - `skill list` — List installed skills from lockfile (with MISSING/directory status)
+  - `skill verify` — Full validation: path traversal + extension whitelist + SHA256 hash
+  - `skill verify --fix` — Reconstruct lockfile from local directories (no remote access)
+  - `skill remove` — Remove skill directory + lockfile entry (handles untracked skills)
+- `RegistryProtocolStub` — Interface + stub for future registry protocol v2
+
+### 🔧 Improvements
+
+- **ToolSource.namespace**: Fixed double-prefix bug (`mcp:mcp:server` → `mcp:server`)
+- **SkillLoader**: Unified `isWithinRoot()` delegation to `SkillValidator` (removed duplicate)
+- **SkillRegistry**: Added `fetcher` DI, `remoteBaseUrl` and `remoteAuthorization` persistence
+- **SkillLockEntry**: Added `allowActions` field for action permission tracking
+
+### ⚠️ Deprecation
+
+- **`MCPClient`**: Deprecated in favor of `NodeMCPHost`. Will be removed in v0.40.0.
+
+### 📦 Exports
+
+```typescript
+// New CLI bin
+"qiniu-ai": "./bin/qiniu-ai.mjs"
+
+// New types
+export type { MCPToolPolicy } from './lib/mcp-host-types';
+export type { SkillRegistryProtocol, RegistrySkillEntry } from './modules/skills/registry-protocol';
+export { RegistryProtocolStub } from './modules/skills/registry-protocol';
+```
+
+---
+
 ## [0.37.0] - 2026-03-11
 
 ### ✨ New Features

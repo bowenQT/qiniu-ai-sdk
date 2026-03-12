@@ -50,6 +50,12 @@ export interface ApprovalConfig {
      * Supports 'type' (e.g., 'builtin') or 'type:namespace' (e.g., 'mcp:github')
      */
     autoApproveSources?: string[];
+    /**
+     * Sources to unconditionally deny. Takes priority over autoApproveSources.
+     * Supports 'type' (e.g., 'mcp') or 'type:namespace' (e.g., 'mcp:evil-server')
+     * Priority: deny > autoApprove > handler > fail-closed
+     */
+    denySources?: string[];
 }
 
 /** Tool with optional approval settings */
@@ -115,6 +121,20 @@ const REJECTION_MESSAGE = '[Approval Rejected] Tool execution was denied by user
  * Check if a tool source matches an auto-approve pattern.
  */
 function isSourceAutoApproved(source: ToolSource, patterns: string[]): boolean {
+    return isSourceMatchingPatterns(source, patterns);
+}
+
+/**
+ * Check if a tool source matches a deny pattern.
+ */
+function isSourceDenied(source: ToolSource, patterns: string[]): boolean {
+    return isSourceMatchingPatterns(source, patterns);
+}
+
+/**
+ * Shared pattern matching logic for source-based policies.
+ */
+function isSourceMatchingPatterns(source: ToolSource, patterns: string[]): boolean {
     for (const pattern of patterns) {
         // Match full source (e.g., 'mcp:github')
         if (pattern === `${source.type}:${source.namespace}`) {
@@ -159,6 +179,16 @@ export async function checkApproval(
     // Tool doesn't require approval
     if (!tool.requiresApproval) {
         return { approved: true };
+    }
+
+    // Check deny sources FIRST (deny > autoApprove > handler > fail-closed)
+    if (config?.denySources && tool.source) {
+        if (isSourceDenied(tool.source, config.denySources)) {
+            return {
+                approved: false,
+                rejectionMessage: `[Denied] Tool source "${tool.source.type}:${tool.source.namespace}" is in the deny list`,
+            };
+        }
     }
 
     // Check auto-approve sources

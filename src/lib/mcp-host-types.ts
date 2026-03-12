@@ -29,6 +29,34 @@ export interface MCPPrompt {
 }
 
 /**
+ * Per-server tool execution policy.
+ * timeout/resetTimeoutOnProgress/maxTotalTimeout map directly to SDK RequestOptions.
+ */
+export interface MCPToolPolicy {
+    /**
+     * Request-level timeout (ms). Passed to SDK RequestOptions.timeout.
+     * SDK default: 60000. SDK host default: 30000.
+     */
+    timeout?: number;
+    /**
+     * If true, reset timeout on progress notifications (for long-running tools).
+     * Passed to SDK RequestOptions.resetTimeoutOnProgress.
+     * Default: false.
+     */
+    resetTimeoutOnProgress?: boolean;
+    /**
+     * Absolute maximum time (ms), regardless of progress resets.
+     * Passed to SDK RequestOptions.maxTotalTimeout.
+     * Default: undefined (no hard cap).
+     */
+    maxTotalTimeout?: number;
+    /** Mark MCP tools from this server as requiring approval. Default: false */
+    requiresApproval?: boolean;
+    /** Max output length in characters. Default: 1_048_576 */
+    maxOutputLength?: number;
+}
+
+/**
  * Abstract host provider interface (browser-safe).
  * Implemented by NodeMCPHost in the node entry.
  */

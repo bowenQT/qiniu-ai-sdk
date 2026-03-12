@@ -58,6 +58,18 @@ export interface SkillManifest {
     repository?: string;
     /** License identifier (SPDX) */
     license?: string;
+    /**
+     * Reserved: Package signature for future trust chain verification.
+     * Not currently validated — will be enforced in a future SDK version.
+     */
+    signature?: {
+        /** Signature algorithm (e.g., 'ed25519') */
+        algorithm: string;
+        /** Base64-encoded signature of the canonical manifest content */
+        value: string;
+        /** Public key identifier or URL for verification */
+        publicKey: string;
+    };
     /** V2: File-level integrity digests (path → {sha256, size}) */
     files?: Record<string, { sha256: string; size: number }>;
     /** V2: Action scripts */
@@ -251,6 +263,9 @@ export function parseManifest(content: string): ManifestParseResult {
     }
     if (obj.runtime && typeof obj.runtime === 'object') {
         manifest.runtime = obj.runtime as SkillRuntime;
+    }
+    if (obj.signature && typeof obj.signature === 'object') {
+        manifest.signature = obj.signature as SkillManifest['signature'];
     }
 
     return { valid: true, manifest, errors: [] };

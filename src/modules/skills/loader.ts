@@ -10,6 +10,7 @@ import * as path from 'path';
 import type { Skill, SkillLoaderConfig, SkillReference } from './types';
 import { DEFAULT_SKILL_CONFIG } from './types';
 import { defaultContentEstimator } from '../../lib/token-estimator';
+import { SkillValidator } from './validator';
 
 /** Security error for path/file violations */
 export class SkillSecurityError extends Error {
@@ -33,6 +34,7 @@ export class SkillNotFoundError extends Error {
 export class SkillLoader {
     private readonly config: Required<SkillLoaderConfig>;
     private readonly resolvedSkillsDir: string;
+    private readonly validator = new SkillValidator();
 
     constructor(config: SkillLoaderConfig) {
         this.config = {
@@ -67,7 +69,7 @@ export class SkillLoader {
 
         // Validate skill directory is within root using safe boundary check
         const resolvedSkillDir = fs.realpathSync(skillDir);
-        if (!this.isWithinRoot(resolvedSkillDir, this.resolvedSkillsDir)) {
+        if (!this.validator.isWithinRoot(resolvedSkillDir, this.resolvedSkillsDir)) {
             throw new SkillSecurityError('Skill directory escape detected', skillName);
         }
 
@@ -136,7 +138,7 @@ export class SkillLoader {
         }
 
         // Root check using safe boundary
-        if (!this.isWithinRoot(resolvedPath, rootDir)) {
+        if (!this.validator.isWithinRoot(resolvedPath, rootDir)) {
             throw new SkillSecurityError('Path escape detected', filePath);
         }
 
@@ -218,24 +220,5 @@ export class SkillLoader {
      */
     private estimateTokens(text: string): number {
         return defaultContentEstimator(text);
-    }
-
-    /**
-     * Safe boundary check for path containment.
-     * Uses path.relative to avoid prefix bypass attacks.
-     */
-    private isWithinRoot(targetPath: string, rootDir: string): boolean {
-        // Ensure both paths are normalized and absolute
-        const normalizedRoot = path.resolve(rootDir) + path.sep;
-        const normalizedTarget = path.resolve(targetPath);
-
-        // Check if target starts with root + separator
-        // This prevents /root-malicious from matching /root
-        if (normalizedTarget === path.resolve(rootDir)) {
-            return true;
-        }
-
-        // Use startsWith with separator boundary
-        return normalizedTarget.startsWith(normalizedRoot);
     }
 }
