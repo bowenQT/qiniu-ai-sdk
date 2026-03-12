@@ -58,6 +58,34 @@ export interface SkillManifest {
     repository?: string;
     /** License identifier (SPDX) */
     license?: string;
+    /** V2: File-level integrity digests (path → {sha256, size}) */
+    files?: Record<string, { sha256: string; size: number }>;
+    /** V2: Action scripts */
+    actions?: SkillAction[];
+    /** V2: Runtime configuration */
+    runtime?: SkillRuntime;
+}
+
+/** Skill action declaration */
+export interface SkillAction {
+    name: string;
+    script: string;
+    description?: string;
+}
+
+/** Skill runtime configuration */
+export interface SkillRuntime {
+    engine: 'sandbox' | 'node';
+    entryCommand?: string;
+}
+
+/**
+ * Check if a manifest is v2 (has file-level integrity digests).
+ */
+export function isManifestV2(manifest: unknown): boolean {
+    if (typeof manifest !== 'object' || manifest === null) return false;
+    const m = manifest as Record<string, unknown>;
+    return typeof m.files === 'object' && m.files !== null && !Array.isArray(m.files);
 }
 
 /** Parse result */
@@ -214,6 +242,15 @@ export function parseManifest(content: string): ManifestParseResult {
     }
     if (typeof obj.license === 'string') {
         manifest.license = obj.license;
+    }
+    if (obj.files && typeof obj.files === 'object' && !Array.isArray(obj.files)) {
+        manifest.files = obj.files as SkillManifest['files'];
+    }
+    if (Array.isArray(obj.actions)) {
+        manifest.actions = obj.actions as SkillAction[];
+    }
+    if (obj.runtime && typeof obj.runtime === 'object') {
+        manifest.runtime = obj.runtime as SkillRuntime;
     }
 
     return { valid: true, manifest, errors: [] };

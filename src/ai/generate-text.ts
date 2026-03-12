@@ -6,6 +6,7 @@ import type { Checkpointer } from './graph/checkpointer';
 import type { ApprovalConfig, ApprovalHandler, ApprovalResult } from './tool-approval';
 import { checkApproval } from './tool-approval';
 import { normalizeContent } from '../lib/content-converter';
+import { normalizeToJsonSchema } from '../lib/tool-schema';
 import type { MemoryManager } from './memory';
 import type { Guardrail } from './guardrails';
 import { GuardrailChain, GuardrailBlockedError } from './guardrails';
@@ -67,6 +68,19 @@ export interface GenerateTextOptions {
     toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
     /** Approval configuration for tool execution */
     approvalConfig?: ApprovalConfig;
+    /**
+     * Tool argument validation mode.
+     * - 'off' (default): No validation — raw API behavior, caller responsible for correctness
+     * - 'strict': Reject tool calls whose arguments fail JSON Schema validation
+     * - 'lenient': Warn on validation failure but still execute
+     *
+     * Note: `generateTextWithGraph()` / `createAgent()` have built-in validation.
+     * This option is for direct `generateText()` callers who want explicit control.
+     *
+     * @default 'off'
+     * @since 0.37.0
+     */
+    toolValidation?: 'off' | 'strict' | 'lenient';
 }
 
 export interface GenerateTextResult {
@@ -255,19 +269,10 @@ function buildChatRequest(params: {
 }
 
 /**
- * Convert tool parameters, auto-detecting and converting Zod schemas
+ * Convert tool parameters, delegating to shared normalizeToJsonSchema.
  */
 function convertToolParameters(parameters: unknown): Record<string, unknown> {
-    if (!parameters) {
-        return {};
-    }
-
-    // Enhanced duck-typing for Zod schema detection
-    if (isZodSchema(parameters)) {
-        return zodToJsonSchemaSimple(parameters);
-    }
-
-    return parameters as Record<string, unknown>;
+    return normalizeToJsonSchema(parameters);
 }
 
 /**
@@ -545,6 +550,8 @@ export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
     guardrails?: Guardrail[];
     /** Agent ID for guardrail attribution (defaults to threadId or 'default') */
     agentId?: string;
+    /** Skill reference injection mode (default: 'none') */
+    skillReferenceMode?: 'none' | 'summary' | 'full';
 }
 
 /**
@@ -770,6 +777,7 @@ export async function generateTextWithGraph(
         approvalConfig: options.approvalConfig,
         memory,
         threadId,
+        skillReferenceMode: options.skillReferenceMode,
     });
 
     // Execute graph

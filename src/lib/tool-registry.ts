@@ -221,6 +221,21 @@ export class ToolRegistry {
     }
 
     /**
+     * Remove all tools from a specific source type.
+     * Used for selective cleanup (e.g., remove all MCP tools without affecting builtin meta-tools).
+     */
+    removeBySourceType(sourceType: ToolSourceType): number {
+        let removed = 0;
+        for (const [name, tool] of this.tools) {
+            if (tool.source.type === sourceType) {
+                this.tools.delete(name);
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    /**
      * Clear all registered tools.
      */
     clear(): void {

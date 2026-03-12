@@ -182,6 +182,20 @@ export class SkillRegistry {
      * @param source - Remote skill source with URL and optional integrity hash
      * @throws RecoverableError if remote loading is disabled or verification fails
      */
+    /**
+     * Register a remote skill by fetching and verifying its manifest.
+     *
+     * **Semantic: Discovery/Registration ONLY.**
+     * This method fetches the manifest, verifies integrity, checks compatibility,
+     * and stores metadata. It does NOT download package files, validate them
+     * through SkillInstaller, or write a lockfile.
+     *
+     * For full installation (download + validate + lockfile), use the future
+     * `installRemote()` API (Phase 3).
+     *
+     * @see SkillInstaller — for package-level validation
+     * @see SkillLockfile — for lockfile management
+     */
     async registerRemote(source: RemoteSkillSource): Promise<void> {
         if (!this.config.allowRemote) {
             throw new RecoverableError(

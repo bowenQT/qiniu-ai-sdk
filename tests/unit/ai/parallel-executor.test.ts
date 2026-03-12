@@ -10,10 +10,10 @@ import {
 import type { AgentState, InternalMessage } from '../../../src/ai/internal-types';
 import { FatalToolError } from '../../../src/lib/errors';
 
-// Mock minimal AgentState
+// Mock minimal AgentState (Dual Histories Pattern)
 function createMockState(overrides?: Partial<AgentState>): AgentState {
-    return {
-        messages: [],
+    const base = {
+        internalMessages: [] as any[],
         skills: [],
         tools: new Map(),
         stepCount: 0,
@@ -24,6 +24,14 @@ function createMockState(overrides?: Partial<AgentState>): AgentState {
         finishReason: null,
         ...overrides,
     };
+    // Ensure internalMessages is set from overrides.messages if provided
+    if (overrides?.messages && !overrides?.internalMessages) {
+        base.internalMessages = overrides.messages as any[];
+    }
+    return {
+        ...base,
+        get messages() { return this.internalMessages; },
+    } as AgentState;
 }
 
 describe('parallel-executor', () => {

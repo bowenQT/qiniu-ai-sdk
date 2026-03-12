@@ -61,7 +61,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "npm run build:cjs && npm run build:esm",
+    "prebuild": "node scripts/generate-version.js",
+    "build": "npm run prebuild && npm run build:cjs && npm run build:esm",
     "build:cjs": "tsc -p tsconfig.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm.js",
     "clean": "rm -rf dist",

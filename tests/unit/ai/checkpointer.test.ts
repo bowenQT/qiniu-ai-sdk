@@ -13,21 +13,25 @@ describe('Checkpointer', () => {
         checkpointer = new MemoryCheckpointer({ maxItems: 10 });
     });
 
-    const createTestState = (stepCount = 1): AgentState => ({
-        messages: [
-            { role: 'user', content: 'Hello' },
-            { role: 'assistant', content: 'Hi there!' },
-        ],
-        skills: [],
-        tools: new Map(),
-        stepCount,
-        maxSteps: 10,
-        done: false,
-        output: 'Hi there!',
-        reasoning: '',
-        finishReason: 'stop',
-        usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
-    });
+    const createTestState = (stepCount = 1): AgentState => {
+        const internalMessages = [
+            { role: 'user' as const, content: 'Hello' },
+            { role: 'assistant' as const, content: 'Hi there!' },
+        ];
+        return {
+            internalMessages,
+            get messages() { return this.internalMessages; },
+            skills: [],
+            tools: new Map(),
+            stepCount,
+            maxSteps: 10,
+            done: false,
+            output: 'Hi there!',
+            reasoning: '',
+            finishReason: 'stop',
+            usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+        } as AgentState;
+    };
 
     describe('J1: Interface', () => {
         it('should save checkpoint and return metadata', async () => {
@@ -116,11 +120,13 @@ describe('Checkpointer', () => {
         });
 
         it('should serialize state correctly', async () => {
+            const internalMessages = [
+                { role: 'system' as const, content: 'System prompt', _meta: { skillId: 'test', droppable: true } },
+                { role: 'user' as const, content: 'Hello' },
+            ];
             const state: AgentState = {
-                messages: [
-                    { role: 'system', content: 'System prompt', _meta: { skillId: 'test', droppable: true } },
-                    { role: 'user', content: 'Hello' },
-                ],
+                internalMessages,
+                get messages() { return this.internalMessages; },
                 skills: [{ name: 'test', priority: 0, messageIndex: 0, tokenCount: 50 }],
                 tools: new Map([['tool1', { name: 'tool1' } as any]]),
                 stepCount: 5,
@@ -129,13 +135,13 @@ describe('Checkpointer', () => {
                 output: 'Final output',
                 reasoning: 'Some reasoning',
                 finishReason: 'stop',
-            };
+            } as AgentState;
 
             await checkpointer.save('thread-1', state);
             const loaded = await checkpointer.load('thread-1');
 
             expect(loaded).not.toBeNull();
-            expect(loaded!.state.messages[0]._meta).toEqual({ skillId: 'test', droppable: true });
+            expect(loaded!.state.internalMessages![0]._meta).toEqual({ skillId: 'test', droppable: true });
             expect(loaded!.state.stepCount).toBe(5);
             expect(loaded!.state.output).toBe('Final output');
         });

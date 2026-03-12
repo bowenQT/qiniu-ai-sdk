@@ -1,5 +1,10 @@
 /**
  * AgentExpert - Expose agent tools for A2A collaboration.
+ * 
+ * v5 changes:
+ * - tools getter: lazy lookup from agent._tools (dynamic, reflects MCP hot updates)
+ * - expose: '*' | string[] (wildcard or whitelist)
+ * - callTool: reads from agent._tools at call time, not from cached snapshot
  */
 
 import type { Agent } from '../create-agent';
@@ -29,19 +34,19 @@ import { A2ARateLimiter, RateLimitError, AbortError } from './rate-limiter';
 export class AgentExpert {
     /** Unique expert ID */
     readonly id: string;
-    /** Exposed tools (with prefix) */
-    readonly tools: Record<string, Tool>;
 
     private agent: Agent;
-    private config: Required<Omit<AgentExpertConfig, 'rateLimit'>> & { rateLimit?: AgentExpertConfig['rateLimit'] };
+    private config: {
+        expose: '*' | string[];
+        prefix: string;
+        validateArgs: boolean;
+        rateLimit?: AgentExpertConfig['rateLimit'];
+    };
     private rateLimiter?: A2ARateLimiter;
-    private originalTools: Record<string, Tool>;
 
     private constructor(
         agent: Agent,
         config: AgentExpertConfig,
-        tools: Record<string, Tool>,
-        originalTools: Record<string, Tool>,
         rateLimiter?: A2ARateLimiter
     ) {
         this.agent = agent;
@@ -52,8 +57,6 @@ export class AgentExpert {
             validateArgs: config.validateArgs ?? true,
             rateLimit: config.rateLimit,
         };
-        this.tools = tools;
-        this.originalTools = originalTools;
         this.rateLimiter = rateLimiter;
     }
 
@@ -61,46 +64,29 @@ export class AgentExpert {
      * Create an AgentExpert from an Agent.
      */
     static from(agent: Agent, config: AgentExpertConfig): AgentExpert {
-        const originalTools = agent._tools;
-        const prefix = config.prefix ?? `${agent.id}_`;
-        const expertId = agent.id;
-
-        // Single shared rate limiter instance
         const rateLimiter = config.rateLimit
             ? new A2ARateLimiter(config.rateLimit)
             : undefined;
 
-        // Build exposed tools - all go through execute() for FIFO fairness
-        const exposedTools: Record<string, Tool> = {};
+        return new AgentExpert(agent, config, rateLimiter);
+    }
 
-        for (const toolName of config.expose) {
-            const tool = originalTools[toolName];
-            if (!tool) {
-                console.warn(`[AgentExpert] Tool "${toolName}" not found, skipping`);
-                continue;
-            }
-
-            const prefixedName = `${prefix}${toolName}`;
-            exposedTools[prefixedName] = createWrappedTool(
-                tool,
-                toolName,
-                expertId,
-                rateLimiter,
-                config.validateArgs ?? true
-            );
-        }
-
-        return new AgentExpert(agent, config, exposedTools, originalTools, rateLimiter);
+    /**
+     * Dynamic tools getter — reads from agent._tools every time.
+     * MCP hot updates are automatically reflected.
+     */
+    get tools(): Record<string, Tool> {
+        return this.buildExposedTools();
     }
 
     /**
      * Direct tool call with full request.
+     * Uses lazy lookup from agent._tools at call time.
      */
     async callTool(request: CallToolRequest): Promise<A2AMessage> {
         const requestId = request.requestId ?? generateRequestId();
         const { from = '', tool, args, signal } = request;
 
-        // Create base request for responses
         const baseRequest: A2AMessage = {
             requestId,
             type: 'request',
@@ -111,14 +97,14 @@ export class AgentExpert {
             args,
         };
 
-        // Check if tool is exposed
-        if (!this.config.expose.includes(tool)) {
+        // Expose strategy check
+        if (this.config.expose !== '*' && !this.config.expose.includes(tool)) {
             return createA2AError(baseRequest, 'TOOL_NOT_EXPOSED', `Tool "${tool}" is not exposed by this expert`);
         }
 
-        // Get original tool
-        const originalTool = this.originalTools[tool];
-        if (!originalTool) {
+        // Lazy lookup: get tool from current agent._tools (dynamic)
+        const currentTool = this.agent._tools[tool];
+        if (!currentTool) {
             return createA2AError(baseRequest, 'TOOL_NOT_FOUND', `Tool "${tool}" not found`);
         }
 
@@ -127,10 +113,9 @@ export class AgentExpert {
             return createA2AError(baseRequest, 'CANCELLED', 'Request was cancelled');
         }
 
-        // Rate limiting via execute() for FIFO fairness with exposed tools
+        // Rate limiting
         if (this.rateLimiter) {
             try {
-                // Use execute() which handles queue fairness and abort
                 await this.rateLimiter.execute(this.id, tool, async () => { }, signal);
             } catch (error) {
                 if (error instanceof RateLimitError) {
@@ -144,8 +129,8 @@ export class AgentExpert {
         }
 
         // Validate args
-        if (this.config.validateArgs && originalTool.parameters) {
-            const validationResult = validateSchema(args, originalTool.parameters as JsonSchema);
+        if (this.config.validateArgs && currentTool.parameters) {
+            const validationResult = validateSchema(args, currentTool.parameters as JsonSchema);
             if (!validationResult.valid) {
                 return createA2AError(baseRequest, 'VALIDATION_ERROR', validationResult.error?.message ?? 'Validation failed');
             }
@@ -153,11 +138,11 @@ export class AgentExpert {
 
         // Execute tool
         try {
-            if (!originalTool.execute) {
+            if (!currentTool.execute) {
                 throw new Error(`Tool "${tool}" has no execute function`);
             }
 
-            const result = await originalTool.execute(args, {
+            const result = await currentTool.execute(args, {
                 toolCallId: requestId,
                 messages: [],
                 abortSignal: signal,
@@ -197,7 +182,37 @@ export class AgentExpert {
      * Get list of exposed tool names (without prefix).
      */
     getExposedToolNames(): string[] {
+        if (this.config.expose === '*') {
+            return Object.keys(this.agent._tools);
+        }
         return [...this.config.expose];
+    }
+
+    // ========================================================================
+    // Private
+    // ========================================================================
+
+    /**
+     * Build exposed tools from current agent._tools.
+     */
+    private buildExposedTools(): Record<string, Tool> {
+        const currentTools = this.agent._tools;
+        const result: Record<string, Tool> = {};
+
+        for (const [name, tool] of Object.entries(currentTools)) {
+            if (this.config.expose === '*' || this.config.expose.includes(name)) {
+                const prefixedName = `${this.config.prefix}${name}`;
+                result[prefixedName] = createWrappedTool(
+                    tool,
+                    name,
+                    this.id,
+                    this.rateLimiter,
+                    this.config.validateArgs
+                );
+            }
+        }
+
+        return result;
     }
 }
 
@@ -206,7 +221,7 @@ export class AgentExpert {
 // ============================================================================
 
 /**
- * Create a wrapped tool - all tools go through execute() for FIFO fairness.
+ * Create a wrapped tool — all tools go through execute() for FIFO fairness.
  */
 function createWrappedTool(
     original: Tool,

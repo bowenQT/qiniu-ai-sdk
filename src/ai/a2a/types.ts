@@ -86,8 +86,8 @@ export interface RateLimitConfig {
  * AgentExpert configuration.
  */
 export interface AgentExpertConfig {
-    /** Tool names to expose (whitelist, required) */
-    expose: string[];
+    /** Tool names to expose: '*' (all, including dynamic MCP) or string[] (whitelist) */
+    expose: '*' | string[];
     /** Prefix for exposed tool names (default: `{agentId}_`) */
     prefix?: string;
     /** Rate limiting configuration */

@@ -19,7 +19,8 @@ import type { AgentState } from '../../../src/ai/internal-types';
 
 describe('Checkpointer Pending Approval', () => {
     const createMockState = (): AgentState => ({
-        messages: [{ role: 'user', content: 'Hello' }],
+        internalMessages: [{ role: 'user' as const, content: 'Hello' }],
+        get messages() { return this.internalMessages; },
         skills: [],
         tools: new Map(),
         stepCount: 1,
@@ -29,7 +30,7 @@ describe('Checkpointer Pending Approval', () => {
         reasoning: '',
         finishReason: null,
         abortSignal: undefined,
-    });
+    } as AgentState);
 
     const createPendingApproval = (): PendingApproval => ({
         toolCall: {
@@ -112,6 +113,7 @@ describe('Checkpointer Pending Approval', () => {
                     pendingApproval: createPendingApproval(),
                 },
                 state: {
+                    internalMessages: [],
                     messages: [],
                     stepCount: 1,
                     maxSteps: 10,
@@ -211,6 +213,7 @@ describe('Checkpointer Pending Approval', () => {
                 pendingApproval: createPendingApproval(),
             },
             state: {
+                internalMessages: [{ role: 'user', content: 'Send email' }],
                 messages: [{ role: 'user', content: 'Send email' }],
                 stepCount: 1,
                 maxSteps: 10,

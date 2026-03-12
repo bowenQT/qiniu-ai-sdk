@@ -7,6 +7,7 @@ import type { ChatMessage, ToolCall } from '../../lib/types';
 import type { RegisteredTool } from '../../lib/tool-registry';
 import { ToolExecutionError, RecoverableError, FatalToolError } from '../../lib/errors';
 import { executeToolWithApproval, serializeResult, type ApprovalConfig } from '../tool-approval';
+import { validateToolArgs, type JsonSchema } from '../../lib/tool-schema';
 
 /** Tool execution context */
 export interface ExecutionContext {
@@ -70,6 +71,22 @@ export async function executeTools(
 
         // Parse arguments
         const args = parseToolArguments(call.function.arguments);
+
+        // Validate args against schema (strict for user/skill/builtin, lenient for mcp)
+        if (tool.parameters && typeof tool.parameters === 'object') {
+            const mode = tool.source?.type === 'mcp' ? 'lenient' : 'strict';
+            const validation = validateToolArgs(args, tool.parameters as JsonSchema, mode);
+            if (!validation.valid) {
+                results.push({
+                    toolCallId: call.id,
+                    toolName: call.function.name,
+                    result: `[Validation Error] ${validation.errors.join('; ')}`,
+                    isError: true,
+                    latencyMs: 0,
+                });
+                continue;
+            }
+        }
 
         if (skipApprovalCheck) {
             // Direct execution without approval check (pre-checked by invokeResumable)

@@ -20,10 +20,21 @@ export { DEFAULT_SKILL_CONFIG, DEFAULT_SKILL_BUDGET } from '../modules/skills/ty
 export { MCPClient, MCPClientError } from '../modules/mcp/client';
 export type {
     MCPClientConfig,
-    MCPServerConfig,
+    MCPServerConfig as MCPClientServerConfig,
     MCPHttpServerConfig,
     MCPToolDefinition,
     MCPToolResult,
     MCPConnectionState,
 } from '../modules/mcp/types';
 export { DEFAULT_MCP_CONFIG } from '../modules/mcp/types';
+
+// Re-export NodeMCPHost (MCP Host Layer v2)
+export { NodeMCPHost } from './mcp-host';
+export type { NodeMCPHostConfig, MCPServerConfig } from './mcp-host';
+
+// Re-export Skill Package v2 modules
+export { SkillValidator, DEFAULT_CONTENT_EXTENSIONS, DEFAULT_ACTION_EXTENSIONS } from '../modules/skills/validator';
+export { SkillInstaller } from '../modules/skills/installer';
+export { createLockEntry, writeLockfile, readLockfile } from '../modules/skills/lockfile';
+export type { SkillLockEntry } from '../modules/skills/lockfile';
+export { applyReferenceMode } from '../modules/skills/reference-mode';

@@ -9,6 +9,8 @@ import type { QiniuAI } from '../client';
 import type { ResponseFormat } from '../lib/types';
 import type { RegisteredTool } from '../lib/tool-registry';
 import type { Skill } from '../modules/skills';
+import type { ReferenceMode } from '../modules/skills/reference-mode';
+import { applyReferenceMode } from '../modules/skills/reference-mode';
 import { StateGraph, END } from './graph';
 import { predict, type PredictResult } from './nodes/predict-node';
 import { executeTools, toolResultsToMessages, type ToolExecutionResult } from './nodes/execute-node';
@@ -59,6 +61,8 @@ export interface AgentGraphOptions {
     threadId?: string;
     /** Auto-retry configuration for RecoverableError handling */
     autoRetry?: AutoRetryConfig;
+    /** Skill reference injection mode (default: 'none') */
+    skillReferenceMode?: ReferenceMode;
 }
 
 /**
@@ -829,6 +833,7 @@ export class AgentGraph {
     ): { messages: InternalMessage[]; skills: InjectedSkill[] } {
         // Sort skills by name (ASCII order)
         const sortedSkills = [...skills].sort((a, b) => a.name.localeCompare(b.name));
+        const mode = this.options.skillReferenceMode ?? 'none';
 
         // Find insertion point (after first system message, or at start)
         let insertIndex = 0;
@@ -839,22 +844,35 @@ export class AgentGraph {
             }
         }
 
-        // Create skill messages
-        const skillMessages: InternalMessage[] = sortedSkills.map((skill, idx) => ({
+        // Create skill messages (using referenceMode for content + token recalculation)
+        const processedSkills = sortedSkills.map(skill => {
+            const { injectedContent, injectedTokenCount } = applyReferenceMode(
+                { instruction: skill.content, references: skill.references },
+                mode,
+            );
+            return { skill, injectedContent, injectedTokenCount };
+        });
+
+        const skillMessages: InternalMessage[] = processedSkills.map(({ injectedContent }) => ({
             role: 'system' as const,
-            content: skill.content,
+            content: injectedContent,
             _meta: {
-                skillId: skill.name,
+                skillId: processedSkills[0].skill.name, // will be overwritten below
                 droppable: true,
             },
         }));
 
-        // Build injected skill metadata
-        const injectedSkills: InjectedSkill[] = sortedSkills.map((skill, idx) => ({
+        // Fix _meta.skillId per message
+        processedSkills.forEach(({ skill }, idx) => {
+            (skillMessages[idx] as any)._meta.skillId = skill.name;
+        });
+
+        // Build injected skill metadata (using recalculated token counts)
+        const injectedSkills: InjectedSkill[] = processedSkills.map(({ skill, injectedTokenCount }, idx) => ({
             name: skill.name,
             priority: idx, // Lower index = lower priority = drop first
             messageIndex: insertIndex + idx,
-            tokenCount: skill.tokenCount,
+            tokenCount: injectedTokenCount,
         }));
 
         // Insert skill messages
