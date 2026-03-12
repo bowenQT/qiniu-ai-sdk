@@ -437,7 +437,11 @@ export type {
 // Skills (NOTE: SkillLoader requires Node.js - use '@bowenqt/qiniu-ai-sdk/node' for explicit import)
 // Kept here for backward compatibility, will be excluded in browser bundle
 export { SkillLoader } from './modules/skills';
+export { RegistryProtocolStub } from './modules/skills';
+export { SkillRegistry } from './modules/skills';
 export type { Skill } from './modules/skills';
+export type { SkillRegistryConfig, RemoteSkillSource } from './modules/skills';
+export type { SkillRegistryProtocol, RegistrySkillEntry, RegistrySearchOptions } from './modules/skills';
 
 // MCP (Phase 1 + Phase 3)
 // NOTE: MCPClient stdio transport requires Node.js - use '@bowenqt/qiniu-ai-sdk/node' for explicit import

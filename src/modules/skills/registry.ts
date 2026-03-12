@@ -216,6 +216,22 @@ export class SkillRegistry {
      * @see SkillLockfile — for lockfile management
      */
     async registerRemote(source: RemoteSkillSource): Promise<void> {
+        await this._registerRemoteInternal(source);
+    }
+
+    /**
+     * Register a remote skill and return the parsed manifest name.
+     * Wraps _registerRemoteInternal() for CLI use where the caller
+     * needs to know the skill name derived from the manifest.
+     */
+    async registerRemoteAndGetName(source: RemoteSkillSource): Promise<string> {
+        return this._registerRemoteInternal(source);
+    }
+
+    /**
+     * Private helper: fetch manifest, verify, register. Returns manifest.name.
+     */
+    private async _registerRemoteInternal(source: RemoteSkillSource): Promise<string> {
         if (!this.config.allowRemote) {
             throw new RecoverableError(
                 'Remote skill loading is disabled. Set allowRemote: true to enable.',
@@ -271,6 +287,8 @@ export class SkillRegistry {
             fetchedAt: new Date(),
             integrityHash: source.integrityHash,
         });
+
+        return manifest.name;
     }
 
     /**

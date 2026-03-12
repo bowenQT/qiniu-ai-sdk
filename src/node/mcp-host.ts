@@ -16,7 +16,7 @@ import type {
     MCPPrompt,
     MCPToolPolicy,
 } from '../lib/mcp-host-types';
-import type { RegisteredTool } from '../lib/tool-registry';
+import type { RegisteredTool, RegisteredToolContext } from '../lib/tool-registry';
 import { SDK_VERSION } from '../lib/version';
 
 // ============================================================================
@@ -246,7 +246,7 @@ export class NodeMCPHost implements MCPHostProvider {
                         parameters: (t.inputSchema as any) ?? { type: 'object' as const, properties: {} },
                         source: { type: 'mcp' as const, namespace: serverName },
                         requiresApproval: policy.requiresApproval ?? false,
-                        execute: async (args: Record<string, unknown>, _context?: any) => {
+                        execute: async (args: Record<string, unknown>, _context?: RegisteredToolContext) => {
                             const maxLen = policy.maxOutputLength ?? 1_048_576;
 
                             // SDK-native timeout/cancel via RequestOptions
@@ -256,6 +256,10 @@ export class NodeMCPHost implements MCPHostProvider {
                             };
                             if (policy.maxTotalTimeout != null) {
                                 requestOptions.maxTotalTimeout = policy.maxTotalTimeout;
+                            }
+                            // Bridge context.abortSignal to MCP SDK RequestOptions
+                            if (_context?.abortSignal) {
+                                requestOptions.signal = _context.abortSignal;
                             }
 
                             const callResult = await client.callTool(

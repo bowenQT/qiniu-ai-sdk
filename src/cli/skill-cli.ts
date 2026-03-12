@@ -4,6 +4,7 @@
  *
  * Usage:
  *   qiniu-ai skill list [--dir <skills-dir>]
+ *   qiniu-ai skill add <manifest-url> [--sha256 <hash>] [--auth <token>] [--allow-actions] [--dir <dir>]
  *   qiniu-ai skill verify [--fix] [--dir <skills-dir>]
  *   qiniu-ai skill remove <name> [--dir <skills-dir>]
  *
@@ -14,6 +15,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { SkillValidator, DEFAULT_CONTENT_EXTENSIONS, DEFAULT_ACTION_EXTENSIONS } from '../modules/skills/validator';
+import { SkillRegistry } from '../modules/skills/registry';
+import type { RemoteSkillSource } from '../modules/skills/registry';
 
 // ============================================================================
 // Lockfile helpers (re-import to keep CLI standalone-ish)
@@ -282,6 +285,52 @@ function reconstructLockfile(skillsDir: string): SkillLockEntry[] {
 }
 
 // ============================================================================
+// add: Install a remote skill from URL
+// ============================================================================
+
+function warnDependencies(deps: string[]): void {
+    console.warn(
+        `⚠️  This skill declares ${deps.length} unresolved dependencies:\n` +
+        deps.map(d => `   - ${d}`).join('\n') + '\n' +
+        `   Automatic dependency resolution is not yet supported.\n` +
+        `   The skill may not work correctly if dependencies are missing.`
+    );
+}
+
+async function commandAdd(
+    url: string,
+    opts: { dir: string; allowActions: boolean; sha256?: string; auth?: string },
+): Promise<void> {
+    const registry = new SkillRegistry({
+        skillsDir: opts.dir,
+        allowRemote: true,
+        allowedDomains: [],  // CLI = trust user's explicit URL
+    });
+
+    // 1. register + get name (single fetch)
+    const source: RemoteSkillSource = {
+        url,
+        integrityHash: opts.sha256 ? `sha256:${opts.sha256}` : undefined,
+        authorization: opts.auth,
+    };
+    const name = await registry.registerRemoteAndGetName(source);
+
+    // 2. dependencies warn
+    const skill = registry.get(name);
+    if (skill?.manifest.dependencies?.length) {
+        warnDependencies(skill.manifest.dependencies);
+    }
+
+    // 3. installRemote
+    await registry.installRemote(name, {
+        installDir: opts.dir,
+        allowActions: opts.allowActions,
+    });
+
+    console.log(`✅ Installed "${name}" v${skill?.manifest.version ?? 'unknown'}`);
+}
+
+// ============================================================================
 // CLI Entry Point
 // ============================================================================
 
@@ -295,15 +344,15 @@ export function runCLI(args: string[]): void {
         console.log('');
         console.log('Available commands:');
         console.log('  list              List installed skills');
+        console.log('  add <url>         Install a remote skill from manifest URL');
         console.log('  verify [--fix]    Verify integrity / reconstruct lockfile');
         console.log('  remove <name>     Remove an installed skill');
         console.log('');
-        console.log('Planned (not yet available):');
-        console.log('  add <url>         Install a remote skill (Phase 5)');
-        console.log('  init              Initialize skill directory (Phase 5)');
-        console.log('');
         console.log('Options:');
         console.log('  --dir <path>      Skills directory (default: .agent/skills)');
+        console.log('  --sha256 <hash>   Verify manifest integrity (for add)');
+        console.log('  --auth <token>    Authorization header (for add)');
+        console.log('  --allow-actions   Allow installing skill actions (for add)');
         return;
     }
 
@@ -345,10 +394,43 @@ export function runCLI(args: string[]): void {
             break;
         }
 
+        case 'add': {
+            const url = args[2];
+            if (!url || url.startsWith('--')) {
+                console.error('Usage: qiniu-ai skill add <manifest-url> [--sha256 <hash>] [--auth <token>] [--allow-actions]');
+                process.exitCode = 1;
+                return;
+            }
+            const sha256 = getArgValue(args, '--sha256');
+            const auth = getArgValue(args, '--auth');
+            // Bail out if any value-taking flag was invalid
+            if (process.exitCode === 1) return;
+            const allowActions = args.includes('--allow-actions');
+            commandAdd(url, { dir: skillsDir, allowActions, sha256, auth })
+                .catch(err => {
+                    console.error(`❌ Failed to install skill: ${err.message}`);
+                    process.exitCode = 1;
+                });
+            break;
+        }
+
         default:
-            console.log('Usage: qiniu-ai skill <list|verify|remove> [options]');
+            console.log('Usage: qiniu-ai skill <list|add|verify|remove> [options]');
             break;
     }
+}
+
+/** Extract --key value from args. Rejects missing or flag-like values. */
+function getArgValue(args: string[], key: string): string | undefined {
+    const idx = args.indexOf(key);
+    if (idx === -1 || idx >= args.length - 1) return undefined;
+    const value = args[idx + 1];
+    if (value.startsWith('--')) {
+        console.error(`Error: ${key} requires a value, got "${value}"`);
+        process.exitCode = 1;
+        return undefined;
+    }
+    return value;
 }
 
 // Run only when executed directly (not imported for testing)

@@ -247,18 +247,20 @@ const result = await generateTextWithGraph({
 });
 ```
 
-### Skill 市场 (v0.32.0+)
+### Skill 市场 (v0.39.0+)
 
 ```typescript
 import { SkillRegistry } from '@bowenqt/qiniu-ai-sdk';
 
 const registry = new SkillRegistry({
+  allowRemote: true,
   allowedDomains: ['skills.qiniu.com', '*.trusted.dev'],
 });
 
 // 远程技能加载 + SHA256 完整性验证
-await registry.registerRemote('https://skills.qiniu.com/git-workflow', {
-  integrity: 'sha256:abc123...',
+await registry.registerRemote({
+  url: 'https://skills.qiniu.com/git-workflow/skill.json',
+  integrityHash: 'sha256:abc123...',
 });
 
 const skill = registry.get('git-workflow');

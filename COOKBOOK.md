@@ -1953,6 +1953,9 @@ const result = await generateText({
 
 ```bash
 npx qiniu-ai skill list           # List installed skills
+npx qiniu-ai skill add <url>      # Install a remote skill from manifest URL
+npx qiniu-ai skill add <url> --sha256 <hash>  # With integrity verification
+npx qiniu-ai skill add <url> --auth <token>   # With private manifest auth
 npx qiniu-ai skill verify          # Verify integrity (path + hash)
 npx qiniu-ai skill verify --fix    # Reconstruct lockfile from local dirs
 npx qiniu-ai skill remove <name>   # Remove skill + lockfile entry

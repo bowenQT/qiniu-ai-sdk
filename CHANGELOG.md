@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.39.0] - 2026-03-12
+
+### ✨ New Features
+
+**Skill CLI `add` Command (Phase 5A)**
+- `qiniu-ai skill add <manifest-url>` — Install a remote skill from URL:
+  - Trust model: explicit URL = allow any domain (CLI = user's explicit trust intent)
+  - `--sha256 <hash>` — Optional manifest integrity verification
+  - `--auth <token>` — Authorization header for private manifests
+  - `--allow-actions` — Opt-in to installing skill actions
+  - Dependencies warn: notifies about unresolved dependencies (no fake install instructions)
+  - Argument validation: rejects flag-like values for `--sha256`/`--auth`, bails before install
+
+**MCP `abortSignal` Propagation (Phase 5C)**
+- `NodeMCPHost` now bridges `context.abortSignal` to MCP SDK `callTool` `RequestOptions.signal`
+- `_context` type upgraded from `any` to `RegisteredToolContext` for type safety
+
+### 🔧 Improvements
+
+- **`SkillRegistry.registerRemoteAndGetName()`**: New wrapper that returns `manifest.name` after registering. Uses shared `_registerRemoteInternal()` private helper — single fetch, no double registration
+- **`SkillRegistry`**: Now exported from package root (was only available via deep import)
+- **README**: Fixed `registerRemote()` example — correct call shape, added `allowRemote: true`, `integrityHash` field name
+- **CLI help**: Updated to show `add` command with all options, removed "Planned" status
+- **CLI `getArgValue()`**: Rejects flag-like values (e.g., `--sha256 --allow-actions`)
+
+### 📦 Exports
+
+```typescript
+// Newly exported from package root
+export { SkillRegistry } from './modules/skills';
+export { RegistryProtocolStub } from './modules/skills';
+export type { SkillRegistryConfig, RemoteSkillSource } from './modules/skills';
+export type { SkillRegistryProtocol, RegistrySkillEntry, RegistrySearchOptions } from './modules/skills';
+```
+
+---
+
 ## [0.38.0] - 2026-03-12
 
 ### ✨ New Features

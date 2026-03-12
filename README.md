@@ -253,12 +253,14 @@ const result = await generateTextWithGraph({
 import { SkillRegistry } from '@bowenqt/qiniu-ai-sdk';
 
 const registry = new SkillRegistry({
+  allowRemote: true,
   allowedDomains: ['skills.qiniu.com', '*.trusted.dev'],
 });
 
 // Remote skill with SHA256 integrity verification
-await registry.registerRemote('https://skills.qiniu.com/git-workflow', {
-  integrity: 'sha256:abc123...',
+await registry.registerRemote({
+  url: 'https://skills.qiniu.com/git-workflow/skill.json',
+  integrityHash: 'sha256:abc123...',
 });
 
 const skill = registry.get('git-workflow');
@@ -426,10 +428,12 @@ await instance.kill();
 npx qiniu-mcp-server
 ```
 
-### Skill Manager (v0.38.0+)
+### Skill Manager (v0.39.0+)
 
 ```bash
 npx qiniu-ai skill list          # List installed skills
+npx qiniu-ai skill add <url>     # Install a remote skill from manifest URL
+npx qiniu-ai skill add <url> --sha256 <hash>  # With integrity verification
 npx qiniu-ai skill verify         # Verify integrity (path + hash)
 npx qiniu-ai skill verify --fix   # Reconstruct lockfile from local dirs
 npx qiniu-ai skill remove <name>  # Remove skill + lockfile entry

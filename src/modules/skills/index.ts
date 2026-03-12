@@ -34,3 +34,11 @@ export type {
     RegisteredSkill,
     SkillSearchResult,
 } from './registry';
+
+// Registry Protocol v2 (interface reservation)
+export { RegistryProtocolStub } from './registry-protocol';
+export type {
+    SkillRegistryProtocol,
+    RegistrySkillEntry,
+    RegistrySearchOptions,
+} from './registry-protocol';
