@@ -7,6 +7,12 @@ import type { QiniuAI } from '../../client';
 import type { ChatMessage, ResponseFormat, ChatCompletionRequest, ToolCall } from '../../lib/types';
 import type { RegisteredTool } from '../../lib/tool-registry';
 
+/** Token-level chunk emitted during streaming prediction */
+export type PredictChunk =
+    | { type: 'text-delta'; textDelta: string }
+    | { type: 'reasoning-delta'; reasoningDelta: string }
+    | { type: 'tool-call-delta'; index: number; id?: string; name?: string; argumentsDelta?: string };
+
 /** Predict options */
 export interface PredictOptions {
     client: QiniuAI;
@@ -19,6 +25,8 @@ export interface PredictOptions {
     responseFormat?: ResponseFormat;
     toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
     abortSignal?: AbortSignal;
+    /** Optional callback for token-level streaming events. Fault-isolated: errors are silently caught. */
+    onChunk?: (chunk: PredictChunk) => void;
 }
 
 /** Predict result */
@@ -38,7 +46,7 @@ export interface PredictResult {
  * For JSON mode (json_object/json_schema), uses non-streaming to avoid partial JSON.
  */
 export async function predict(options: PredictOptions): Promise<PredictResult> {
-    const { client, model, messages, tools, abortSignal, temperature, topP, maxTokens, responseFormat, toolChoice } = options;
+    const { client, model, messages, tools, abortSignal, temperature, topP, maxTokens, responseFormat, toolChoice, onChunk } = options;
 
     // Check if JSON mode - use non-streaming to avoid partial JSON
     const isJsonMode = responseFormat?.type === 'json_object' || responseFormat?.type === 'json_schema';
@@ -68,12 +76,12 @@ export async function predict(options: PredictOptions): Promise<PredictResult> {
     }
 
     if (isJsonMode) {
-        // Non-streaming path for JSON mode
+        // Non-streaming path for JSON mode (onChunk not applicable)
         return predictNonStreaming(client, request, abortSignal);
     }
 
     // Streaming path (default)
-    return predictStreaming(client, request, abortSignal);
+    return predictStreaming(client, request, abortSignal, onChunk);
 }
 
 /**
@@ -82,12 +90,13 @@ export async function predict(options: PredictOptions): Promise<PredictResult> {
 async function predictStreaming(
     client: QiniuAI,
     request: ChatCompletionRequest,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    onChunk?: (chunk: PredictChunk) => void,
 ): Promise<PredictResult> {
     // Execute streaming request and consume to get final result
     const generator = client.chat.createStream(request, { signal: abortSignal });
 
-    // Consume all chunks (we don't need them, just the final result)
+    // Consume all chunks, emitting events via onChunk if provided
     let result: IteratorResult<unknown, {
         content: string;
         reasoningContent: string;
@@ -98,6 +107,29 @@ async function predictStreaming(
 
     do {
         result = await generator.next();
+        if (!result.done && onChunk) {
+            try {
+                const chunk = result.value as { choices?: { delta?: { content?: string; reasoning_content?: string; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> } }[] };
+                const delta = chunk?.choices?.[0]?.delta;
+                if (delta?.content) {
+                    onChunk({ type: 'text-delta', textDelta: delta.content });
+                }
+                if (delta?.reasoning_content) {
+                    onChunk({ type: 'reasoning-delta', reasoningDelta: delta.reasoning_content });
+                }
+                if (delta?.tool_calls) {
+                    for (const tc of delta.tool_calls) {
+                        onChunk({
+                            type: 'tool-call-delta',
+                            index: tc.index ?? 0,
+                            id: tc.id,
+                            name: tc.function?.name,
+                            argumentsDelta: tc.function?.arguments,
+                        });
+                    }
+                }
+            } catch { /* Fault isolation: callback errors do not interrupt main flow */ }
+        }
     } while (!result.done);
 
     // result.value is the StreamResult from the generator's return

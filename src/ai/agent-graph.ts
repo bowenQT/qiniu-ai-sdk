@@ -12,7 +12,7 @@ import type { Skill } from '../modules/skills';
 import type { ReferenceMode } from '../modules/skills/reference-mode';
 import { applyReferenceMode } from '../modules/skills/reference-mode';
 import { StateGraph, END } from './graph';
-import { predict, type PredictResult } from './nodes/predict-node';
+import { predict, type PredictResult, type PredictChunk } from './nodes/predict-node';
 import { executeTools, toolResultsToMessages, type ToolExecutionResult } from './nodes/execute-node';
 import { compactMessages, ContextOverflowError } from './nodes/memory-node';
 import type { CompactionConfig, CompactionResult } from './nodes/types';
@@ -63,7 +63,24 @@ export interface AgentGraphOptions {
     autoRetry?: AutoRetryConfig;
     /** Skill reference injection mode (default: 'none') */
     skillReferenceMode?: ReferenceMode;
+    /** Token-level event callback for streaming. Fault-isolated at predict-node level. */
+    onTokenEvent?: (event: TokenEvent) => void;
 }
+
+/** Token-level event emitted during graph execution */
+export type TokenEvent =
+    // From predict-node (transparent PredictChunk)
+    | { type: 'text-delta'; textDelta: string }
+    | { type: 'reasoning-delta'; reasoningDelta: string }
+    | { type: 'tool-call-delta'; index: number; id?: string; name?: string; argumentsDelta?: string }
+    // From execute-node (post-repair, post-approval)
+    | { type: 'tool-call'; toolCallId: string; toolName: string; args: Record<string, unknown> }
+    | { type: 'tool-result'; toolCallId: string; toolName: string; result: string; isError: boolean }
+    // From graph loop
+    | { type: 'step-finish'; step: StepResult }
+    // Terminal events
+    | { type: 'finish'; text: string; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }; finishReason: string | null }
+    | { type: 'error'; error: Error };
 
 /**
  * Configuration for automatic retry of recoverable errors.
@@ -684,7 +701,7 @@ export class AgentGraph {
                 content: normalizeContent(msg.content),
             }));
 
-            // Execute prediction
+            // Execute prediction with onChunk forwarding
             const result = await predict({
                 client: this.options.client,
                 model: this.options.model,
@@ -696,6 +713,9 @@ export class AgentGraph {
                 responseFormat: this.options.responseFormat,
                 toolChoice: this.options.toolChoice,
                 abortSignal: state.abortSignal,
+                onChunk: this.options.onTokenEvent
+                    ? (chunk: PredictChunk) => { try { this.options.onTokenEvent!(chunk); } catch { /* isolated */ } }
+                    : undefined,
             });
 
             // Build step result
@@ -707,6 +727,9 @@ export class AgentGraph {
             };
             this.steps.push(textStep);
             events?.onStepFinish?.(textStep);
+            if (this.options.onTokenEvent) {
+                try { this.options.onTokenEvent({ type: 'step-finish', step: textStep }); } catch { /* isolated */ }
+            }
 
             // Record metrics
             this.metrics.recordStep();
@@ -790,6 +813,34 @@ export class AgentGraph {
             const toolMessages = toolResultsToMessages(results);
 
             for (const result of results) {
+                // Emit tool-call event for approved calls (before tool-result)
+                // Rejected/denied calls get only tool-result(isError=true)
+                if (!result.isError && !result.isRejected && this.options.onTokenEvent) {
+                    if (result.parsedArgs) {
+                        try {
+                            this.options.onTokenEvent({
+                                type: 'tool-call',
+                                toolCallId: result.toolCallId,
+                                toolName: result.toolName,
+                                args: result.parsedArgs,
+                            });
+                        } catch { /* isolated */ }
+                    }
+                }
+
+                // Emit tool-result event
+                if (this.options.onTokenEvent) {
+                    try {
+                        this.options.onTokenEvent({
+                            type: 'tool-result',
+                            toolCallId: result.toolCallId,
+                            toolName: result.toolName,
+                            result: result.result,
+                            isError: result.isError || result.isRejected || false,
+                        });
+                    } catch { /* isolated */ }
+                }
+
                 const resultStep: StepResult = {
                     type: 'tool_result',
                     content: result.result,
@@ -797,6 +848,9 @@ export class AgentGraph {
                 };
                 this.steps.push(resultStep);
                 events?.onStepFinish?.(resultStep);
+                if (this.options.onTokenEvent) {
+                    try { this.options.onTokenEvent({ type: 'step-finish', step: resultStep }); } catch { /* isolated */ }
+                }
 
                 // Record tool latency metrics
                 // Map ToolSourceType to metrics source type

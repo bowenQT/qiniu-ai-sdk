@@ -16,12 +16,15 @@ export interface ExecutionContext {
     abortSignal?: AbortSignal;
 }
 
-/** Tool result */
 export interface ToolExecutionResult {
     toolCallId: string;
     toolName: string;
     result: string;
     isError: boolean;
+    /** Tool was rejected by approval system (not an error, but not approved to execute) */
+    isRejected?: boolean;
+    /** Parsed/repaired arguments actually passed to the tool (post-parseToolArguments) */
+    parsedArgs?: Record<string, unknown>;
     /** Execution time in milliseconds */
     latencyMs: number;
 }
@@ -101,6 +104,7 @@ export async function executeTools(
                     toolName: call.function.name,
                     result: serializeResult(result),
                     isError: false,
+                    parsedArgs: args,
                     latencyMs: Date.now() - startTime,
                 });
             } catch (error) {
@@ -151,6 +155,8 @@ export async function executeTools(
                 toolName: call.function.name,
                 result: execResult.result,
                 isError: execResult.isError,
+                isRejected: execResult.isRejected,
+                parsedArgs: args,
                 latencyMs: Date.now() - startTime,
             });
         }

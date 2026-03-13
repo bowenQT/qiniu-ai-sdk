@@ -520,7 +520,7 @@ function parseToolArguments(payload: string): unknown {
 // G2/G4: Graph-based generateText implementation
 // ============================================================================
 
-import { AgentGraph, type AgentGraphOptions, type AgentGraphResult } from './agent-graph';
+import { AgentGraph, type AgentGraphOptions, type AgentGraphResult, type TokenEvent } from './agent-graph';
 import type { RegisteredTool, ToolParameters } from '../lib/tool-registry';
 import type { Skill } from '../modules/skills';
 
@@ -552,6 +552,8 @@ export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
     agentId?: string;
     /** Skill reference injection mode (default: 'none') */
     skillReferenceMode?: 'none' | 'summary' | 'full';
+    /** Token-level event callback for streaming */
+    onTokenEvent?: (event: TokenEvent) => void;
 }
 
 /**
@@ -615,6 +617,7 @@ export async function generateTextWithGraph(
         resumeFromCheckpoint = true,
         memory,
         guardrails,
+        onTokenEvent,
     } = options;
 
     // Resolve agentId for guardrail attribution
@@ -778,6 +781,7 @@ export async function generateTextWithGraph(
         memory,
         threadId,
         skillReferenceMode: options.skillReferenceMode,
+        onTokenEvent,
     });
 
     // Execute graph
@@ -798,16 +802,33 @@ export async function generateTextWithGraph(
         if (!postResult.shouldProceed) {
             // Find the actual blocking guardrail result
             const blockingResult = postResult.results.find(r => r.action === 'block');
-            throw new GuardrailBlockedError(
+            const error = new GuardrailBlockedError(
                 blockingResult?.reason ?? 'Response blocked by guardrail',
                 postResult.results
             );
+            // Emit error event before throwing
+            if (onTokenEvent) {
+                try { onTokenEvent({ type: 'error', error }); } catch { /* isolated */ }
+            }
+            throw error;
         }
 
         // Apply redacted content if modified
         if (postResult.content !== finalText) {
             finalText = postResult.content;
         }
+    }
+
+    // Emit finish event
+    if (onTokenEvent) {
+        try {
+            onTokenEvent({
+                type: 'finish',
+                text: finalText,
+                usage: graphResult.usage,
+                finishReason: graphResult.finishReason,
+            });
+        } catch { /* isolated */ }
     }
 
     // Save checkpoint AFTER post-response guardrails (use redacted content)

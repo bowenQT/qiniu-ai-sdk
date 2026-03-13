@@ -98,11 +98,15 @@ export type {
 
 // AgentGraph
 export { AgentGraph } from '../ai/agent-graph';
-export type { AgentGraphOptions, AgentGraphResult } from '../ai/agent-graph';
+export type { AgentGraphOptions, AgentGraphResult, TokenEvent } from '../ai/agent-graph';
+
+// streamText
+export { streamText } from '../ai/stream-text';
+export type { StreamTextOptions, StreamTextResult } from '../ai/stream-text';
 
 // createAgent
 export { createAgent } from '../ai/create-agent';
-export type { AgentConfig, Agent, AgentRunOptions, AgentRunWithThreadOptions } from '../ai/create-agent';
+export type { AgentConfig, Agent, AgentRunOptions, AgentRunWithThreadOptions, AgentStreamOptions, AgentStreamWithThreadOptions } from '../ai/create-agent';
 
 // Tool Approval
 export type { ApprovalConfig, ApprovalHandler, ApprovalContext, ApprovalResult } from '../ai/tool-approval';

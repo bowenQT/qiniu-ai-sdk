@@ -19,6 +19,7 @@ import {
     type StepResult,
     type Tool,
 } from './generate-text';
+import { streamText, type StreamTextResult } from './stream-text';
 
 // ============================================================================
 // Types
@@ -93,6 +94,28 @@ export interface AgentRunWithThreadOptions extends AgentRunOptions {
     resumeFromCheckpoint?: boolean;
 }
 
+/** Options for streaming run (without thread) */
+export interface AgentStreamOptions {
+    /** User prompt */
+    prompt: string;
+    /** Step finish callback */
+    onStepFinish?: (step: StepResult) => void;
+    /** Node enter callback */
+    onNodeEnter?: (nodeName: string) => void;
+    /** Node exit callback */
+    onNodeExit?: (nodeName: string) => void;
+    /** Abort signal for cancellation */
+    abortSignal?: AbortSignal;
+}
+
+/** Options for streaming run with thread */
+export interface AgentStreamWithThreadOptions extends AgentStreamOptions {
+    /** Thread ID for checkpoint (required) */
+    threadId: string;
+    /** Resume from checkpoint if available (default: true) */
+    resumeFromCheckpoint?: boolean;
+}
+
 /** Agent instance */
 export interface Agent {
     /** Agent ID for A2A identification */
@@ -103,6 +126,10 @@ export interface Agent {
     run: (options: AgentRunOptions) => Promise<GenerateTextWithGraphResult>;
     /** Run agent with thread (persistent conversation) */
     runWithThread: (options: AgentRunWithThreadOptions) => Promise<GenerateTextWithGraphResult>;
+    /** Stream agent output (no persistence) */
+    stream: (options: AgentStreamOptions) => Promise<StreamTextResult>;
+    /** Stream agent output with thread (persistent conversation) */
+    streamWithThread: (options: AgentStreamWithThreadOptions) => Promise<StreamTextResult>;
     /** Connect MCP host (if hostProvider configured) */
     connectHost?: () => Promise<void>;
     /** Disconnect and clean up MCP host */
@@ -234,6 +261,36 @@ export function createAgent(config: AgentConfig): Agent {
         skillReferenceMode: config.skillInjection?.referenceMode,
     });
 
+    // Build options helper for streamText
+    const buildStreamOptions = (
+        prompt: string,
+        onStepFinish?: (step: StepResult) => void,
+        onNodeEnter?: (nodeName: string) => void,
+        onNodeExit?: (nodeName: string) => void,
+    ) => ({
+        client,
+        model,
+        prompt,
+        system,
+        tools: currentTools(),
+        skills,
+        maxSteps,
+        maxContextTokens,
+        temperature,
+        topP,
+        maxTokens,
+        responseFormat,
+        toolChoice,
+        approvalConfig,
+        memory,
+        guardrails,
+        skillReferenceMode: config.skillInjection?.referenceMode,
+        agentId,
+        onStepFinish,
+        onNodeEnter,
+        onNodeExit,
+    });
+
     // Generate agent ID
     const agentId = config.id ?? `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -287,6 +344,51 @@ export function createAgent(config: AgentConfig): Agent {
                 checkpointer,
                 resumeFromCheckpoint,
                 agentId,
+            });
+        },
+
+        /**
+         * Stream agent output (no persistence).
+         */
+        async stream(options: AgentStreamOptions): Promise<StreamTextResult> {
+            const { prompt, onStepFinish, onNodeEnter, onNodeExit, abortSignal: streamAbortSignal } = options;
+
+            // Lazy connect MCP host on first stream
+            if (hostProvider && !hostConnected) {
+                await agent.connectHost!();
+            }
+
+            return streamText({
+                ...buildStreamOptions(prompt, onStepFinish, onNodeEnter, onNodeExit),
+                abortSignal: streamAbortSignal ?? abortSignal,
+            });
+        },
+
+        /**
+         * Stream agent output with thread-based persistence.
+         */
+        async streamWithThread(options: AgentStreamWithThreadOptions): Promise<StreamTextResult> {
+            const { prompt, threadId, resumeFromCheckpoint = true, onStepFinish, onNodeEnter, onNodeExit, abortSignal: streamAbortSignal } = options;
+
+            if (!checkpointer) {
+                throw new Error('streamWithThread requires checkpointer to be configured in createAgent');
+            }
+
+            if (!threadId) {
+                throw new Error('threadId is required for streamWithThread');
+            }
+
+            // Lazy connect MCP host on first stream
+            if (hostProvider && !hostConnected) {
+                await agent.connectHost!();
+            }
+
+            return streamText({
+                ...buildStreamOptions(prompt, onStepFinish, onNodeEnter, onNodeExit),
+                threadId,
+                checkpointer,
+                resumeFromCheckpoint,
+                abortSignal: streamAbortSignal ?? abortSignal,
             });
         },
 
