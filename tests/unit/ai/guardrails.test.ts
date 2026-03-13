@@ -2,6 +2,9 @@
  * Guardrails Module Tests
  */
 
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
     GuardrailChain,
@@ -13,6 +16,7 @@ import {
     AuditLoggerCollector,
     ACTION_PRIORITY,
 } from '../../../src/ai/guardrails';
+import { resolveFileUrlPath } from '../../../src/ai/guardrails/audit-logger';
 import type { Guardrail, GuardrailContext, GuardrailResult } from '../../../src/ai/guardrails';
 
 // ============================================================================
@@ -256,6 +260,14 @@ describe('tokenLimiter', () => {
 // ============================================================================
 
 describe('auditLogger', () => {
+    it('resolveFileUrlPath normalizes Windows drive-letter file URLs', () => {
+        expect(resolveFileUrlPath(new URL('file:///C:/logs/audit.log'))).toBe('C:/logs/audit.log');
+    });
+
+    it('resolveFileUrlPath preserves UNC file URLs', () => {
+        expect(resolveFileUrlPath(new URL('file://server/share/audit.log'))).toBe('//server/share/audit.log');
+    });
+
     it('should pass through and log', async () => {
         const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
 
@@ -292,17 +304,28 @@ describe('auditLogger', () => {
         warnSpy.mockRestore();
     });
 
-    it('should return block with file:// sink and onError=block', async () => {
-        // async: false, onError: block
-        const logger = auditLogger({ sink: 'file:///var/log/audit.log', onError: 'block', async: false });
+    it('should write newline-delimited audit entries to file:// sink', async () => {
+        const tempDir = await mkdtemp(join(tmpdir(), 'qiniu-audit-'));
+        const filePath = join(tempDir, 'audit.log');
+        const logger = auditLogger({ sink: `file://${filePath}`, onError: 'block', async: false });
         const result = await logger.process({
             phase: 'pre-request',
             content: 'Test content',
             agentId: 'agent1',
         });
 
-        expect(result.action).toBe('block');
-        expect(result.reason).toContain('not yet implemented');
+        expect(result.action).toBe('pass');
+
+        const content = await readFile(filePath, 'utf8');
+        const lines = content.trim().split('\n');
+        expect(lines).toHaveLength(1);
+        expect(JSON.parse(lines[0])).toMatchObject({
+            agentId: 'agent1',
+            phase: 'pre-request',
+            content: '[CONTENT_REDACTED]',
+        });
+
+        await rm(tempDir, { recursive: true, force: true });
     });
 
     it('AuditLoggerCollector should throw with kodo:// sink', async () => {
@@ -316,7 +339,7 @@ describe('auditLogger', () => {
                 { phase: 'pre-request', content: 'test', agentId: 'agent1' },
                 [{ guardrail: 'test', action: 'pass' }]
             )
-        ).rejects.toThrow('not yet implemented');
+        ).rejects.toThrow('experimental');
     });
 });
 

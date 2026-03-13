@@ -3,7 +3,7 @@
  * Simplifies the configuration of generateTextWithGraph.
  */
 
-import type { QiniuAI } from '../client';
+import type { LanguageModelClient } from '../core/client';
 import type { ResponseFormat } from '../lib/types';
 import type { Skill } from '../modules/skills';
 import type { Checkpointer } from './graph/checkpointer';
@@ -29,8 +29,8 @@ import { streamText, type StreamTextResult } from './stream-text';
 export interface AgentConfig {
     /** Agent ID for A2A identification (auto-generated if not provided) */
     id?: string;
-    /** Qiniu AI client */
-    client: QiniuAI;
+    /** Language-model client */
+    client: LanguageModelClient;
     /** Model to use */
     model: string;
     /** System prompt */

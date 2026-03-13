@@ -3,7 +3,7 @@
  * Uses Zod for runtime type validation.
  */
 
-import type { QiniuAI } from '../client';
+import type { LanguageModelClient } from '../core/client';
 import type { ChatMessage, ResponseFormat } from '../lib/types';
 import { StructuredOutputError, type ValidationErrorItem } from '../lib/errors';
 import { normalizeContent } from '../lib/content-converter';
@@ -17,8 +17,8 @@ export type GenerateObjectMode = 'strict' | 'json_object';
 
 /** Options for generateObject */
 export interface GenerateObjectOptions<T> {
-    /** Qiniu AI client */
-    client: QiniuAI;
+    /** Language-model client */
+    client: LanguageModelClient;
     /** Model to use */
     model: string;
     /** Zod schema for validation */

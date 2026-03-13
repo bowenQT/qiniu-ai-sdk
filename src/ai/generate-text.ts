@@ -1,4 +1,4 @@
-import type { QiniuAI } from '../client';
+import type { LanguageModelClient } from '../core/client';
 import type { ChatCompletionRequest, ChatMessage, ToolCall, ResponseFormat } from '../lib/types';
 import type { StreamResult } from '../modules/chat';
 import { MaxStepsExceededError, ToolExecutionError } from '../lib/errors';
@@ -47,7 +47,7 @@ export interface StepResult {
 }
 
 export interface GenerateTextOptions {
-    client: QiniuAI;
+    client: LanguageModelClient;
     model: string;
     prompt?: string;
     messages?: ChatMessage[];
@@ -357,7 +357,7 @@ function zodToJsonSchemaSimple(schema: unknown, path = 'root'): Record<string, u
 }
 
 async function consumeStream(
-    client: QiniuAI,
+    client: LanguageModelClient,
     request: ChatCompletionRequest,
     abortSignal?: AbortSignal
 ): Promise<StreamResult> {
@@ -901,4 +901,3 @@ export async function generateTextWithGraph(
         },
     };
 }
-

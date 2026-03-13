@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.41.0] - 2026-03-13
+
+### ✨ New Features
+
+- Added `@bowenqt/qiniu-ai-sdk/core` as the preferred entry for reusable agent/runtime APIs
+- Added `@bowenqt/qiniu-ai-sdk/qiniu` as the preferred entry for Qiniu client and cloud API exports
+- Added Node-only re-exports to `@bowenqt/qiniu-ai-sdk/node` for MCP HTTP transport, OAuth helpers, token stores, sandbox, and Node checkpointers
+- `auditLogger` now supports `file://` sinks in Node.js and writes newline-delimited JSON entries
+
+### 🔧 Improvements
+
+- Core agent/runtime types now depend on a minimal `LanguageModelClient` protocol instead of `QiniuAI`
+- Added regression coverage for `createAgent` lazy-connect parity and `toDataStreamResponse()` reader cancel behavior
+- Clarified root entry as a compatibility surface and documented the new preferred subpath imports
+
 ## [0.40.0] - 2026-03-13
 
 ### ✨ New Features

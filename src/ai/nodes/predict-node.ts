@@ -3,7 +3,7 @@
  * Extracted from generateText for modular use in Graph Runtime.
  */
 
-import type { QiniuAI } from '../../client';
+import type { LanguageModelClient } from '../../core/client';
 import type { ChatMessage, ResponseFormat, ChatCompletionRequest, ToolCall } from '../../lib/types';
 import type { RegisteredTool } from '../../lib/tool-registry';
 
@@ -15,7 +15,7 @@ export type PredictChunk =
 
 /** Predict options */
 export interface PredictOptions {
-    client: QiniuAI;
+    client: LanguageModelClient;
     model: string;
     messages: ChatMessage[];
     tools?: RegisteredTool[];
@@ -88,7 +88,7 @@ export async function predict(options: PredictOptions): Promise<PredictResult> {
  * Streaming prediction.
  */
 async function predictStreaming(
-    client: QiniuAI,
+    client: LanguageModelClient,
     request: ChatCompletionRequest,
     abortSignal?: AbortSignal,
     onChunk?: (chunk: PredictChunk) => void,
@@ -158,7 +158,7 @@ async function predictStreaming(
  * Returns single final step, no token events.
  */
 async function predictNonStreaming(
-    client: QiniuAI,
+    client: LanguageModelClient,
     request: ChatCompletionRequest,
     abortSignal?: AbortSignal
 ): Promise<PredictResult> {
@@ -175,4 +175,3 @@ async function predictNonStreaming(
         usage: response.usage,
     };
 }
-

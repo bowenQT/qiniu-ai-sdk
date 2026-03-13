@@ -57,6 +57,14 @@
 npm install @bowenqt/qiniu-ai-sdk
 ```
 
+### Recommended Imports
+
+```typescript
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { createAgent, generateText } from '@bowenqt/qiniu-ai-sdk/core';
+import { NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
+```
+
 ### Optional Peer Dependencies
 
 ```bash
@@ -78,7 +86,7 @@ npm install pg
 ## 🚀 Quick Start
 
 ```typescript
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({
   apiKey: 'Sk-xxxxxxxxxxxxxxxx',
@@ -108,7 +116,8 @@ for await (const chunk of stream) {
 ### Tool Execution with generateText
 
 ```typescript
-import { QiniuAI, generateText } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateText } from '@bowenqt/qiniu-ai-sdk/core';
 import { z } from 'zod';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
@@ -141,7 +150,7 @@ console.log(result.toolCalls);  // Tool calls made
 ### Structured Output
 
 ```typescript
-import { generateObject } from '@bowenqt/qiniu-ai-sdk';
+import { generateObject } from '@bowenqt/qiniu-ai-sdk/core';
 import { z } from 'zod';
 
 const result = await generateObject({
@@ -234,7 +243,8 @@ for await (const text of textStream) {
 ### Skills Injection
 
 ```typescript
-import { SkillLoader, generateTextWithGraph } from '@bowenqt/qiniu-ai-sdk';
+import { generateTextWithGraph } from '@bowenqt/qiniu-ai-sdk/core';
+import { SkillLoader } from '@bowenqt/qiniu-ai-sdk/node';
 
 const loader = new SkillLoader({ skillsDir: './skills' });
 const skills = await loader.loadAll();
@@ -270,7 +280,7 @@ const skill = registry.get('git-workflow');
 ### Structured Telemetry (v0.32.0+)
 
 ```typescript
-import { MetricsCollector, createMetricsHandler } from '@bowenqt/qiniu-ai-sdk';
+import { MetricsCollector, createMetricsHandler } from '@bowenqt/qiniu-ai-sdk/core';
 
 const metrics = new MetricsCollector();
 const handler = createMetricsHandler(metrics);
@@ -307,7 +317,8 @@ const tools = host.getTools();
 ### Checkpointer (State Persistence)
 
 ```typescript
-import { MemoryCheckpointer, RedisCheckpointer, KodoCheckpointer } from '@bowenqt/qiniu-ai-sdk';
+import { MemoryCheckpointer } from '@bowenqt/qiniu-ai-sdk/core';
+import { RedisCheckpointer, KodoCheckpointer } from '@bowenqt/qiniu-ai-sdk/node';
 
 // In-memory (dev/testing)
 const memoryCheckpointer = new MemoryCheckpointer({ maxItems: 100 });
@@ -345,7 +356,7 @@ setGlobalTracer(otelTracer);
 ### Cloud Sandbox (v0.37.0+)
 
 ```typescript
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -413,8 +424,10 @@ await instance.kill();
 
 | Entry Point | Description |
 |-------------|-------------|
-| `@bowenqt/qiniu-ai-sdk` | Main entry (universal) |
-| `@bowenqt/qiniu-ai-sdk/node` | Node.js-only features (SkillLoader, NodeMCPHost) |
+| `@bowenqt/qiniu-ai-sdk` | Compatibility entry (legacy mixed surface) |
+| `@bowenqt/qiniu-ai-sdk/core` | Provider-agnostic agent/runtime APIs |
+| `@bowenqt/qiniu-ai-sdk/qiniu` | Qiniu client and cloud API surface |
+| `@bowenqt/qiniu-ai-sdk/node` | Node.js-only runtime integrations (MCP, OAuth, token stores, sandbox, checkpointers) |
 | `@bowenqt/qiniu-ai-sdk/browser` | Browser-compatible subset |
 | `@bowenqt/qiniu-ai-sdk/adapter` | Vercel AI SDK adapter |
 | `@bowenqt/qiniu-ai-sdk/ai-tools` | Qiniu native cloud tools (OCR/Censor/Vframe) |

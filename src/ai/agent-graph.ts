@@ -5,7 +5,7 @@
  * IMPORTANT: All compaction uses estimateMessageTokens from token-estimator.ts
  */
 
-import type { QiniuAI } from '../client';
+import type { LanguageModelClient } from '../core/client';
 import type { ResponseFormat } from '../lib/types';
 import type { RegisteredTool } from '../lib/tool-registry';
 import type { Skill } from '../modules/skills';
@@ -36,7 +36,7 @@ import { MetricsCollector, type AgentMetrics } from '../lib/metrics';
 
 /** AgentGraph options */
 export interface AgentGraphOptions {
-    client: QiniuAI;
+    client: LanguageModelClient;
     model: string;
     tools?: Record<string, RegisteredTool>;
     skills?: Skill[];

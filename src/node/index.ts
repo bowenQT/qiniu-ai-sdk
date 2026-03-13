@@ -27,3 +27,75 @@ export { SkillInstaller } from '../modules/skills/installer';
 export { createLockEntry, writeLockfile, readLockfile } from '../modules/skills/lockfile';
 export type { SkillLockEntry } from '../modules/skills/lockfile';
 export { applyReferenceMode } from '../modules/skills/reference-mode';
+export { auditLogger, AuditLoggerCollector } from '../ai/guardrails/audit-logger';
+export type { AuditLoggerConfig, AuditLogEntry } from '../ai/guardrails/types';
+
+// MCP HTTP transport + OAuth + token stores are Node-only in the current implementation
+export {
+    MCPHttpTransport,
+    MCPHttpTransportError,
+    PKCEFlow,
+    DeviceCodeFlow,
+    OAuthError,
+    generateCodeVerifier,
+    generateCodeChallenge,
+    generateState,
+    refreshAccessToken,
+    MemoryTokenStore,
+    FileTokenStore,
+    TokenManager,
+    QiniuMCPServer,
+    startFromEnv,
+} from '../modules/mcp';
+export type {
+    TokenProvider,
+    OAuthTokens,
+    TokenStore,
+    FileTokenStoreConfig,
+    MCPStdioServerConfig,
+    MCPHttpServerConfig,
+    MCPOAuthConfig,
+    MCPToolDefinition,
+    MCPToolResult,
+    MCPTransport,
+    QiniuMCPServerConfig,
+} from '../modules/mcp';
+
+// Node-only runtime/integration exports
+export { RedisCheckpointer, PostgresCheckpointer, KodoCheckpointer } from '../ai/graph';
+export type {
+    RedisClient,
+    RedisCheckpointerConfig,
+    PostgresClient,
+    PostgresCheckpointerConfig,
+    KodoCheckpointerConfig,
+    KodoRegion,
+} from '../ai/graph';
+
+export { Sandbox as QiniuSandbox } from '../modules/sandbox';
+export { SandboxInstance, CommandHandle, SandboxPty } from '../modules/sandbox';
+export { Templates as SandboxTemplates, TemplateCreateResponse } from '../modules/sandbox';
+export { ChildTransport } from '../lib/child-transport';
+export type {
+    SandboxConfig,
+    CreateSandboxParams,
+    SandboxInfo,
+    SandboxState,
+    CommandResult,
+    EntryInfo,
+    ListSandboxParams,
+    ListedSandbox,
+    RunCommandOptions,
+    WaitUntilReadyOptions,
+    StreamCommandOptions,
+    ProcessEvent,
+    ProcessInfo,
+    PtySize,
+    PtyOptions,
+    TemplateInfo,
+    TemplateBuildInfo,
+    TemplateBuildLogs,
+    CreateTemplateParams,
+    UpdateTemplateParams,
+    WaitForBuildOptions,
+} from '../modules/sandbox';

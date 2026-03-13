@@ -39,6 +39,39 @@ function createChunkingMockClient(responses: Array<{
     } as any;
 }
 
+function createCancelableMockClient() {
+    let releaseSecondChunk: (() => void) | undefined;
+    const waitForSecondChunk = new Promise<void>((resolve) => {
+        releaseSecondChunk = resolve;
+    });
+
+    const client = {
+        chat: {
+            async *createStream() {
+                yield {
+                    choices: [{ index: 0, delta: { content: 'A' } }],
+                };
+                await waitForSecondChunk;
+                yield {
+                    choices: [{ index: 0, delta: { content: 'B' } }],
+                };
+                return {
+                    content: 'AB',
+                    reasoningContent: '',
+                    toolCalls: [],
+                    finishReason: 'stop',
+                    usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+                };
+            },
+        },
+    } as any;
+
+    return {
+        client,
+        releaseSecondChunk: () => releaseSecondChunk?.(),
+    };
+}
+
 describe('streamText', () => {
     describe('Basic Streaming', () => {
         it('should return StreamTextResult synchronously', () => {
@@ -257,6 +290,37 @@ describe('streamText', () => {
             });
 
             expect(response.headers.get('X-Custom')).toBe('value');
+        });
+
+        it('reader.cancel should not abort other active consumers', async () => {
+            const { client, releaseSecondChunk } = createCancelableMockClient();
+
+            const result = streamText({
+                client,
+                model: 'test-model',
+                prompt: 'Hi',
+            });
+
+            const response = result.toDataStreamResponse();
+            const reader = response.body?.getReader();
+            expect(reader).toBeDefined();
+
+            const textChunksPromise = (async () => {
+                const chunks: string[] = [];
+                for await (const chunk of result.textStream) {
+                    chunks.push(chunk);
+                }
+                return chunks;
+            })();
+
+            const firstRead = await reader!.read();
+            expect(firstRead.done).toBe(false);
+            expect(new TextDecoder().decode(firstRead.value)).toContain('"textDelta":"A"');
+
+            await reader!.cancel();
+            releaseSecondChunk();
+
+            await expect(textChunksPromise).resolves.toEqual(['A', 'B']);
         });
     });
 

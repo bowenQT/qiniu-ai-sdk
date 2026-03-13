@@ -14,7 +14,7 @@
  * ```
  */
 
-import type { IQiniuClient } from './types';
+import type { LanguageModelClient } from '../core/client';
 
 /**
  * Capability types that can be cached.
@@ -45,6 +45,8 @@ const DEFAULT_TTL_MS = 60 * 60 * 1000;
  */
 class CapabilityCache {
     private cache = new Map<string, CacheEntry>();
+    private clientIds = new WeakMap<object, string>();
+    private clientIdCounter = 0;
     private ttlMs: number;
 
     constructor(ttlMs = DEFAULT_TTL_MS) {
@@ -54,16 +56,32 @@ class CapabilityCache {
     /**
      * Generate cache key from client, model, and capability.
      */
-    private getKey(client: IQiniuClient, model: string, capability: CapabilityType): string {
-        const baseUrl = client.getBaseUrl();
-        return `${baseUrl}:${model}:${capability}`;
+    private getClientIdentity(client: LanguageModelClient): string {
+        if (typeof client.getBaseUrl === 'function') {
+            return client.getBaseUrl();
+        }
+
+        const clientObject = client as object;
+        const existingId = this.clientIds.get(clientObject);
+        if (existingId) {
+            return existingId;
+        }
+
+        const constructorName = (clientObject as { constructor?: { name?: string } }).constructor?.name ?? 'anonymous-client';
+        const nextId = `${constructorName}:${++this.clientIdCounter}`;
+        this.clientIds.set(clientObject, nextId);
+        return nextId;
+    }
+
+    private getKey(client: LanguageModelClient, model: string, capability: CapabilityType): string {
+        return `${this.getClientIdentity(client)}:${model}:${capability}`;
     }
 
     /**
      * Get cached capability status.
      * Returns undefined if not cached or expired.
      */
-    get(client: IQiniuClient, model: string, capability: CapabilityType): boolean | undefined {
+    get(client: LanguageModelClient, model: string, capability: CapabilityType): boolean | undefined {
         const key = this.getKey(client, model, capability);
         const entry = this.cache.get(key);
 
@@ -83,7 +101,7 @@ class CapabilityCache {
     /**
      * Set capability status.
      */
-    set(client: IQiniuClient, model: string, capability: CapabilityType, supported: boolean): void {
+    set(client: LanguageModelClient, model: string, capability: CapabilityType, supported: boolean): void {
         const key = this.getKey(client, model, capability);
         this.cache.set(key, {
             supported,
@@ -94,14 +112,14 @@ class CapabilityCache {
     /**
      * Check if capability is cached and supported.
      */
-    isSupported(client: IQiniuClient, model: string, capability: CapabilityType): boolean {
+    isSupported(client: LanguageModelClient, model: string, capability: CapabilityType): boolean {
         return this.get(client, model, capability) === true;
     }
 
     /**
      * Check if capability is cached and not supported.
      */
-    isNotSupported(client: IQiniuClient, model: string, capability: CapabilityType): boolean {
+    isNotSupported(client: LanguageModelClient, model: string, capability: CapabilityType): boolean {
         return this.get(client, model, capability) === false;
     }
 
@@ -115,14 +133,14 @@ class CapabilityCache {
     /**
      * Clear entries for a specific client.
      */
-    clearForClient(client: IQiniuClient): void {
-        const baseUrl = client.getBaseUrl();
+    clearForClient(client: LanguageModelClient): void {
+        const clientIdentity = this.getClientIdentity(client);
         const keysToDelete: string[] = [];
 
 
 
         for (const key of this.cache.keys()) {
-            if (key.startsWith(baseUrl + ':')) {
+            if (key.startsWith(clientIdentity + ':')) {
                 keysToDelete.push(key);
             }
         }

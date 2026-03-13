@@ -57,6 +57,14 @@
 npm install @bowenqt/qiniu-ai-sdk
 ```
 
+### 推荐导入方式
+
+```typescript
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { createAgent, generateText } from '@bowenqt/qiniu-ai-sdk/core';
+import { NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
+```
+
 ### 可选依赖
 
 ```bash
@@ -78,7 +86,7 @@ npm install pg
 ## 🚀 快速开始
 
 ```typescript
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({
   apiKey: 'Sk-xxxxxxxxxxxxxxxx',
@@ -108,7 +116,8 @@ for await (const chunk of stream) {
 ### 使用 generateText 执行工具
 
 ```typescript
-import { QiniuAI, generateText } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateText } from '@bowenqt/qiniu-ai-sdk/core';
 import { z } from 'zod';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
@@ -141,7 +150,7 @@ console.log(result.toolCalls);  // 工具调用记录
 ### 结构化输出
 
 ```typescript
-import { generateObject } from '@bowenqt/qiniu-ai-sdk';
+import { generateObject } from '@bowenqt/qiniu-ai-sdk/core';
 import { z } from 'zod';
 
 const result = await generateObject({
@@ -234,7 +243,8 @@ for await (const text of textStream) {
 ### 技能注入
 
 ```typescript
-import { SkillLoader, generateTextWithGraph } from '@bowenqt/qiniu-ai-sdk';
+import { generateTextWithGraph } from '@bowenqt/qiniu-ai-sdk/core';
+import { SkillLoader } from '@bowenqt/qiniu-ai-sdk/node';
 
 const loader = new SkillLoader({ skillsDir: './skills' });
 const skills = await loader.loadAll();
@@ -270,7 +280,7 @@ const skill = registry.get('git-workflow');
 ### 结构化指标 (v0.32.0+)
 
 ```typescript
-import { MetricsCollector, createMetricsHandler } from '@bowenqt/qiniu-ai-sdk';
+import { MetricsCollector, createMetricsHandler } from '@bowenqt/qiniu-ai-sdk/core';
 
 const metrics = new MetricsCollector();
 const handler = createMetricsHandler(metrics);
@@ -281,7 +291,8 @@ const handler = createMetricsHandler(metrics);
 
 ```typescript
 import { NodeMCPHost } from '@bowenqt/qiniu-ai-sdk/node';
-import { QiniuAI, createAgent } from '@bowenqt/qiniu-ai-sdk';
+import { createAgent } from '@bowenqt/qiniu-ai-sdk/core';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -312,7 +323,8 @@ await mcpHost.dispose();
 ### Checkpointer（状态持久化）
 
 ```typescript
-import { MemoryCheckpointer, RedisCheckpointer, KodoCheckpointer } from '@bowenqt/qiniu-ai-sdk';
+import { MemoryCheckpointer } from '@bowenqt/qiniu-ai-sdk/core';
+import { RedisCheckpointer, KodoCheckpointer } from '@bowenqt/qiniu-ai-sdk/node';
 
 // 内存存储（开发/测试）
 const memoryCheckpointer = new MemoryCheckpointer({ maxItems: 100 });
@@ -350,7 +362,7 @@ setGlobalTracer(otelTracer);
 ### 云沙箱 (v0.37.0+)
 
 ```typescript
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -418,8 +430,10 @@ await instance.kill();
 
 | 入口 | 说明 |
 |------|------|
-| `@bowenqt/qiniu-ai-sdk` | 主入口（通用） |
-| `@bowenqt/qiniu-ai-sdk/node` | Node.js 专用（SkillLoader、NodeMCPHost） |
+| `@bowenqt/qiniu-ai-sdk` | 兼容入口（保留历史混合导出） |
+| `@bowenqt/qiniu-ai-sdk/core` | 与 provider 解耦的 Agent / Runtime API |
+| `@bowenqt/qiniu-ai-sdk/qiniu` | 七牛客户端与云能力 API |
+| `@bowenqt/qiniu-ai-sdk/node` | Node.js 专用运行时集成（MCP、OAuth、token store、sandbox、checkpointer） |
 | `@bowenqt/qiniu-ai-sdk/browser` | 浏览器兼容子集 |
 | `@bowenqt/qiniu-ai-sdk/adapter` | Vercel AI SDK 适配器 |
 | `@bowenqt/qiniu-ai-sdk/ai-tools` | 七牛原生云工具（OCR/审核/抽帧） |

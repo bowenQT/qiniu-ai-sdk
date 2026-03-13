@@ -23,7 +23,7 @@
 
 import type { ChatMessage } from '../../lib/types';
 import type { InternalMessage, MessageMeta } from '../internal-types';
-import type { QiniuAI } from '../../client';
+import type { LanguageModelClient } from '../../core/client';
 import { estimateMessageTokens, estimateMessagesTokens } from '../../lib/token-estimator';
 
 // ============================================================================
@@ -44,8 +44,8 @@ export interface SummarizerConfig {
     threshold?: number;
     /** Summarization type: 'simple' (concatenation) or 'llm' (LLM-based) */
     type?: 'simple' | 'llm';
-    /** QiniuAI client for LLM summarization (required if type='llm') */
-    client?: QiniuAI;
+    /** Language-model client for LLM summarization (required if type='llm') */
+    client?: LanguageModelClient;
     /** Model for LLM summarization */
     model?: string;
     /** System prompt for summarization */

@@ -134,6 +134,7 @@ export type {
 
 // Shared types
 export * from './lib/types';
+export type { LanguageModelChatAPI, LanguageModelClient } from './core/client';
 
 // Message helpers
 export { appendMessages, truncateHistory } from './lib/messages';
@@ -313,6 +314,10 @@ export type { VideoTaskHandle } from './modules/video';
 
 // ============================================================================
 // Agent SDK v7 - Skills, MCP, Graph, Checkpointer
+// Preferred new imports:
+// - '@bowenqt/qiniu-ai-sdk/core' for reusable runtime APIs
+// - '@bowenqt/qiniu-ai-sdk/qiniu' for Qiniu client/cloud APIs
+// - '@bowenqt/qiniu-ai-sdk/node' for Node-only runtime integrations
 // ============================================================================
 
 // generateTextWithGraph
@@ -438,8 +443,8 @@ export type {
     VframeToolResult,
 } from './ai-tools/qiniu-tools';
 
-// Skills (NOTE: SkillLoader requires Node.js - use '@bowenqt/qiniu-ai-sdk/node' for explicit import)
-// Kept here for backward compatibility, will be excluded in browser bundle
+// Skills (NOTE: SkillLoader requires Node.js - prefer '@bowenqt/qiniu-ai-sdk/node')
+// Kept here for backward compatibility.
 export { SkillLoader } from './modules/skills';
 export { RegistryProtocolStub } from './modules/skills';
 export { SkillRegistry } from './modules/skills';
@@ -447,8 +452,8 @@ export type { Skill } from './modules/skills';
 export type { SkillRegistryConfig, RemoteSkillSource } from './modules/skills';
 export type { SkillRegistryProtocol, RegistrySkillEntry, RegistrySearchOptions } from './modules/skills';
 
-// MCP (Phase 3+ — MCPClient removed in v0.40.0, use NodeMCPHost from /node)
-// HTTP transport (MCPHttpTransport) is browser-compatible
+// MCP (Phase 3+ — MCPClient removed in v0.40.0, prefer '@bowenqt/qiniu-ai-sdk/node')
+// Kept here for backward compatibility; current implementation is Node-oriented.
 export {
     // Phase 3: HTTP Transport
     MCPHttpTransport,

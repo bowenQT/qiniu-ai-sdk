@@ -30,7 +30,7 @@
  * ```
  */
 
-import type { QiniuAI } from '../client';
+import type { LanguageModelClient } from '../core/client';
 import type { ChatMessage, ResponseFormat } from '../lib/types';
 import { StructuredOutputError, type ValidationErrorItem } from '../lib/errors';
 import { PartialJsonParser } from '../lib/partial-json-parser';
@@ -44,8 +44,8 @@ import { normalizeContent } from '../lib/content-converter';
 
 /** Options for streamObject */
 export interface StreamObjectOptions<T> {
-    /** Qiniu AI client */
-    client: QiniuAI;
+    /** Language-model client */
+    client: LanguageModelClient;
     /** Model to use */
     model: string;
     /** Zod schema for validation */

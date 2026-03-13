@@ -167,9 +167,10 @@ function parseSink(sink: string): SinkInfo {
     }
 
     if (sink.startsWith('file://')) {
+        const url = new URL(sink);
         return {
             type: 'file',
-            path: sink.slice(7),
+            path: resolveFileUrlPath(url),
         };
     }
 
@@ -190,10 +191,54 @@ async function flushLogs(sink: SinkInfo, entries: AuditLogEntry[]): Promise<void
             }
             break;
 
-        case 'kodo':
-            throw new Error('AuditLogger: kodo:// sink is not yet implemented. Use "console" instead.');
-
         case 'file':
-            throw new Error('AuditLogger: file:// sink is not yet implemented. Use "console" instead.');
+            await appendEntriesToFile(sink.path, entries);
+            break;
+
+        case 'kodo':
+            throw new Error('AuditLogger: kodo:// sink is experimental and not yet implemented. Use "console" or "file://" instead.');
     }
+}
+
+async function appendEntriesToFile(
+    filePath: string | undefined,
+    entries: AuditLogEntry[],
+): Promise<void> {
+    if (!filePath) {
+        throw new Error('AuditLogger: file:// sink requires an absolute file path.');
+    }
+
+    if (typeof process === 'undefined' || !process.versions?.node) {
+        throw new Error('AuditLogger: file:// sink requires a Node.js runtime.');
+    }
+
+    const [{ appendFile, mkdir }, { dirname }] = await Promise.all([
+        import('node:fs/promises'),
+        import('node:path'),
+    ]);
+
+    await mkdir(dirname(filePath), { recursive: true });
+
+    const payload = entries
+        .map((entry) => JSON.stringify(entry))
+        .join('\n')
+        .concat('\n');
+
+    await appendFile(filePath, payload, 'utf8');
+}
+
+export function resolveFileUrlPath(url: URL): string {
+    const pathname = decodeURIComponent(url.pathname);
+
+    // UNC path: file://server/share/path -> //server/share/path
+    if (url.host) {
+        return `//${url.host}${pathname}`;
+    }
+
+    // Windows drive letter: file:///C:/path -> C:/path
+    if (/^\/[A-Za-z]:\//.test(pathname)) {
+        return pathname.slice(1);
+    }
+
+    return pathname;
 }

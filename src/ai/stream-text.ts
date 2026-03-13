@@ -10,7 +10,7 @@ import { generateTextWithGraph, type GenerateTextWithGraphOptions, type Generate
 import type { TokenEvent } from './agent-graph';
 import type { Guardrail } from './guardrails';
 import type { Checkpointer } from './graph/checkpointer';
-import type { QiniuAI } from '../client';
+import type { LanguageModelClient } from '../core/client';
 import type { ChatMessage, ResponseFormat } from '../lib/types';
 import type { Tool } from './generate-text';
 import type { Skill } from '../modules/skills';
@@ -22,8 +22,8 @@ import type { MemoryManager } from './memory';
 // ============================================================================
 
 export interface StreamTextOptions {
-    /** Qiniu AI client */
-    client: QiniuAI;
+    /** Language-model client */
+    client: LanguageModelClient;
     /** Model to use */
     model: string;
     /** User prompt */
