@@ -29,6 +29,7 @@
 ### Agentic Layer
 - 🤖 **generateText** — Multi-step tool execution with Zod schema support
 - 📊 **generateObject/streamObject** — Structured JSON output with streaming
+- 🔄 **streamText** — Token-level streaming with fan-out cursors, abort bridging, SSE response (v0.40.0+)
 - 🧠 **AgentGraph** — State machine-based graph execution
 - 🏭 **createAgent** — Reusable agent factory with configurable behaviors
 

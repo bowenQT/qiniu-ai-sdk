@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.40.0] - 2026-03-13
+
+### ✨ New Features
+
+**streamText — Token-level Streaming (Phase 6)**
+- `streamText()` — Stream text from LLM with token-level granularity:
+  - Synchronous return of `StreamTextResult`; background task drives `generateTextWithGraph`
+  - `textStream` / `reasoningStream` / `fullStream` — Independent async iterables with fan-out cursors
+  - `text` / `reasoning` / `usage` / `steps` — Deferred promises resolve on completion
+  - `toDataStreamResponse()` — SSE-formatted `Response` for HTTP endpoints
+  - Consumer-driven abort: all consumers complete → background task aborted
+  - Error event yield-then-throw semantics for observable error handling
+- `agent.stream()` / `agent.streamWithThread()` — Agent-level streaming API:
+  - Async return (`Promise<StreamTextResult>`) with MCP lazy-connect
+  - Full parity with `run()`/`runWithThread()` options (toolChoice, memory, callbacks, etc.)
+  - `streamWithThread` passes threadId/checkpointer/resumeFromCheckpoint
+
+**Token Event Infrastructure**
+- `PredictChunk` — Low-level onChunk callback in predict-node (`text-delta`, `reasoning-delta`, `tool-call-delta`)
+- `TokenEvent` — Mid-level event type in AgentGraph:
+  - `tool-call` emitted after approval, before execution (uses repaired `parsedArgs`)
+  - `tool-result` with `isError`/`isRejected` distinction
+  - `step-finish`, `finish`, `error` terminal events
+- `ToolExecutionResult.parsedArgs` — Exposes repaired arguments (post-`parseToolArguments`)
+
+### 🔧 Improvements
+
+- **Node 18 compatibility**: `combineAbortSignals()` polyfill for `AbortSignal.any()`
+- **Lazy consumer counting**: `activeConsumers` incremented on iteration start, not stream creation
+- **Fault isolation**: `onChunk` and `onTokenEvent` callbacks wrapped in try-catch
+
+### 📦 Exports
+
+```typescript
+// New exports
+export { streamText } from './ai/stream-text';
+export type { StreamTextOptions, StreamTextResult } from './ai/stream-text';
+export type { TokenEvent } from './ai/agent-graph';
+export type { AgentStreamOptions, AgentStreamWithThreadOptions } from './ai/create-agent';
+```
+
+---
+
 ## [0.39.0] - 2026-03-12
 
 ### ✨ New Features

@@ -29,6 +29,7 @@
 ### Agent 层
 - 🤖 **generateText** — 多步骤工具执行，支持 Zod Schema
 - 📊 **generateObject/streamObject** — 结构化 JSON 输出，支持流式
+- 🔄 **streamText** — 逐 Token 流式输出，独立游标、中断桥接、SSE 响应（v0.40.0+）
 - 🧠 **AgentGraph** — 基于状态机的图执行引擎
 - 🏭 **createAgent** — 可复用的 Agent 工厂
 

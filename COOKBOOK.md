@@ -39,6 +39,7 @@ This cookbook provides focused, copy‑ready examples for common workflows.
 26. [Multi-Agent Crew - Orchestration](#26-multi-agent-crew---orchestration)
 27. [Cloud Sandbox - Code Execution (v0.37.0+)](#27-cloud-sandbox---code-execution-v0370)
 28. [MCP Tool Policy & Skill CLI (v0.38.0+)](#28-mcp-tool-policy--skill-cli-v0380)
+29. [streamText — Token-level Streaming (v0.40.0+)](#29-streamtext--token-level-streaming-v0400)
 
 ---
 
@@ -1959,4 +1960,122 @@ npx qiniu-ai skill add <url> --auth <token>   # With private manifest auth
 npx qiniu-ai skill verify          # Verify integrity (path + hash)
 npx qiniu-ai skill verify --fix    # Reconstruct lockfile from local dirs
 npx qiniu-ai skill remove <name>   # Remove skill + lockfile entry
+```
+
+---
+
+## 29. streamText — Token-level Streaming (v0.40.0+)
+
+Stream text from LLM with token-level granularity. Unlike `generateText()` which returns after full completion, `streamText()` returns immediately and delivers tokens as they arrive.
+
+### Basic Usage
+
+```typescript
+import { QiniuAI, streamText } from '@bowenqt/qiniu-ai-sdk';
+
+const client = new QiniuAI({ apiKey: 'your-key' });
+
+const result = streamText({
+    client,
+    model: 'deepseek-v3',
+    prompt: 'Explain quantum computing in simple terms',
+});
+
+// Stream text deltas as they arrive
+for await (const chunk of result.textStream) {
+    process.stdout.write(chunk);
+}
+
+// Or await the final aggregated result
+const finalText = await result.text;
+```
+
+### Agent Streaming
+
+```typescript
+import { QiniuAI, createAgent } from '@bowenqt/qiniu-ai-sdk';
+
+const agent = createAgent({
+    client: new QiniuAI({ apiKey: 'your-key' }),
+    model: 'deepseek-v3',
+    tools: { /* ... */ },
+});
+
+// agent.stream() returns Promise<StreamTextResult>
+const result = await agent.stream({ prompt: 'Search the web for latest AI news' });
+
+for await (const chunk of result.textStream) {
+    process.stdout.write(chunk);
+}
+```
+
+### SSE Endpoint (Express / Hono / Next.js)
+
+```typescript
+// Next.js App Router example
+export async function POST(req: Request) {
+    const { prompt } = await req.json();
+
+    const result = streamText({
+        client,
+        model: 'deepseek-v3',
+        prompt,
+    });
+
+    // Convert to SSE Response with one call
+    return result.toDataStreamResponse();
+}
+```
+
+### Full Event Stream (Tool Calls + Results)
+
+```typescript
+const result = streamText({
+    client,
+    model: 'deepseek-v3',
+    prompt: 'What is the weather in Tokyo?',
+    tools: weatherTools,
+    maxSteps: 5,
+});
+
+for await (const event of result.fullStream) {
+    switch (event.type) {
+        case 'text-delta':
+            process.stdout.write(event.textDelta);
+            break;
+        case 'tool-call':
+            console.log(`Calling ${event.toolName}(${JSON.stringify(event.args)})`);
+            break;
+        case 'tool-result':
+            console.log(`Result: ${event.result}`);
+            break;
+        case 'finish':
+            console.log(`Done: ${event.finishReason}`);
+            break;
+        case 'error':
+            console.error('Stream error:', event.error);
+            break;
+    }
+}
+```
+
+### Abort Handling
+
+```typescript
+const controller = new AbortController();
+
+const result = streamText({
+    client,
+    model: 'deepseek-v3',
+    prompt: 'Write a long story',
+    abortSignal: controller.signal,
+});
+
+// Abort after 5 seconds
+setTimeout(() => controller.abort(), 5000);
+
+for await (const chunk of result.textStream) {
+    process.stdout.write(chunk);
+}
+// Consumer break/return also aborts the background task automatically
 ```
