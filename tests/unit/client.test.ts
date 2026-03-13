@@ -1,6 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { QiniuAI } from '../../src/client';
-import { createMockFetch, createStaticMockFetch } from '../mocks/fetch';
+import { QiniuAI as ProviderQiniuAI } from '../../src/qiniu/client';
+import { createNodeQiniuAI } from '../../src/node/client';
+import { createStaticMockFetch } from '../mocks/fetch';
 
 describe('QiniuAI Client', () => {
     describe('constructor', () => {
@@ -45,6 +47,21 @@ describe('QiniuAI Client', () => {
             expect(client.tts).toBeDefined();
             expect(client.account).toBeDefined();
             expect(client.admin).toBeDefined();
+            expect(client.sandbox).toBeDefined();
+        });
+
+        it('provider client should stay browser-safe and not expose sandbox', () => {
+            const client = new ProviderQiniuAI({ apiKey: 'sk-test' }) as ProviderQiniuAI & { sandbox?: unknown };
+
+            expect(client.chat).toBeDefined();
+            expect('sandbox' in client).toBe(false);
+        });
+
+        it('createNodeQiniuAI should attach sandbox explicitly', () => {
+            const client = createNodeQiniuAI({ apiKey: 'sk-test' });
+
+            expect(client.chat).toBeDefined();
+            expect(client.sandbox).toBeDefined();
         });
     });
 

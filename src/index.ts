@@ -1,4 +1,4 @@
-// Main client
+// Root compatibility surface
 export {
     QiniuAI,
     consoleLogger,
@@ -97,8 +97,6 @@ export {
     inputFilter,
     outputFilter,
     tokenLimiter,
-    auditLogger,
-    AuditLoggerCollector,
     ACTION_PRIORITY,
 } from './ai/guardrails';
 export type {
@@ -112,9 +110,16 @@ export type {
     ContentCategory,
     TokenLimiterConfig,
     GuardrailTokenStore,
-    AuditLoggerConfig,
-    AuditLogEntry,
 } from './ai/guardrails';
+
+/**
+ * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
+ */
+export { auditLogger, AuditLoggerCollector } from './ai/guardrails';
+/**
+ * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
+ */
+export type { AuditLoggerConfig, AuditLogEntry } from './ai/guardrails';
 
 // Crew (Multi-Agent Orchestration)
 export {
@@ -279,11 +284,17 @@ export type {
     LogEntry,
 } from './modules/log';
 
-// Module types - Sandbox (Node-only, NOT exported from browser entry)
+/**
+ * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
+ * Root-entry sandbox exports are kept for compatibility during the v0.42 window.
+ */
 export { Sandbox as QiniuSandbox } from './modules/sandbox';
 export { SandboxInstance, CommandHandle, SandboxPty } from './modules/sandbox';
 export { Templates as SandboxTemplates, TemplateCreateResponse } from './modules/sandbox';
 export { ChildTransport } from './lib/child-transport';
+/**
+ * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
+ */
 export type {
     SandboxConfig,
     CreateSandboxParams,
@@ -443,8 +454,10 @@ export type {
     VframeToolResult,
 } from './ai-tools/qiniu-tools';
 
-// Skills (NOTE: SkillLoader requires Node.js - prefer '@bowenqt/qiniu-ai-sdk/node')
-// Kept here for backward compatibility.
+/**
+ * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
+ * Kept on the root entry for one compatibility window.
+ */
 export { SkillLoader } from './modules/skills';
 export { RegistryProtocolStub } from './modules/skills';
 export { SkillRegistry } from './modules/skills';
@@ -452,8 +465,10 @@ export type { Skill } from './modules/skills';
 export type { SkillRegistryConfig, RemoteSkillSource } from './modules/skills';
 export type { SkillRegistryProtocol, RegistrySkillEntry, RegistrySearchOptions } from './modules/skills';
 
-// MCP (Phase 3+ — MCPClient removed in v0.40.0, prefer '@bowenqt/qiniu-ai-sdk/node')
-// Kept here for backward compatibility; current implementation is Node-oriented.
+/**
+ * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
+ * Kept on the root entry for one compatibility window.
+ */
 export {
     // Phase 3: HTTP Transport
     MCPHttpTransport,
@@ -474,6 +489,9 @@ export {
     QiniuMCPServer,
     startFromEnv,
 } from './modules/mcp';
+/**
+ * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
+ */
 export type {
     MCPServerConfig,
     MCPStdioServerConfig,
@@ -494,11 +512,6 @@ export type {
 export {
     MemoryCheckpointer,
     deserializeCheckpoint,
-    // Phase 3: Redis + Postgres
-    RedisCheckpointer,
-    PostgresCheckpointer,
-    // Phase 7: Kodo (Qiniu Object Storage)
-    KodoCheckpointer,
     // Phase 5: Async Approval
     isPendingApproval,
     getPendingApproval,
@@ -509,19 +522,31 @@ export type {
     Checkpoint,
     CheckpointMetadata,
     SerializedAgentState,
-    RedisClient,
-    RedisCheckpointerConfig,
-    PostgresClient,
-    PostgresCheckpointerConfig,
-    // Phase 7: Kodo
-    KodoCheckpointerConfig,
-    KodoRegion,
     // Phase 5: Async Approval
     CheckpointStatus,
     CheckpointSaveOptions,
     PendingApproval,
     ResumeWithApprovalResult,
     ToolExecutor,
+} from './ai/graph';
+/**
+ * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
+ */
+export {
+    RedisCheckpointer,
+    PostgresCheckpointer,
+    KodoCheckpointer,
+} from './ai/graph';
+/**
+ * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
+ */
+export type {
+    RedisClient,
+    RedisCheckpointerConfig,
+    PostgresClient,
+    PostgresCheckpointerConfig,
+    KodoCheckpointerConfig,
+    KodoRegion,
 } from './ai/graph';
 
 // Tool Registry

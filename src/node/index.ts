@@ -4,6 +4,9 @@
  * Browser/Edge builds should NOT import from this module.
  */
 
+export { createNodeQiniuAI } from './client';
+export type { NodeQiniuAI, NodeQiniuAIOptions } from './client';
+
 // Re-export skill loader (requires fs, path)
 export { SkillLoader, SkillSecurityError, SkillNotFoundError } from '../modules/skills/loader';
 export type {
@@ -15,6 +18,14 @@ export type {
     SkillBudget,
 } from '../modules/skills/types';
 export { DEFAULT_SKILL_CONFIG, DEFAULT_SKILL_BUDGET } from '../modules/skills/types';
+export { SkillRegistry, RegistryProtocolStub } from '../modules/skills';
+export type {
+    SkillRegistryConfig,
+    RemoteSkillSource,
+    SkillRegistryProtocol,
+    RegistrySkillEntry,
+    RegistrySearchOptions,
+} from '../modules/skills';
 
 
 // Re-export NodeMCPHost (MCP Host Layer v2)

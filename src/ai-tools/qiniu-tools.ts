@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import type { QiniuAI } from '../client';
+import type { QiniuAI } from '../qiniu/client';
 import type { QiniuSigner } from '../lib/signer';
 import { parseQiniuUri, resolveAsset } from '../lib/asset-resolver';
 import { extractFrames, type VframeOptions } from '../lib/vframe';

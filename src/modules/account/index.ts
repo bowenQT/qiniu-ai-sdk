@@ -74,8 +74,27 @@ interface UsageApiResponse {
     error?: string;
 }
 
-function urlSafeBase64Encode(buffer: Buffer): string {
-    return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+function bytesToBinaryString(bytes: Uint8Array): string {
+    let binary = '';
+    const chunkSize = 0x8000;
+
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+
+    return binary;
+}
+
+function urlSafeBase64Encode(input: ArrayBuffer | ArrayBufferView): string {
+    const bytes = input instanceof ArrayBuffer
+        ? new Uint8Array(input)
+        : new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+
+    if (typeof btoa !== 'function') {
+        throw new Error('Global btoa() is required for usage auth signing');
+    }
+
+    return btoa(bytesToBinaryString(bytes)).replace(/\+/g, '-').replace(/\//g, '_');
 }
 
 function generateSigningString(options: {
@@ -111,7 +130,7 @@ function generateSigningString(options: {
     return signingStr;
 }
 
-function generateAccessToken(
+async function generateAccessToken(
     accessKey: string,
     secretKey: string,
     options: {
@@ -123,13 +142,25 @@ function generateAccessToken(
         headers?: Record<string, string>;
         body?: string;
     }
-): string {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const crypto = require('crypto') as typeof import('crypto');
+): Promise<string> {
+    if (!globalThis.crypto?.subtle) {
+        throw new Error('Web Crypto API is required for usage auth signing');
+    }
+
     const signingStr = generateSigningString(options);
-    const hmac = crypto.createHmac('sha1', secretKey);
-    hmac.update(signingStr);
-    const encodedSign = urlSafeBase64Encode(hmac.digest());
+    const cryptoKey = await globalThis.crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(secretKey),
+        { name: 'HMAC', hash: 'SHA-1' },
+        false,
+        ['sign']
+    );
+    const signature = await globalThis.crypto.subtle.sign(
+        'HMAC',
+        cryptoKey,
+        new TextEncoder().encode(signingStr)
+    );
+    const encodedSign = urlSafeBase64Encode(signature);
     return `${accessKey}:${encodedSign}`;
 }
 
@@ -235,7 +266,7 @@ export class Account {
                 host: url.host,
                 contentType: 'application/json',
             };
-            const token = generateAccessToken(query.auth.accessKey, query.auth.secretKey, signingStrOptions);
+            const token = await generateAccessToken(query.auth.accessKey, query.auth.secretKey, signingStrOptions);
             options = { headers: { Authorization: `Qiniu ${token}` } };
         }
 

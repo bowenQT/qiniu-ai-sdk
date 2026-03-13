@@ -1,4 +1,4 @@
-import { QiniuAI } from '../client';
+import { QiniuAI } from '../qiniu/client';
 import { QiniuChatModel } from './qiniu-chat-model';
 
 export interface QiniuProviderSettings {

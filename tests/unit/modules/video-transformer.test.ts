@@ -274,6 +274,24 @@ describe('Video Transformer: Veo Parameters', () => {
         expect(instance.compressionQuality).toBe('high');
     });
 
+    it('should infer jpeg mime type from url-safe unpadded base64 frames', async () => {
+        const video = new Video(mockClient.client as any);
+        await video.create({
+            model: 'veo-3.0-generate-001',
+            prompt: 'test',
+            frames: {
+                first: {
+                    base64: '_9j_4AAQSkZJRgAB',
+                },
+            },
+        });
+
+        const payload = mockClient.postPayloads[0].payload as Record<string, unknown>;
+        const instance = (payload as any).instances[0];
+        expect(instance.image.bytesBase64Encoded).toBe('_9j_4AAQSkZJRgAB');
+        expect(instance.image.mimeType).toBe('image/jpeg');
+    });
+
     it('should route veo-2.0-generate-exp through Veo adapter', async () => {
         const video = new Video(mockClient.client as any);
         await video.create({

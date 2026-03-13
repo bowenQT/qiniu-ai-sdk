@@ -13,7 +13,7 @@ export {
     retryMiddleware,
     headersMiddleware,
     timingMiddleware,
-} from '../client';
+} from './client';
 
 export type {
     QiniuAIOptions,
@@ -24,7 +24,7 @@ export type {
     MiddlewareRequest,
     MiddlewareResponse,
     RequestOptions,
-} from '../client';
+} from './client';
 
 export {
     CHAT_MODELS,

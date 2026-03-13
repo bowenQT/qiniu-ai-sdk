@@ -17,7 +17,7 @@ export {
     retryMiddleware,
     headersMiddleware,
     timingMiddleware,
-} from '../client';
+} from '../qiniu/client';
 
 export type {
     QiniuAIOptions,
@@ -28,7 +28,7 @@ export type {
     MiddlewareRequest,
     MiddlewareResponse,
     RequestOptions,
-} from '../client';
+} from '../qiniu/client';
 
 // ============================================================================
 // Model Catalog

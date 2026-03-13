@@ -62,7 +62,7 @@ npm install @bowenqt/qiniu-ai-sdk
 ```typescript
 import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 import { createAgent, generateText } from '@bowenqt/qiniu-ai-sdk/core';
-import { NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
+import { createNodeQiniuAI, NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
 ```
 
 ### Optional Peer Dependencies
@@ -73,6 +73,9 @@ npm install @ai-sdk/provider ai
 
 # For Zod schema validation
 npm install zod
+
+# For Node.js TTS WebSocket streaming
+npm install ws
 
 # For Redis checkpointer
 npm install ioredis
@@ -261,7 +264,7 @@ const result = await generateTextWithGraph({
 ### Skill Marketplace (v0.32.0+)
 
 ```typescript
-import { SkillRegistry } from '@bowenqt/qiniu-ai-sdk';
+import { SkillRegistry } from '@bowenqt/qiniu-ai-sdk/node';
 
 const registry = new SkillRegistry({
   allowRemote: true,
@@ -356,9 +359,9 @@ setGlobalTracer(otelTracer);
 ### Cloud Sandbox (v0.37.0+)
 
 ```typescript
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { createNodeQiniuAI } from '@bowenqt/qiniu-ai-sdk/node';
 
-const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+const client = createNodeQiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
 // Create sandbox and wait for readiness
 const instance = await client.sandbox.createAndWait(

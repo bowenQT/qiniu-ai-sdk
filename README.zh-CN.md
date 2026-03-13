@@ -62,7 +62,7 @@ npm install @bowenqt/qiniu-ai-sdk
 ```typescript
 import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 import { createAgent, generateText } from '@bowenqt/qiniu-ai-sdk/core';
-import { NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
+import { createNodeQiniuAI, NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
 ```
 
 ### 可选依赖
@@ -73,6 +73,9 @@ npm install @ai-sdk/provider ai
 
 # Zod Schema 验证
 npm install zod
+
+# Node.js TTS WebSocket 流式合成
+npm install ws
 
 # Redis Checkpointer
 npm install ioredis
@@ -261,7 +264,7 @@ const result = await generateTextWithGraph({
 ### Skill 市场 (v0.39.0+)
 
 ```typescript
-import { SkillRegistry } from '@bowenqt/qiniu-ai-sdk';
+import { SkillRegistry } from '@bowenqt/qiniu-ai-sdk/node';
 
 const registry = new SkillRegistry({
   allowRemote: true,
@@ -362,9 +365,9 @@ setGlobalTracer(otelTracer);
 ### 云沙箱 (v0.37.0+)
 
 ```typescript
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { createNodeQiniuAI } from '@bowenqt/qiniu-ai-sdk/node';
 
-const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+const client = createNodeQiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
 // 创建沙箱并等待就绪
 const instance = await client.sandbox.createAndWait(

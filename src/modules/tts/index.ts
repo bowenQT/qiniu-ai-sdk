@@ -168,6 +168,20 @@ interface VoiceListResponse {
     result?: Voice[];
 }
 
+type DynamicImport = (specifier: string) => Promise<unknown>;
+type WebSocketModule = { default?: typeof WebSocket };
+
+const dynamicImportModule = new Function(
+    'specifier',
+    'return import(specifier)'
+) as DynamicImport;
+
+async function loadOptionalWebSocketModule(): Promise<typeof WebSocket> {
+    const specifier = ['w', 's'].join('');
+    const wsModule = await dynamicImportModule(specifier) as WebSocketModule;
+    return wsModule.default || (wsModule as unknown as typeof WebSocket);
+}
+
 function isNativeWebSocket(impl: typeof WebSocket): boolean {
     const maybeWs = impl as unknown as { Server?: unknown; WebSocketServer?: unknown };
     return !maybeWs.Server && !maybeWs.WebSocketServer;
@@ -200,9 +214,12 @@ export class Tts {
         const isNode = typeof process !== 'undefined' && !!process.versions?.node;
 
         if (isNode) {
+            if (hasGlobal && !isNativeWebSocket(WebSocket)) {
+                return { WebSocketImpl: WebSocket, supportsHeaders: true, preferBinary: true };
+            }
+
             try {
-                const wsModule = await import('ws');
-                const wsImpl = (wsModule as { default?: typeof WebSocket }).default || (wsModule as unknown as typeof WebSocket);
+                const wsImpl = await loadOptionalWebSocketModule();
                 return { WebSocketImpl: wsImpl, supportsHeaders: true, preferBinary: true };
             } catch {
                 throw new Error(
@@ -263,9 +280,8 @@ export class Tts {
      *   speed_ratio: 1.0,
      * });
      *
-     * // Save to file
-     * const audioBuffer = Buffer.from(result.audio, 'base64');
-     * fs.writeFileSync('output.mp3', audioBuffer);
+     * // Decode base64 audio bytes
+     * const audioBytes = Uint8Array.from(atob(result.audio), (char) => char.charCodeAt(0));
      * ```
      */
     async synthesize(params: TtsRequest): Promise<TtsResponse> {
@@ -422,8 +438,8 @@ export class Tts {
                         text,
                     },
                 } as TtsApiPayload);
-                if (wsImplInfo.preferBinary && typeof Buffer !== 'undefined') {
-                    ws.send(Buffer.from(initMessage));
+                if (wsImplInfo.preferBinary && typeof TextEncoder !== 'undefined') {
+                    ws.send(new TextEncoder().encode(initMessage));
                 } else {
                     ws.send(initMessage);
                 }
@@ -481,10 +497,7 @@ export class Tts {
             if (typeof TextDecoder !== 'undefined') {
                 return new TextDecoder().decode(bytes);
             }
-            if (typeof Buffer !== 'undefined') {
-                return Buffer.from(bytes).toString('utf8');
-            }
-            return '';
+            return String.fromCharCode(...bytes);
         };
 
         ws.onmessage = (event: MessageEvent) => {
@@ -508,24 +521,16 @@ export class Tts {
                     return;
                 }
 
-                if (typeof Buffer !== 'undefined' && Buffer.isBuffer(event.data)) {
-                    const bytes = new Uint8Array(event.data);
-                    const frame = tryParseFrame(event.data.toString('utf8'));
+                if (ArrayBuffer.isView(event.data)) {
+                    const bytes = event.data instanceof Uint8Array
+                        ? event.data
+                        : new Uint8Array(event.data.buffer, event.data.byteOffset, event.data.byteLength);
+                    const frame = tryParseFrame(decodeBytesToText(bytes));
                     if (frame) {
                         handleFrame(frame);
                         return;
                     }
                     enqueueMessage(bytes);
-                    return;
-                }
-
-                if (event.data instanceof Uint8Array) {
-                    const frame = tryParseFrame(decodeBytesToText(event.data));
-                    if (frame) {
-                        handleFrame(frame);
-                        return;
-                    }
-                    enqueueMessage(event.data);
                     return;
                 }
 

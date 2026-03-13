@@ -447,16 +447,7 @@ function inferMimeType(input?: string): FrameInput['mimeType'] | undefined {
 
     const raw = lower.includes('base64,') ? input.split('base64,').pop() || '' : input;
     try {
-        let bytes: Uint8Array | null = null;
-        if (typeof Buffer !== 'undefined') {
-            bytes = new Uint8Array(Buffer.from(raw, 'base64').subarray(0, 16));
-        } else if (typeof atob !== 'undefined') {
-            const decoded = atob(raw.slice(0, 32));
-            bytes = new Uint8Array(decoded.length);
-            for (let i = 0; i < decoded.length; i++) {
-                bytes[i] = decoded.charCodeAt(i);
-            }
-        }
+        const bytes = decodeBase64Prefix(raw);
         if (bytes) {
             if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
                 return 'image/png';
@@ -476,6 +467,35 @@ function inferMimeType(input?: string): FrameInput['mimeType'] | undefined {
     }
 
     return undefined;
+}
+
+function decodeBase64Prefix(raw: string): Uint8Array | null {
+    if (typeof atob !== 'function') {
+        return null;
+    }
+
+    const normalized = normalizeBase64Prefix(raw);
+    const decoded = atob(normalized);
+    const bytes = new Uint8Array(decoded.length);
+    for (let i = 0; i < decoded.length; i++) {
+        bytes[i] = decoded.charCodeAt(i);
+    }
+    return bytes.subarray(0, 16);
+}
+
+function normalizeBase64Prefix(raw: string): string {
+    const sanitized = raw
+        .replace(/\s+/g, '')
+        .replace(/-/g, '+')
+        .replace(/_/g, '/')
+        .slice(0, 32);
+
+    const remainder = sanitized.length % 4;
+    if (remainder === 0) {
+        return sanitized;
+    }
+
+    return sanitized + '='.repeat(4 - remainder);
 }
 
 function withFallbackMimeType(input?: string, mimeType?: FrameInput['mimeType']): FrameInput['mimeType'] | undefined {

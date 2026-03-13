@@ -1,4 +1,4 @@
-import type { QiniuAI } from '../client';
+import type { QiniuAI } from '../qiniu/client';
 import type { ChatCompletionChunk, ChatCompletionRequest, ChatCompletionResponse, ToolCall } from '../lib/types';
 import type { StreamResult } from '../modules/chat';
 import { convertPromptToMessages, convertTools, convertToolChoice, convertResponseFormat, mapFinishReason } from './convert-prompt';

@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.42.0] - 2026-03-13
+
+### ✨ New Features
+
+- `createNodeQiniuAI()` factory from `@bowenqt/qiniu-ai-sdk/node` — returns a `QiniuAI` with Sandbox attached, replacing root-entry sandbox access
+- `QiniuAI` provider class extracted to `src/qiniu/client.ts` — browser-safe, no Node.js dependencies
+
+### 🔧 Improvements
+
+- **Platform decoupling**: `account` module uses Web Crypto API (`crypto.subtle`) instead of `require('crypto')`
+- **Platform decoupling**: `tts` module uses `TextEncoder`/`ArrayBuffer.isView` instead of `Buffer`; optional `ws` peer dependency loaded via bundler-safe dynamic import
+- **Platform decoupling**: `video` module uses `atob`+`Uint8Array` instead of `Buffer.from`
+- Root-entry Node-only exports (`auditLogger`, MCP, Sandbox, SkillLoader`, Redis/Postgres/Kodo Checkpointers) marked `@deprecated` — migrate to `@bowenqt/qiniu-ai-sdk/node`
+- Root `src/client.ts` reduced to 52-line compatibility layer extending provider `QiniuAI`
+- Added `ws` as optional peer dependency for Node.js TTS WebSocket streaming
+
+### 📦 Breaking Changes
+
+- `Account.generateAccessToken` is now `async` (Web Crypto API requirement) — internal only, no public API change
+
 ## [0.41.0] - 2026-03-13
 
 ### ✨ New Features

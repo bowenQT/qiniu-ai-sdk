@@ -111,8 +111,7 @@ export interface AuditLoggerConfig {
      * - 'console'
      * - 'file:///absolute/path/to/audit.log' (Node.js runtime)
      *
-     * Experimental / not yet available:
-     * - 'kodo://bucket/prefix'
+     * Other sink schemes are reserved for future integrations and are currently unsupported.
      */
     sink: string;
     /** Content to log */
