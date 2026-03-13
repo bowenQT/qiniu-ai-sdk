@@ -5,7 +5,7 @@
  * @example
  * ```typescript
  * import { Pool } from 'pg';
- * import { PostgresCheckpointer } from '@bowenqt/qiniu-ai-sdk';
+ * import { PostgresCheckpointer } from '@bowenqt/qiniu-ai-sdk/node';
  *
  * const pool = new Pool({ connectionString: process.env.DATABASE_URL });
  * const checkpointer = new PostgresCheckpointer(pool, { tableName: 'checkpoints' });

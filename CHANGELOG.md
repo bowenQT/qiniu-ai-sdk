@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.43.0] - 2026-03-13
+
+### 📦 Breaking Changes
+
+- Root-entry Node-only exports have been removed. Import these from `@bowenqt/qiniu-ai-sdk/node` instead:
+  - `auditLogger`, `AuditLoggerCollector`
+  - `new QiniuAI({ sandbox })` → `createNodeQiniuAI({ sandbox })`
+  - sandbox exports and types
+  - `SkillLoader`, `SkillRegistry`, `RegistryProtocolStub`
+  - MCP HTTP/OAuth/token store/server exports
+  - `RedisCheckpointer`, `PostgresCheckpointer`, `KodoCheckpointer`
+- Removed sunset Veo aliases:
+  - `VIDEO_MODELS.VEO_3_0_GENERATE_PREVIEW` → `VIDEO_MODELS.VEO_3_0_GENERATE_001`
+  - `VIDEO_MODELS.VEO_3_0_FAST_GENERATE_PREVIEW` → `VIDEO_MODELS.VEO_3_0_FAST_GENERATE_001`
+
+### 🔧 Improvements
+
+- Locked the root entry to a cross-platform compatibility surface while keeping `@bowenqt/qiniu-ai-sdk/node` as the sole Node-only integration entry
+- Added regression coverage for `account.usage({ auth })` AK/SK signing with explicit missing-API failures
+- Added regression coverage for TTS WebSocket environment resolution:
+  - browser global `WebSocket`
+  - Node.js optional `ws` loader
+  - missing `ws` dependency error path
+- Fixed browser TTS streaming construction to avoid passing Node-only WebSocket options to browser runtimes
+
+### 📚 Migration
+
+| Before | After |
+|--------|-------|
+| `import { auditLogger } from '@bowenqt/qiniu-ai-sdk'` | `import { auditLogger } from '@bowenqt/qiniu-ai-sdk/node'` |
+| `import { SkillLoader } from '@bowenqt/qiniu-ai-sdk'` | `import { SkillLoader } from '@bowenqt/qiniu-ai-sdk/node'` |
+| `import { MCPHttpTransport } from '@bowenqt/qiniu-ai-sdk'` | `import { MCPHttpTransport } from '@bowenqt/qiniu-ai-sdk/node'` |
+| `import { RedisCheckpointer } from '@bowenqt/qiniu-ai-sdk'` | `import { RedisCheckpointer } from '@bowenqt/qiniu-ai-sdk/node'` |
+
 ## [0.42.0] - 2026-03-13
 
 ### ✨ New Features

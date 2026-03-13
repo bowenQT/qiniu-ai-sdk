@@ -10,7 +10,7 @@
  *     Always clean up with kill() in afterEach.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { QiniuAI } from '../../src/client';
+import { createNodeQiniuAI } from '../../src/node/client';
 import type { SandboxInstance } from '../../src/modules/sandbox/sandbox';
 
 const API_KEY = process.env.QINIU_API_KEY;
@@ -18,7 +18,7 @@ if (!API_KEY) {
     throw new Error('QINIU_API_KEY environment variable is required for e2e tests');
 }
 
-const client = new QiniuAI({ apiKey: API_KEY });
+const client = createNodeQiniuAI({ apiKey: API_KEY });
 
 // Track instances for cleanup
 const instances: SandboxInstance[] = [];

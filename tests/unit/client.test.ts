@@ -47,7 +47,14 @@ describe('QiniuAI Client', () => {
             expect(client.tts).toBeDefined();
             expect(client.account).toBeDefined();
             expect(client.admin).toBeDefined();
-            expect(client.sandbox).toBeDefined();
+            expect('sandbox' in (client as QiniuAI & { sandbox?: unknown })).toBe(false);
+        });
+
+        it('root client should not expose sandbox', () => {
+            const client = new QiniuAI({ apiKey: 'sk-test' }) as QiniuAI & { sandbox?: unknown };
+
+            expect(client.chat).toBeDefined();
+            expect('sandbox' in client).toBe(false);
         });
 
         it('provider client should stay browser-safe and not expose sandbox', () => {

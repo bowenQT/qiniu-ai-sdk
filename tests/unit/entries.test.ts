@@ -3,12 +3,22 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 describe('entry points', () => {
-    it('root entry remains a compatibility surface', async () => {
+    it('root entry exposes only the cross-platform compatibility surface', async () => {
         const root = await import('../../src/index');
 
         expect(root.QiniuAI).toBeDefined();
         expect(root.createAgent).toBeDefined();
-        expect(root.MCPHttpTransport).toBeDefined();
+        expect(root.MemoryCheckpointer).toBeDefined();
+        expect('auditLogger' in root).toBe(false);
+        expect('QiniuSandbox' in root).toBe(false);
+        expect('SkillLoader' in root).toBe(false);
+        expect('SkillRegistry' in root).toBe(false);
+        expect('MCPHttpTransport' in root).toBe(false);
+        expect('FileTokenStore' in root).toBe(false);
+        expect('QiniuMCPServer' in root).toBe(false);
+        expect('RedisCheckpointer' in root).toBe(false);
+        expect('PostgresCheckpointer' in root).toBe(false);
+        expect('KodoCheckpointer' in root).toBe(false);
     });
 
     it('core entry exposes runtime APIs without Qiniu client exports', async () => {

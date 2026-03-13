@@ -170,6 +170,10 @@ interface VoiceListResponse {
 
 type DynamicImport = (specifier: string) => Promise<unknown>;
 type WebSocketModule = { default?: typeof WebSocket };
+type OptionalWebSocketLoader = () => Promise<typeof WebSocket>;
+type TtsInternalTestHooks = {
+    loadOptionalWebSocket?: OptionalWebSocketLoader;
+};
 
 const dynamicImportModule = new Function(
     'specifier',
@@ -180,6 +184,13 @@ async function loadOptionalWebSocketModule(): Promise<typeof WebSocket> {
     const specifier = ['w', 's'].join('');
     const wsModule = await dynamicImportModule(specifier) as WebSocketModule;
     return wsModule.default || (wsModule as unknown as typeof WebSocket);
+}
+
+function getOptionalWebSocketLoader(): OptionalWebSocketLoader {
+    const testHooks = (globalThis as typeof globalThis & {
+        __QINIU_AI_SDK_TTS_TEST_HOOKS__?: TtsInternalTestHooks;
+    }).__QINIU_AI_SDK_TTS_TEST_HOOKS__;
+    return testHooks?.loadOptionalWebSocket || loadOptionalWebSocketModule;
 }
 
 function isNativeWebSocket(impl: typeof WebSocket): boolean {
@@ -219,7 +230,7 @@ export class Tts {
             }
 
             try {
-                const wsImpl = await loadOptionalWebSocketModule();
+                const wsImpl = await getOptionalWebSocketLoader()();
                 return { WebSocketImpl: wsImpl, supportsHeaders: true, preferBinary: true };
             } catch {
                 throw new Error(
@@ -398,7 +409,13 @@ export class Tts {
 
         // TypeScript: ws library accepts options as second parameter
         // Browser WebSocket ignores it, ws library uses it
-        const ws = new (wsImplInfo.WebSocketImpl as any)(wsUrl, wsOptions);
+        const ws = wsImplInfo.supportsHeaders
+            ? new (wsImplInfo.WebSocketImpl as any)(wsUrl, wsOptions)
+            : new (wsImplInfo.WebSocketImpl as any)(wsUrl);
+        const wsStates = wsImplInfo.WebSocketImpl as typeof WebSocket & {
+            OPEN?: number;
+            CONNECTING?: number;
+        };
 
         // Create a queue to handle async message delivery
         const messageQueue: (Uint8Array | Error | 'done')[] = [];
@@ -592,7 +609,7 @@ export class Tts {
             }
         } finally {
             // Ensure WebSocket is closed
-            if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+            if (ws.readyState === wsStates.OPEN || ws.readyState === wsStates.CONNECTING) {
                 ws.close(1000, 'Stream ended');
             }
         }

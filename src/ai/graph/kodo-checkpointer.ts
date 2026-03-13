@@ -13,7 +13,7 @@
  * 
  * @example
  * ```typescript
- * import { KodoCheckpointer } from '@bowenqt/qiniu-ai-sdk';
+ * import { KodoCheckpointer } from '@bowenqt/qiniu-ai-sdk/node';
  * 
  * const checkpointer = new KodoCheckpointer({
  *     bucket: 'my-checkpoints',

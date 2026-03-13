@@ -65,6 +65,22 @@ import { createAgent, generateText } from '@bowenqt/qiniu-ai-sdk/core';
 import { createNodeQiniuAI, NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
 ```
 
+### v0.43 Migration
+
+| Removed from `@bowenqt/qiniu-ai-sdk` | Import from now |
+|--------------------------------------|-----------------|
+| `auditLogger`, `AuditLoggerCollector` | `@bowenqt/qiniu-ai-sdk/node` |
+| `new QiniuAI({ sandbox })` | `createNodeQiniuAI({ sandbox })` from `@bowenqt/qiniu-ai-sdk/node` |
+| `QiniuSandbox`, sandbox types | `@bowenqt/qiniu-ai-sdk/node` |
+| `SkillLoader`, `SkillRegistry`, `RegistryProtocolStub` | `@bowenqt/qiniu-ai-sdk/node` |
+| `MCPHttpTransport`, OAuth helpers, token stores, `QiniuMCPServer` | `@bowenqt/qiniu-ai-sdk/node` |
+| `RedisCheckpointer`, `PostgresCheckpointer`, `KodoCheckpointer` | `@bowenqt/qiniu-ai-sdk/node` |
+
+| Removed model alias | Use instead |
+|---------------------|-------------|
+| `VIDEO_MODELS.VEO_3_0_GENERATE_PREVIEW` | `VIDEO_MODELS.VEO_3_0_GENERATE_001` |
+| `VIDEO_MODELS.VEO_3_0_FAST_GENERATE_PREVIEW` | `VIDEO_MODELS.VEO_3_0_FAST_GENERATE_001` |
+
 ### Optional Peer Dependencies
 
 ```bash
@@ -427,7 +443,7 @@ await instance.kill();
 
 | Entry Point | Description |
 |-------------|-------------|
-| `@bowenqt/qiniu-ai-sdk` | Compatibility entry (legacy mixed surface) |
+| `@bowenqt/qiniu-ai-sdk` | Compatibility entry for the common cross-platform surface |
 | `@bowenqt/qiniu-ai-sdk/core` | Provider-agnostic agent/runtime APIs |
 | `@bowenqt/qiniu-ai-sdk/qiniu` | Qiniu client and cloud API surface |
 | `@bowenqt/qiniu-ai-sdk/node` | Node.js-only runtime integrations (MCP, OAuth, token stores, sandbox, checkpointers) |

@@ -65,6 +65,22 @@ import { createAgent, generateText } from '@bowenqt/qiniu-ai-sdk/core';
 import { createNodeQiniuAI, NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
 ```
 
+### v0.43 迁移表
+
+| 从 `@bowenqt/qiniu-ai-sdk` 移除 | 现在改用 |
+|--------------------------------|----------|
+| `auditLogger`、`AuditLoggerCollector` | `@bowenqt/qiniu-ai-sdk/node` |
+| `new QiniuAI({ sandbox })` | 从 `@bowenqt/qiniu-ai-sdk/node` 改用 `createNodeQiniuAI({ sandbox })` |
+| `QiniuSandbox` 与 sandbox 相关类型 | `@bowenqt/qiniu-ai-sdk/node` |
+| `SkillLoader`、`SkillRegistry`、`RegistryProtocolStub` | `@bowenqt/qiniu-ai-sdk/node` |
+| `MCPHttpTransport`、OAuth 工具、token store、`QiniuMCPServer` | `@bowenqt/qiniu-ai-sdk/node` |
+| `RedisCheckpointer`、`PostgresCheckpointer`、`KodoCheckpointer` | `@bowenqt/qiniu-ai-sdk/node` |
+
+| 被删除的模型别名 | 请改用 |
+|------------------|--------|
+| `VIDEO_MODELS.VEO_3_0_GENERATE_PREVIEW` | `VIDEO_MODELS.VEO_3_0_GENERATE_001` |
+| `VIDEO_MODELS.VEO_3_0_FAST_GENERATE_PREVIEW` | `VIDEO_MODELS.VEO_3_0_FAST_GENERATE_001` |
+
 ### 可选依赖
 
 ```bash
@@ -433,7 +449,7 @@ await instance.kill();
 
 | 入口 | 说明 |
 |------|------|
-| `@bowenqt/qiniu-ai-sdk` | 兼容入口（保留历史混合导出） |
+| `@bowenqt/qiniu-ai-sdk` | 兼容入口，只保留通用跨平台能力 |
 | `@bowenqt/qiniu-ai-sdk/core` | 与 provider 解耦的 Agent / Runtime API |
 | `@bowenqt/qiniu-ai-sdk/qiniu` | 七牛客户端与云能力 API |
 | `@bowenqt/qiniu-ai-sdk/node` | Node.js 专用运行时集成（MCP、OAuth、token store、sandbox、checkpointer） |

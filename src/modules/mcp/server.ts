@@ -15,7 +15,7 @@ import {
     ListToolsRequestSchema,
     type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
-import { QiniuAI } from '../../client';
+import { QiniuAI } from '../../qiniu/client';
 import { z } from 'zod';
 import { validateAgainstSchema, type JsonSchema } from './schema-validator';
 

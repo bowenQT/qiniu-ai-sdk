@@ -156,10 +156,6 @@ export const VIDEO_MODELS = {
     VEO_2_0_GENERATE_PREVIEW: 'veo-2.0-generate-preview',
     VEO_3_0_GENERATE_001: 'veo-3.0-generate-001',
     VEO_3_0_FAST_GENERATE_001: 'veo-3.0-fast-generate-001',
-    /** @deprecated Sunset 2026-04-02, use VEO_3_0_GENERATE_001 */
-    VEO_3_0_GENERATE_PREVIEW: 'veo-3.0-generate-preview',
-    /** @deprecated Sunset 2026-04-02, use VEO_3_0_FAST_GENERATE_001 */
-    VEO_3_0_FAST_GENERATE_PREVIEW: 'veo-3.0-fast-generate-preview',
     VEO_3_1_GENERATE_PREVIEW: 'veo-3.1-generate-preview',
     VEO_3_1_FAST_GENERATE_PREVIEW: 'veo-3.1-fast-generate-preview',
 

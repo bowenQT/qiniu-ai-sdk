@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { QiniuAI } from '../../../src/client';
+import { createNodeQiniuAI } from '../../../src/node/client';
 import { createStaticMockFetch, createMockFetch, createBinaryMockFetch } from '../../mocks/fetch';
 import {
     normalizeSandboxInfo,
@@ -161,7 +161,7 @@ describe('Sandbox Module', () => {
     describe('Sandbox.create()', () => {
         it('should create a sandbox and return SandboxInstance', async () => {
             const mockFetch = createStaticMockFetch({ status: 200, body: rawSandboxResponse });
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
 
@@ -172,7 +172,7 @@ describe('Sandbox Module', () => {
 
         it('should send X-API-Key header, not Bearer', async () => {
             const mockFetch = createStaticMockFetch({ status: 200, body: rawSandboxResponse });
-            const client = new QiniuAI({ apiKey: 'sk-test-key', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test-key', adapter: mockFetch.adapter });
 
             await client.sandbox.create({ templateId: 'tpl-base' });
 
@@ -182,7 +182,7 @@ describe('Sandbox Module', () => {
 
         it('should convert timeoutMs to seconds in request body', async () => {
             const mockFetch = createStaticMockFetch({ status: 200, body: rawSandboxResponse });
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             await client.sandbox.create({ templateId: 'tpl-base', timeoutMs: 300_000 });
 
@@ -200,7 +200,7 @@ describe('Sandbox Module', () => {
                     { sandboxID: 'sb-2', templateID: 'tpl-b', clientID: 'c2', state: 'paused', startedAt: '2026-03-11T00:00:00Z', endAt: '2026-03-11T00:05:00Z' },
                 ],
             });
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const list = await client.sandbox.list();
 
@@ -211,7 +211,7 @@ describe('Sandbox Module', () => {
 
         it('should handle empty list', async () => {
             const mockFetch = createStaticMockFetch({ status: 200, body: [] });
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const list = await client.sandbox.list();
             expect(list).toHaveLength(0);
@@ -225,7 +225,7 @@ describe('Sandbox Module', () => {
                 { status: 200, body: rawSandboxResponse },
                 { status: 200, body: { ...rawSandboxResponse, state: 'paused' } },
             ]);
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             const info = await instance.getInfo();
@@ -238,7 +238,7 @@ describe('Sandbox Module', () => {
                 { status: 200, body: rawSandboxResponse },
                 { status: 200, body: rawSandboxResponse }, // state: running
             ]);
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             const running = await instance.isRunning();
@@ -250,7 +250,7 @@ describe('Sandbox Module', () => {
                 { status: 200, body: rawSandboxResponse },
                 { status: 200, body: {} }, // kill response
             ]);
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             await instance.kill();
@@ -265,7 +265,7 @@ describe('Sandbox Module', () => {
                 { status: 200, body: {} }, // pause
                 { status: 200, body: {} }, // resume
             ]);
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             await instance.pause();
@@ -278,7 +278,7 @@ describe('Sandbox Module', () => {
 
         it('should expose pty property', async () => {
             const mockFetch = createStaticMockFetch({ status: 200, body: rawSandboxResponse });
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             expect(instance.pty).toBeDefined();
@@ -362,7 +362,7 @@ describe('Sandbox Module', () => {
                     ]);
                 },
             };
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter });
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             const result = await instance.commands.run('echo hello');
 
@@ -386,7 +386,7 @@ describe('Sandbox Module', () => {
                     ]);
                 },
             };
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter });
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             await instance.commands.run('ls', { cwd: '/home', envs: { PATH: '/usr/bin' } });
 
@@ -416,7 +416,7 @@ describe('Sandbox Module', () => {
                     ]);
                 },
             };
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter });
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             await instance.commands.run('sleep 5', { timeoutMs: 10_000 });
 
@@ -441,7 +441,7 @@ describe('Sandbox Module', () => {
                     },
                 },
             ]);
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             const procs = await instance.commands.listProcesses();
@@ -458,7 +458,7 @@ describe('Sandbox Module', () => {
                 // start() calls postRaw, which goes through adapter directly
                 { status: 200, body: '' },
             ]);
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
 
@@ -486,7 +486,7 @@ describe('Sandbox Module', () => {
                 { status: 200, body: rawSandboxResponse },
                 { status: 200, body: {} }, // write response
             ]);
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             await instance.files.write('/tmp/test.txt', 'hello world');
@@ -510,7 +510,7 @@ describe('Sandbox Module', () => {
                     },
                 },
             ]);
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             const entries = await instance.files.list('/tmp');
@@ -527,7 +527,7 @@ describe('Sandbox Module', () => {
                 { status: 200, body: rawSandboxResponse },
                 { status: 200, body: {} },
             ]);
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             await instance.files.makeDir('/tmp/newdir');
@@ -541,7 +541,7 @@ describe('Sandbox Module', () => {
                 { status: 200, body: rawSandboxResponse },
                 { status: 200, body: { name: 'test.txt', type: 'file' } },
             ]);
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             const exists = await instance.files.exists('/tmp/test.txt');
@@ -553,7 +553,7 @@ describe('Sandbox Module', () => {
                 { status: 200, body: rawSandboxResponse },
                 { status: 404, body: { message: 'Not found' } },
             ]);
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const instance = await client.sandbox.create({ templateId: 'tpl-base' });
             const exists = await instance.files.exists('/tmp/nope');
@@ -569,7 +569,7 @@ describe('Sandbox Module', () => {
                     { templateID: 'tpl-1', name: 'Python', public: true, buildDescription: '', cpuCount: 2, memoryMB: 512, diskSizeMB: 1024, createdAt: '2026-03-11T00:00:00Z', updatedAt: '2026-03-11T00:00:00Z' },
                 ],
             });
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const templates = await client.sandbox.templates.list();
             expect(templates).toHaveLength(1);
@@ -582,7 +582,7 @@ describe('Sandbox Module', () => {
                 status: 200,
                 body: { templateID: 'tpl-new', buildID: 'bld-001' },
             });
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const result = await client.sandbox.templates.create({
                 name: 'My Template',
@@ -597,7 +597,7 @@ describe('Sandbox Module', () => {
             const mockFetch = createMockFetch([
                 { status: 200, body: {} },
             ]);
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             await client.sandbox.templates.delete('tpl-old');
 
@@ -610,7 +610,7 @@ describe('Sandbox Module', () => {
                 status: 200,
                 body: { buildID: 'bld-001', templateID: 'tpl-001', status: 'ready', createdAt: '2026-03-11T00:00:00Z', finishedAt: '2026-03-11T00:05:00Z' },
             });
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const build = await client.sandbox.templates.getBuildStatus('tpl-001', 'bld-001');
             expect(build.status).toBe('ready');
@@ -622,7 +622,7 @@ describe('Sandbox Module', () => {
         it('should feed events and resolve wait', async () => {
             // Create a mock transport (won't be used for events)
             const mockFetch = createStaticMockFetch({ status: 200, body: {} });
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
             const transport = client.createChildTransport('https://test.example.com', {});
 
             const handle = new CommandHandle(transport, noopLogger);
@@ -646,7 +646,7 @@ describe('Sandbox Module', () => {
 
         it('should reject on error', async () => {
             const mockFetch = createStaticMockFetch({ status: 200, body: {} });
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
             const transport = client.createChildTransport('https://test.example.com', {});
 
             const handle = new CommandHandle(transport, noopLogger);
@@ -659,7 +659,7 @@ describe('Sandbox Module', () => {
     describe('Edge cases', () => {
         it('should use custom sandbox config endpoint', async () => {
             const mockFetch = createStaticMockFetch({ status: 200, body: rawSandboxResponse });
-            const client = new QiniuAI({
+            const client = createNodeQiniuAI({
                 apiKey: 'sk-test',
                 adapter: mockFetch.adapter,
                 sandbox: { endpoint: 'https://custom-sandbox.example.com' },
@@ -672,7 +672,7 @@ describe('Sandbox Module', () => {
 
         it('should handle null metadata in list response', async () => {
             const mockFetch = createStaticMockFetch({ status: 200, body: null });
-            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+            const client = createNodeQiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
 
             const list = await client.sandbox.list();
             expect(list).toHaveLength(0);

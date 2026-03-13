@@ -5,7 +5,7 @@
  * @example
  * ```typescript
  * import Redis from 'ioredis';
- * import { RedisCheckpointer } from '@bowenqt/qiniu-ai-sdk';
+ * import { RedisCheckpointer } from '@bowenqt/qiniu-ai-sdk/node';
  *
  * const redis = new Redis('redis://localhost:6379');
  * const checkpointer = new RedisCheckpointer(redis, { prefix: 'myapp:' });

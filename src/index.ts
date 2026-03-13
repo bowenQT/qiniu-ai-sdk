@@ -1,4 +1,4 @@
-// Root compatibility surface
+// Root public surface
 export {
     QiniuAI,
     consoleLogger,
@@ -111,15 +111,6 @@ export type {
     TokenLimiterConfig,
     GuardrailTokenStore,
 } from './ai/guardrails';
-
-/**
- * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
- */
-export { auditLogger, AuditLoggerCollector } from './ai/guardrails';
-/**
- * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
- */
-export type { AuditLoggerConfig, AuditLogEntry } from './ai/guardrails';
 
 // Crew (Multi-Agent Orchestration)
 export {
@@ -284,42 +275,6 @@ export type {
     LogEntry,
 } from './modules/log';
 
-/**
- * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
- * Root-entry sandbox exports are kept for compatibility during the v0.42 window.
- */
-export { Sandbox as QiniuSandbox } from './modules/sandbox';
-export { SandboxInstance, CommandHandle, SandboxPty } from './modules/sandbox';
-export { Templates as SandboxTemplates, TemplateCreateResponse } from './modules/sandbox';
-export { ChildTransport } from './lib/child-transport';
-/**
- * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
- */
-export type {
-    SandboxConfig,
-    CreateSandboxParams,
-    SandboxInfo,
-    SandboxState,
-    CommandResult,
-    EntryInfo,
-    ListSandboxParams,
-    ListedSandbox,
-    RunCommandOptions,
-    WaitUntilReadyOptions,
-    // Phase 2
-    StreamCommandOptions,
-    ProcessEvent,
-    ProcessInfo,
-    PtySize,
-    PtyOptions,
-    TemplateInfo,
-    TemplateBuildInfo,
-    TemplateBuildLogs,
-    CreateTemplateParams,
-    UpdateTemplateParams,
-    WaitForBuildOptions,
-} from './modules/sandbox';
-
 // Re-export VideoTaskHandle (Phase 4)
 export type { VideoTaskHandle } from './modules/video';
 
@@ -454,60 +409,6 @@ export type {
     VframeToolResult,
 } from './ai-tools/qiniu-tools';
 
-/**
- * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
- * Kept on the root entry for one compatibility window.
- */
-export { SkillLoader } from './modules/skills';
-export { RegistryProtocolStub } from './modules/skills';
-export { SkillRegistry } from './modules/skills';
-export type { Skill } from './modules/skills';
-export type { SkillRegistryConfig, RemoteSkillSource } from './modules/skills';
-export type { SkillRegistryProtocol, RegistrySkillEntry, RegistrySearchOptions } from './modules/skills';
-
-/**
- * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
- * Kept on the root entry for one compatibility window.
- */
-export {
-    // Phase 3: HTTP Transport
-    MCPHttpTransport,
-    MCPHttpTransportError,
-    // Phase 3: OAuth
-    PKCEFlow,
-    DeviceCodeFlow,
-    OAuthError,
-    generateCodeVerifier,
-    generateCodeChallenge,
-    generateState,
-    refreshAccessToken,
-    // Phase 3: Token Store
-    MemoryTokenStore,
-    FileTokenStore,
-    TokenManager,
-    // Phase 4: MCP Server
-    QiniuMCPServer,
-    startFromEnv,
-} from './modules/mcp';
-/**
- * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
- */
-export type {
-    MCPServerConfig,
-    MCPStdioServerConfig,
-    MCPHttpServerConfig,
-    MCPOAuthConfig,
-    MCPToolDefinition,
-    MCPToolResult,
-    MCPTransport,
-    TokenProvider,
-    OAuthTokens,
-    TokenStore,
-    FileTokenStoreConfig,
-    // Phase 4: MCP Server
-    QiniuMCPServerConfig,
-} from './modules/mcp';
-
 // Checkpointer (Phase 1 + Phase 3 + Phase 5)
 export {
     MemoryCheckpointer,
@@ -528,25 +429,6 @@ export type {
     PendingApproval,
     ResumeWithApprovalResult,
     ToolExecutor,
-} from './ai/graph';
-/**
- * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
- */
-export {
-    RedisCheckpointer,
-    PostgresCheckpointer,
-    KodoCheckpointer,
-} from './ai/graph';
-/**
- * @deprecated Import from '@bowenqt/qiniu-ai-sdk/node' instead.
- */
-export type {
-    RedisClient,
-    RedisCheckpointerConfig,
-    PostgresClient,
-    PostgresCheckpointerConfig,
-    KodoCheckpointerConfig,
-    KodoRegion,
 } from './ai/graph';
 
 // Tool Registry

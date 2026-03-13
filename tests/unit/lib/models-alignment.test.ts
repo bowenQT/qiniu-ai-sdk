@@ -67,13 +67,9 @@ describe('Phase 1: Model Catalog Alignment', () => {
             expect(VIDEO_MODELS.VEO_3_0_FAST_GENERATE_001).toBe('veo-3.0-fast-generate-001');
         });
 
-        // Deprecated preview models (sunset 2026-04-02)
-        it('should still include deprecated veo-3.0-generate-preview', () => {
-            expect(VIDEO_MODELS.VEO_3_0_GENERATE_PREVIEW).toBe('veo-3.0-generate-preview');
-        });
-
-        it('should still include deprecated veo-3.0-fast-generate-preview', () => {
-            expect(VIDEO_MODELS.VEO_3_0_FAST_GENERATE_PREVIEW).toBe('veo-3.0-fast-generate-preview');
+        it('should remove sunset veo-3.0 preview aliases after 2026-04-02', () => {
+            expect('VEO_3_0_GENERATE_PREVIEW' in VIDEO_MODELS).toBe(false);
+            expect('VEO_3_0_FAST_GENERATE_PREVIEW' in VIDEO_MODELS).toBe(false);
         });
 
         it('should include viduq1', () => {
