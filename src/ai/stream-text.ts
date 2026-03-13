@@ -10,6 +10,12 @@ import { generateTextWithGraph, type GenerateTextWithGraphOptions, type Generate
 import type { TokenEvent } from './agent-graph';
 import type { Guardrail } from './guardrails';
 import type { Checkpointer } from './graph/checkpointer';
+import type { QiniuAI } from '../client';
+import type { ChatMessage, ResponseFormat } from '../lib/types';
+import type { Tool } from './generate-text';
+import type { Skill } from '../modules/skills';
+import type { ApprovalConfig } from './tool-approval';
+import type { MemoryManager } from './memory';
 
 // ============================================================================
 // Types
@@ -17,19 +23,19 @@ import type { Checkpointer } from './graph/checkpointer';
 
 export interface StreamTextOptions {
     /** Qiniu AI client */
-    client: any;
+    client: QiniuAI;
     /** Model to use */
     model: string;
     /** User prompt */
     prompt?: string;
     /** Messages (alternative to prompt) */
-    messages?: Array<{ role: 'system' | 'user' | 'assistant' | 'tool' | 'function'; content: any }>;
+    messages?: ChatMessage[];
     /** System prompt */
     system?: string;
     /** Tools */
-    tools?: Record<string, any>;
+    tools?: Record<string, Tool>;
     /** Skills */
-    skills?: any[];
+    skills?: Skill[];
     /** Maximum steps */
     maxSteps?: number;
     /** Context token budget */
@@ -43,15 +49,15 @@ export interface StreamTextOptions {
     /** Abort signal */
     abortSignal?: AbortSignal;
     /** Approval config */
-    approvalConfig?: any;
+    approvalConfig?: ApprovalConfig;
     /** Guardrails */
     guardrails?: Guardrail[];
     /** Response format */
-    responseFormat?: any;
+    responseFormat?: ResponseFormat;
     /** Tool choice strategy */
     toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
     /** Memory manager */
-    memory?: any;
+    memory?: MemoryManager;
     /** Skill reference injection mode */
     skillReferenceMode?: 'none' | 'summary' | 'full';
     /** Thread ID for persistent conversation */

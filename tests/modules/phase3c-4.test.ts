@@ -214,12 +214,28 @@ describe('4.1 Skill CLI', () => {
 });
 
 // ============================================================================
-// 4.2 MCPClient @deprecated
+// 4.2 MCPClient removed (v0.40.0)
 // ============================================================================
-describe('4.2 MCPClient @deprecated', () => {
-    it('MCPClient class is still exported (not removed yet)', async () => {
-        const mod = await import('../../src/modules/mcp/client');
-        expect(mod.MCPClient).toBeDefined();
+describe('4.2 MCPClient removed', () => {
+    it('MCPClient has been removed from internal module', async () => {
+        const mod = await import('../../src/modules/mcp/index');
+        expect((mod as any).MCPClient).toBeUndefined();
+        expect((mod as any).adaptMCPToolsToRegistry).toBeUndefined();
+        expect((mod as any).getAllMCPToolsAsRegistered).toBeUndefined();
+    });
+
+    it('MCPClient has been removed from root public API', async () => {
+        const root = await import('../../src/index');
+        expect((root as any).MCPClient).toBeUndefined();
+        expect((root as any).MCPClientError).toBeUndefined();
+        expect((root as any).adaptMCPToolsToRegistry).toBeUndefined();
+        expect((root as any).getAllMCPToolsAsRegistered).toBeUndefined();
+    });
+
+    it('MCPClient has been removed from node public API', async () => {
+        const node = await import('../../src/node/index');
+        expect((node as any).MCPClient).toBeUndefined();
+        expect((node as any).MCPClientError).toBeUndefined();
     });
 });
 

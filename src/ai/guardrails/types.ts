@@ -105,7 +105,11 @@ export interface GuardrailTokenStore {
  * Audit logger configuration.
  */
 export interface AuditLoggerConfig {
-    /** Sink URL (e.g., kodo://bucket/prefix) */
+    /**
+     * Sink URL for audit logs.
+     * Currently only 'console' is supported. kodo:// and file:// are parsed but
+     * will throw at runtime (handled by onError).
+     */
     sink: string;
     /** Content to log */
     content?: 'original' | 'redacted';

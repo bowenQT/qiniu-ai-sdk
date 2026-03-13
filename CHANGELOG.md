@@ -41,6 +41,35 @@ export type { TokenEvent } from './ai/agent-graph';
 export type { AgentStreamOptions, AgentStreamWithThreadOptions } from './ai/create-agent';
 ```
 
+### ⚠️ Breaking Changes
+
+**MCPClient removed** — The deprecated `MCPClient` and its adapter layer have been removed. Use `NodeMCPHost` (from `@bowenqt/qiniu-ai-sdk/node`) with `createAgent({ hostProvider })` instead.
+
+Removed exports:
+- `MCPClient`, `MCPClientError` — replaced by `NodeMCPHost`
+- `adaptMCPToolsToRegistry`, `getAllMCPToolsAsRegistered` — replaced by `hostProvider` auto-discovery
+- `MCPClientConfig`, `MCPConnectionState` — no longer needed
+
+Migration:
+```typescript
+// Before (v0.39)
+import { MCPClient, adaptMCPToolsToRegistry } from '@bowenqt/qiniu-ai-sdk';
+const mcpClient = new MCPClient({ servers: [...] });
+await mcpClient.connect();
+const tools = adaptMCPToolsToRegistry(mcpClient.getAllTools(), 'fs', mcpClient);
+
+// After (v0.40)
+import { NodeMCPHost } from '@bowenqt/qiniu-ai-sdk/node';
+const mcpHost = new NodeMCPHost({ servers: [...] });
+const agent = createAgent({ client, model, hostProvider: mcpHost });
+```
+
+### 🏗️ Architecture Hardening
+
+- **streamText zero-any**: All 7 `any` types in `StreamTextOptions` replaced with strong types (`QiniuAI`, `ChatMessage[]`, `Record<string, Tool>`, `Skill[]`, `ApprovalConfig`, `ResponseFormat`, `MemoryManager`)
+- **postStream abort listener cleanup**: Named `onAbort` reference + `finally` block `removeEventListener` prevents memory leak on long-lived `AbortController`
+- **auditLogger sink enforcement**: `flushLogs()` now throws for unimplemented `kodo://` and `file://` sinks instead of silently falling back to console. Errors are handled by `onError: 'warn' | 'block'` semantics
+
 ---
 
 ## [0.39.0] - 2026-03-12

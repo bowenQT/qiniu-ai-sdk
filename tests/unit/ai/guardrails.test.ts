@@ -10,6 +10,7 @@ import {
     outputFilter,
     tokenLimiter,
     auditLogger,
+    AuditLoggerCollector,
     ACTION_PRIORITY,
 } from '../../../src/ai/guardrails';
 import type { Guardrail, GuardrailContext, GuardrailResult } from '../../../src/ai/guardrails';
@@ -268,6 +269,54 @@ describe('auditLogger', () => {
         expect(result.action).toBe('pass');
 
         consoleSpy.mockRestore();
+    });
+
+    it('should warn (not throw) with kodo:// sink and onError=warn', async () => {
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+
+        // async: false so we can await the full process
+        const logger = auditLogger({ sink: 'kodo://my-bucket/audit', onError: 'warn', async: false });
+        const result = await logger.process({
+            phase: 'pre-request',
+            content: 'Test content',
+            agentId: 'agent1',
+        });
+
+        // Should pass (not throw), but warn about unsupported sink
+        expect(result.action).toBe('pass');
+        expect(warnSpy).toHaveBeenCalledWith(
+            '[AuditLogger] Failed to write logs:',
+            expect.any(Error)
+        );
+
+        warnSpy.mockRestore();
+    });
+
+    it('should return block with file:// sink and onError=block', async () => {
+        // async: false, onError: block
+        const logger = auditLogger({ sink: 'file:///var/log/audit.log', onError: 'block', async: false });
+        const result = await logger.process({
+            phase: 'pre-request',
+            content: 'Test content',
+            agentId: 'agent1',
+        });
+
+        expect(result.action).toBe('block');
+        expect(result.reason).toContain('not yet implemented');
+    });
+
+    it('AuditLoggerCollector should throw with kodo:// sink', async () => {
+        const collector = new AuditLoggerCollector({
+            sink: 'kodo://my-bucket/audit',
+            onError: 'block',
+        });
+
+        await expect(
+            collector.log(
+                { phase: 'pre-request', content: 'test', agentId: 'agent1' },
+                [{ guardrail: 'test', action: 'pass' }]
+            )
+        ).rejects.toThrow('not yet implemented');
     });
 });
 

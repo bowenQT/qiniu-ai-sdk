@@ -447,14 +447,9 @@ export type { Skill } from './modules/skills';
 export type { SkillRegistryConfig, RemoteSkillSource } from './modules/skills';
 export type { SkillRegistryProtocol, RegistrySkillEntry, RegistrySearchOptions } from './modules/skills';
 
-// MCP (Phase 1 + Phase 3)
-// NOTE: MCPClient stdio transport requires Node.js - use '@bowenqt/qiniu-ai-sdk/node' for explicit import
+// MCP (Phase 3+ — MCPClient removed in v0.40.0, use NodeMCPHost from /node)
 // HTTP transport (MCPHttpTransport) is browser-compatible
 export {
-    MCPClient,
-    MCPClientError,
-    adaptMCPToolsToRegistry,
-    getAllMCPToolsAsRegistered,
     // Phase 3: HTTP Transport
     MCPHttpTransport,
     MCPHttpTransportError,
@@ -475,14 +470,12 @@ export {
     startFromEnv,
 } from './modules/mcp';
 export type {
-    MCPClientConfig,
     MCPServerConfig,
     MCPStdioServerConfig,
     MCPHttpServerConfig,
     MCPOAuthConfig,
     MCPToolDefinition,
     MCPToolResult,
-    MCPConnectionState,
     MCPTransport,
     TokenProvider,
     OAuthTokens,

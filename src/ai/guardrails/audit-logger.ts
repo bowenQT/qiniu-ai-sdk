@@ -191,19 +191,9 @@ async function flushLogs(sink: SinkInfo, entries: AuditLogEntry[]): Promise<void
             break;
 
         case 'kodo':
-            // TODO: Implement Kodo upload via QiniuAI client
-            console.log('[AuditLogger:TODO] Kodo upload not implemented');
-            for (const entry of entries) {
-                console.log('[Audit:kodo]', JSON.stringify(entry));
-            }
-            break;
+            throw new Error('AuditLogger: kodo:// sink is not yet implemented. Use "console" instead.');
 
         case 'file':
-            // TODO: Implement file writing
-            console.log('[AuditLogger:TODO] File write not implemented');
-            for (const entry of entries) {
-                console.log('[Audit:file]', JSON.stringify(entry));
-            }
-            break;
+            throw new Error('AuditLogger: file:// sink is not yet implemented. Use "console" instead.');
     }
 }

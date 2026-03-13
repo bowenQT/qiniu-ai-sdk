@@ -203,11 +203,12 @@ export class QiniuAI implements IQiniuClient {
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         // If external signal provided, abort when it aborts
+        const onAbort = () => controller.abort();
         if (options?.signal) {
             if (options.signal.aborted) {
                 controller.abort();
             } else {
-                options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+                options.signal.addEventListener('abort', onAbort, { once: true });
             }
         }
 
@@ -246,6 +247,9 @@ export class QiniuAI implements IQiniuClient {
             return response;
         } finally {
             clearTimeout(timeoutId);
+            if (options?.signal) {
+                options.signal.removeEventListener('abort', onAbort);
+            }
         }
     }
 

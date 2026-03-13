@@ -16,17 +16,6 @@ export type {
 } from '../modules/skills/types';
 export { DEFAULT_SKILL_CONFIG, DEFAULT_SKILL_BUDGET } from '../modules/skills/types';
 
-// Re-export MCP client (requires child_process for stdio transport)
-export { MCPClient, MCPClientError } from '../modules/mcp/client';
-export type {
-    MCPClientConfig,
-    MCPServerConfig as MCPClientServerConfig,
-    MCPHttpServerConfig,
-    MCPToolDefinition,
-    MCPToolResult,
-    MCPConnectionState,
-} from '../modules/mcp/types';
-export { DEFAULT_MCP_CONFIG } from '../modules/mcp/types';
 
 // Re-export NodeMCPHost (MCP Host Layer v2)
 export { NodeMCPHost } from './mcp-host';

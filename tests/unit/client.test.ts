@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { QiniuAI } from '../../src/client';
 import { createMockFetch, createStaticMockFetch } from '../mocks/fetch';
 
@@ -91,6 +91,55 @@ describe('QiniuAI Client', () => {
                 'https://api.qnaigc.com/v1/test?foo=bar&baz=123'
             );
             expect(mockFetch.calls[0].init?.method).toBe('GET');
+        });
+    });
+
+    describe('postStream abort listener cleanup', () => {
+        it('should remove abort listener after successful request', async () => {
+            // Create a mock that returns a streaming response
+            const mockResponse = new Response('data: test\n\n', {
+                status: 200,
+                headers: { 'Content-Type': 'text/event-stream' },
+            });
+
+            const client = new QiniuAI({
+                apiKey: 'sk-test-key',
+                adapter: {
+                    fetch: async () => mockResponse,
+                },
+            });
+
+            // Create a long-lived AbortController
+            const ac = new AbortController();
+
+            // Spy on removeEventListener
+            const removeSpy = vi.spyOn(ac.signal, 'removeEventListener');
+
+            await client.postStream('/test', { foo: 'bar' }, undefined, { signal: ac.signal });
+
+            // After postStream completes, the abort listener should be cleaned up
+            expect(removeSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+        });
+
+        it('should not leak listener when request fails', async () => {
+            const client = new QiniuAI({
+                apiKey: 'sk-test-key',
+                adapter: {
+                    fetch: async () => {
+                        throw new Error('network error');
+                    },
+                },
+            });
+
+            const ac = new AbortController();
+            const removeSpy = vi.spyOn(ac.signal, 'removeEventListener');
+
+            await expect(
+                client.postStream('/test', {}, undefined, { signal: ac.signal })
+            ).rejects.toThrow('network error');
+
+            // Even on failure, listener should be cleaned up
+            expect(removeSpy).toHaveBeenCalledWith('abort', expect.any(Function));
         });
     });
 });

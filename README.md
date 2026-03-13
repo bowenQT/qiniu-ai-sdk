@@ -414,7 +414,7 @@ await instance.kill();
 | Entry Point | Description |
 |-------------|-------------|
 | `@bowenqt/qiniu-ai-sdk` | Main entry (universal) |
-| `@bowenqt/qiniu-ai-sdk/node` | Node.js-only features (SkillLoader, MCPClient stdio) |
+| `@bowenqt/qiniu-ai-sdk/node` | Node.js-only features (SkillLoader, NodeMCPHost) |
 | `@bowenqt/qiniu-ai-sdk/browser` | Browser-compatible subset |
 | `@bowenqt/qiniu-ai-sdk/adapter` | Vercel AI SDK adapter |
 | `@bowenqt/qiniu-ai-sdk/ai-tools` | Qiniu native cloud tools (OCR/Censor/Vframe) |

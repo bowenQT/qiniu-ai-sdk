@@ -73,16 +73,6 @@ export interface MCPToolDefinition {
     inputSchema: ToolParameters;
 }
 
-/** MCP client configuration */
-export interface MCPClientConfig {
-    /** Servers to connect */
-    servers: MCPServerConfig[];
-    /** Connection timeout in ms */
-    connectionTimeout?: number;
-    /** Request timeout in ms (stdio transport, default: 30000) */
-    requestTimeout?: number;
-}
-
 /** MCP tool execution result */
 export interface MCPToolResult {
     content: Array<{
@@ -94,12 +84,8 @@ export interface MCPToolResult {
     isError?: boolean;
 }
 
-/** MCP server connection state */
-export type MCPConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
-
 /** Default configuration */
 export const DEFAULT_MCP_CONFIG = {
     connectionTimeout: 30000, // 30s
     httpTimeout: 30000, // 30s per request
 } as const;
-

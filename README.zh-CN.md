@@ -277,25 +277,36 @@ const handler = createMetricsHandler(metrics);
 // GET /metrics → Prometheus 格式输出
 ```
 
-### MCP 客户端（stdio + HTTP）
+### MCP 集成（NodeMCPHost）
 
 ```typescript
-import { MCPClient } from '@bowenqt/qiniu-ai-sdk';
+import { NodeMCPHost } from '@bowenqt/qiniu-ai-sdk/node';
+import { QiniuAI, createAgent } from '@bowenqt/qiniu-ai-sdk';
 
-const mcpClient = new MCPClient({
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+
+const mcpHost = new NodeMCPHost({
   servers: [
     {
       name: 'github',
       transport: 'stdio',
       command: 'npx',
       args: ['-y', '@modelcontextprotocol/server-github'],
-      token: process.env.GITHUB_TOKEN,
+      env: { GITHUB_TOKEN: process.env.GITHUB_TOKEN || '' },
     },
   ],
 });
 
-await mcpClient.connect();
-const tools = mcpClient.getAllTools();
+const agent = createAgent({
+  client,
+  model: 'gemini-2.5-flash',
+  hostProvider: mcpHost,
+});
+
+const result = await agent.run({ prompt: 'List my repos' });
+console.log(result.text);
+
+await mcpHost.dispose();
 ```
 
 ### Checkpointer（状态持久化）
@@ -408,7 +419,7 @@ await instance.kill();
 | 入口 | 说明 |
 |------|------|
 | `@bowenqt/qiniu-ai-sdk` | 主入口（通用） |
-| `@bowenqt/qiniu-ai-sdk/node` | Node.js 专用（SkillLoader、MCPClient stdio） |
+| `@bowenqt/qiniu-ai-sdk/node` | Node.js 专用（SkillLoader、NodeMCPHost） |
 | `@bowenqt/qiniu-ai-sdk/browser` | 浏览器兼容子集 |
 | `@bowenqt/qiniu-ai-sdk/adapter` | Vercel AI SDK 适配器 |
 | `@bowenqt/qiniu-ai-sdk/ai-tools` | 七牛原生云工具（OCR/审核/抽帧） |

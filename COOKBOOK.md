@@ -1020,20 +1020,20 @@ async function resumeWithUserApproval(threadId: string, approved: boolean) {
 await resumeWithUserApproval('email-task-001', true);
 ```
 
-## 20. MCP Client Integration
+## 20. MCP Integration (NodeMCPHost)
 
-Connect to Model Context Protocol servers:
+Connect to Model Context Protocol servers via `NodeMCPHost`:
 
 ### Stdio Transport
 
 ```ts
-import { 
-  MCPClient, 
-  adaptMCPToolsToRegistry,
-  generateTextWithGraph,
-} from '@bowenqt/qiniu-ai-sdk';
+import { NodeMCPHost } from '@bowenqt/qiniu-ai-sdk/node';
+import { QiniuAI, createAgent } from '@bowenqt/qiniu-ai-sdk';
 
-const mcpClient = new MCPClient({
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+
+// Create MCP host with stdio transport
+const mcpHost = new NodeMCPHost({
   servers: [
     {
       name: 'filesystem',
@@ -1046,89 +1046,58 @@ const mcpClient = new MCPClient({
       transport: 'stdio',
       command: 'npx',
       args: ['-y', '@modelcontextprotocol/server-github'],
-      token: process.env.GITHUB_TOKEN, // Injected as MCP_BEARER_TOKEN env
+      env: { GITHUB_TOKEN: process.env.GITHUB_TOKEN || '' },
     },
   ],
-  requestTimeout: 30000, // 30s timeout per request
 });
 
-// Connect to all servers
-await mcpClient.connect();
-console.log('Connection states:', mcpClient.getConnectionStates());
-
-// Get all available tools
-const tools = mcpClient.getAllTools();
-console.log('Available tools:', tools.map(t => t.name));
-
-// Convert to SDK format for use with generateText
-const registeredTools = adaptMCPToolsToRegistry(tools, 'filesystem', mcpClient);
-
-// Use with graph
-const result = await generateTextWithGraph({
+// Use with createAgent — hostProvider handles connect/disconnect lifecycle
+const agent = createAgent({
   client,
   model: 'gemini-2.5-flash',
-  prompt: 'List all TypeScript files in the project',
-  tools: registeredTools,
+  system: 'You are a helpful assistant with access to files and GitHub.',
+  hostProvider: mcpHost,
 });
 
-console.log('Result:', result.text);
+const result = await agent.run({
+  prompt: 'List all TypeScript files in the project',
+});
+console.log(result.text);
 
-// Cleanup
-await mcpClient.disconnect();
+// Cleanup when done
+await mcpHost.dispose();
 ```
 
-### HTTP Transport with OAuth
+### HTTP Transport
 
 ```ts
-import { 
-  MCPClient, 
-  PKCEFlow, 
-  TokenManager, 
-  MemoryTokenStore,
-  generateState,
-} from '@bowenqt/qiniu-ai-sdk';
+import { NodeMCPHost } from '@bowenqt/qiniu-ai-sdk/node';
+import { QiniuAI, createAgent } from '@bowenqt/qiniu-ai-sdk';
 
-// OAuth configuration
-const oauthConfig = {
-  clientId: 'my-app-id',
-  scopes: ['mcp:read', 'mcp:write'],
-  authorizationUrl: 'https://auth.example.com/authorize',
-  tokenUrl: 'https://auth.example.com/token',
-};
+const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
-// --- Step 1: OAuth flow (typically in a separate auth route) ---
-const pkceFlow = new PKCEFlow(oauthConfig);
-const state = generateState();
-const authUrl = pkceFlow.buildAuthorizationUrl('http://localhost:3000/callback', state);
-console.log('Redirect user to:', authUrl);
-
-// After OAuth callback:
-const { code } = await pkceFlow.waitForCallback({ 
-  expectedState: state, 
-  timeoutMs: 300000,
-});
-const tokens = await pkceFlow.exchangeCode(code, 'http://localhost:3000/callback');
-
-// --- Step 2: Store tokens ---
-const tokenManager = new TokenManager(new MemoryTokenStore(), oauthConfig);
-await tokenManager.setTokens(tokens);
-
-// --- Step 3: Connect with tokenProvider ---
-const mcpClient = new MCPClient({
+const mcpHost = new NodeMCPHost({
   servers: [
     {
       name: 'remote-mcp',
       transport: 'http',
       url: 'https://mcp.example.com/api/mcp',
-      tokenProvider: () => tokenManager.getAccessToken(),
-      oauth: oauthConfig, // Required: validates auth is configured
     },
   ],
 });
 
-await mcpClient.connect();
-const tools = mcpClient.getAllTools();
-console.log('Remote tools:', tools.map(t => t.name));
+const agent = createAgent({
+  client,
+  model: 'gemini-2.5-flash',
+  hostProvider: mcpHost,
+});
+
+const result = await agent.run({
+  prompt: 'What tools are available on the remote server?',
+});
+console.log(result.text);
+
+await mcpHost.dispose();
 ```
 
 ## 21. Asset Resolver - Qiniu URI Resolution
@@ -1382,14 +1351,12 @@ import {
   MemoryManager,
   InMemoryVectorStore,
   MemoryCheckpointer,
-  SkillLoader,
-  MCPClient,
-  adaptMCPToolsToRegistry,
   QINIU_TOOLS,
   setGlobalTracer,
   ConsoleTracer,
   type ApprovalConfig,
 } from '@bowenqt/qiniu-ai-sdk';
+import { SkillLoader, NodeMCPHost } from '@bowenqt/qiniu-ai-sdk/node';
 
 // --- Setup ---
 const client = new QiniuAI({ 
@@ -1415,30 +1382,12 @@ const memory = new MemoryManager({
 // Setup checkpointer
 const checkpointer = new MemoryCheckpointer({ maxItems: 100 });
 
-// Setup MCP
-const mcpClient = new MCPClient({
+// Setup MCP (NodeMCPHost replaces MCPClient since v0.40.0)
+const mcpHost = new NodeMCPHost({
   servers: [
     { name: 'fs', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] },
   ],
 });
-await mcpClient.connect();
-const mcpTools = adaptMCPToolsToRegistry(mcpClient.getAllTools(), 'fs', mcpClient);
-
-// Combine tools
-const allTools = {
-  ...mcpTools,
-  ...Object.fromEntries(
-    Object.entries(QINIU_TOOLS).map(([name, tool]) => [
-      name,
-      {
-        ...tool,
-        name,
-        source: { type: 'builtin' as const },
-        execute: (args: any) => tool.execute(args, { client }),
-      },
-    ])
-  ),
-};
 
 // Approval config
 const approvalConfig: ApprovalConfig = {
@@ -1449,16 +1398,30 @@ const approvalConfig: ApprovalConfig = {
   },
 };
 
+// --- Wrap QINIU_TOOLS with client context ---
+const qiniuTools = Object.fromEntries(
+  Object.entries(QINIU_TOOLS).map(([name, tool]) => [
+    name,
+    {
+      ...tool,
+      name,
+      source: { type: 'builtin' as const },
+      execute: (args: unknown) => tool.execute(args as any, { client }),
+    },
+  ])
+);
+
 // --- Create Agent ---
 const agent = createAgent({
   client,
   model: 'gemini-2.5-flash',
   system: 'You are a helpful AI assistant with access to files, cloud tools, and domain knowledge.',
-  tools: allTools,
+  tools: qiniuTools,
   skills,
   memory,
   checkpointer,
   approvalConfig,
+  hostProvider: mcpHost, // MCP tools auto-discovered via hostProvider
   maxSteps: 10,
   maxContextTokens: 32000,
   temperature: 0.7,
@@ -1482,7 +1445,7 @@ console.log('Skills injected:', result.graphInfo?.skillsInjected);
 console.log('Compaction:', result.graphInfo?.compaction);
 
 // Cleanup
-await mcpClient.disconnect();
+await mcpHost.dispose();
 ```
 
 ---

@@ -282,7 +282,6 @@ export type { Span, Tracer, TracerConfig } from '../lib/tracer';
 // For MCP functionality, use '@bowenqt/qiniu-ai-sdk/node' instead.
 //
 // EXPLICITLY EXCLUDED:
-// - MCPClient (requires child_process)
 // - MCPHttpTransport (requires @modelcontextprotocol/sdk - Node only)
 // - FileTokenStore (requires fs)
 // - All MCP OAuth utilities (depend on @modelcontextprotocol/sdk)
@@ -346,7 +345,6 @@ export type { CreateKeysRequest, ApiKey } from '../modules/admin';
 // ============================================================================
 // EXPLICITLY EXCLUDED (Node.js only):
 // - SkillLoader (requires fs, path)
-// - MCPClient (requires child_process)
 // - FileTokenStore (requires fs)
 // - RedisCheckpointer (requires redis client)
 // - PostgresCheckpointer (requires pg client)
