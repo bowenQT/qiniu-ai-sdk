@@ -152,6 +152,27 @@ describe('Phase 1: ContentPart Multi-modal Extension', () => {
         expect(part.type).toBe('file_url');
     });
 
+    it('should allow cache_control on image sugar chat content', () => {
+        const req: ChatCompletionRequest = {
+            model: 'claude-4-sonnet',
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'image',
+                            image: 'https://example.com/image.jpg',
+                            cache_control: { type: 'ephemeral' },
+                        } as ContentPart & { cache_control: { type: string } },
+                    ],
+                },
+            ],
+        };
+
+        expect((req.messages[0].content as Array<{ cache_control?: { type: string } }>)[0].cache_control)
+            .toEqual({ type: 'ephemeral' });
+    });
+
     it('should support thinking content part (Claude)', () => {
         const part: ContentPart = {
             type: 'thinking',

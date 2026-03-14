@@ -16,13 +16,18 @@
  * ```
  */
 
-import type { ContentPart, ImageSource, ImageUrlContentPart } from './types';
+import type {
+    ContentPartWithCacheControl,
+    ImageSource,
+} from './types';
 
 /**
  * Normalize content parts for API calls.
  * Converts `image` sugar format to `image_url` API format.
  */
-export function normalizeContent(content: string | ContentPart[]): string | ContentPart[] {
+export function normalizeContent(
+    content: string | ContentPartWithCacheControl[],
+): string | ContentPartWithCacheControl[] {
     // String content doesn't need normalization
     if (typeof content === 'string') {
         return content;
@@ -35,7 +40,7 @@ export function normalizeContent(content: string | ContentPart[]): string | Cont
 /**
  * Normalize a single content part.
  */
-function normalizeContentPart(part: ContentPart): ContentPart {
+function normalizeContentPart(part: ContentPartWithCacheControl): ContentPartWithCacheControl {
     // Already in API format
     if (part.type === 'text' || part.type === 'image_url') {
         return part;
@@ -43,13 +48,19 @@ function normalizeContentPart(part: ContentPart): ContentPart {
 
     // Convert image sugar to image_url
     if (part.type === 'image') {
-        return {
+        const normalized: ContentPartWithCacheControl = {
             type: 'image_url',
             image_url: {
                 url: imageSourceToDataUrl(part.image),
                 detail: part.detail,
             },
-        } as ImageUrlContentPart;
+        };
+
+        if ('cache_control' in part && part.cache_control) {
+            normalized.cache_control = part.cache_control;
+        }
+
+        return normalized;
     }
 
     // Unknown type, return as-is
@@ -179,7 +190,7 @@ export async function blobToDataUrl(blob: Blob): Promise<string> {
 /**
  * Check if content contains any image parts that need normalization.
  */
-export function hasImageParts(content: string | ContentPart[]): boolean {
+export function hasImageParts(content: string | ContentPartWithCacheControl[]): boolean {
     if (typeof content === 'string') {
         return false;
     }

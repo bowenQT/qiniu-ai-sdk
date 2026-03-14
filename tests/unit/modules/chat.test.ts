@@ -58,6 +58,54 @@ describe('Chat Module', () => {
             expect(result.choices[0].message.content).toBe('Hello!');
             expect(result.usage?.total_tokens).toBe(15);
         });
+
+        it('should preserve cache_control when normalizing image sugar content', async () => {
+            const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+                id: 'chat-124',
+                object: 'chat.completion',
+                created: 1234567890,
+                model: 'test-model',
+                choices: [
+                    {
+                        index: 0,
+                        message: { role: 'assistant', content: 'ok' },
+                        finish_reason: 'stop',
+                    },
+                ],
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            }));
+
+            const client = new QiniuAI({
+                apiKey: 'sk-test',
+                adapter: { fetch },
+            });
+
+            await client.chat.create({
+                model: 'test-model',
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'image',
+                                image: 'https://example.com/image.jpg',
+                                cache_control: { type: 'ephemeral' },
+                            } as any,
+                        ],
+                    },
+                ],
+            });
+
+            const init = fetch.mock.calls[0]?.[1] as RequestInit;
+            const body = JSON.parse(String(init.body));
+            expect(body.messages[0].content[0]).toEqual({
+                type: 'image_url',
+                image_url: { url: 'https://example.com/image.jpg' },
+                cache_control: { type: 'ephemeral' },
+            });
+        });
     });
 
     describe('createStream()', () => {
