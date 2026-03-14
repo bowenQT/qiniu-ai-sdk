@@ -59,6 +59,14 @@ export interface MCPHttpServerConfig extends MCPServerConfigBase {
     oauth?: MCPOAuthConfig;
     /** Custom headers */
     headers?: Record<string, string>;
+    /** Negotiated MCP protocol version (default: 2025-11-25) */
+    protocolVersion?: string;
+    /** Existing MCP session id for stream resume / sticky sessions */
+    sessionId?: string;
+    /** Origin header for servers that validate browser-style origins */
+    origin?: string;
+    /** Accept header override for transport negotiation */
+    accept?: string;
     /** Request timeout in ms (default: 30000) */
     timeout?: number;
 }
@@ -88,4 +96,6 @@ export interface MCPToolResult {
 export const DEFAULT_MCP_CONFIG = {
     connectionTimeout: 30000, // 30s
     httpTimeout: 30000, // 30s per request
+    protocolVersion: '2025-11-25',
+    accept: 'application/json, text/event-stream',
 } as const;

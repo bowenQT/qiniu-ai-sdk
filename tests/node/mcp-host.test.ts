@@ -3,8 +3,10 @@
  * Uses mock transports to avoid spawning actual MCP servers.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SDK_VERSION } from '../../src/lib/version';
 
 // Mock @modelcontextprotocol/sdk before import
+const clientCtorCalls: Array<{ info: { name: string; version: string } }> = [];
 const mockClientInstance = {
     connect: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
@@ -40,7 +42,8 @@ const mockClientInstance = {
 };
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => {
-    const MockClient = vi.fn().mockImplementation(function(this: any) {
+    const MockClient = vi.fn().mockImplementation(function(this: any, info: { name: string; version: string }) {
+        clientCtorCalls.push({ info });
         Object.assign(this, mockClientInstance);
     });
     return { Client: MockClient };
@@ -57,6 +60,7 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 describe('NodeMCPHost', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        clientCtorCalls.length = 0;
     });
 
     it('can be instantiated with server configs', async () => {
@@ -73,11 +77,20 @@ describe('NodeMCPHost', () => {
 
     it('connect() initializes SDK Client for each server', async () => {
         const { NodeMCPHost } = await import('../../src/node/mcp-host');
+        const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
 
         const host = new NodeMCPHost({
             servers: [
                 { name: 'server-a', transport: 'stdio', command: 'mcp-a' },
-                { name: 'server-b', transport: 'http', url: 'http://localhost:3000/mcp' },
+                {
+                    name: 'server-b',
+                    transport: 'http',
+                    url: 'http://localhost:3000/mcp',
+                    token: 'secret-token',
+                    protocolVersion: '2025-11-25',
+                    sessionId: 'session-1',
+                    origin: 'https://app.example.com',
+                },
             ],
         });
 
@@ -87,6 +100,57 @@ describe('NodeMCPHost', () => {
         const tools = host.getTools();
         // Each server returns 1 tool in mock, so 2 total
         expect(tools.length).toBe(2);
+        expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(
+            new URL('http://localhost:3000/mcp'),
+            expect.objectContaining({
+                requestInit: {
+                    headers: expect.objectContaining({
+                        Accept: 'application/json, text/event-stream',
+                        Authorization: 'Bearer secret-token',
+                        'MCP-Protocol-Version': '2025-11-25',
+                        'MCP-Session-Id': 'session-1',
+                        Origin: 'https://app.example.com',
+                    }),
+                },
+            }),
+        );
+        expect(clientCtorCalls[1]?.info).toEqual({
+            name: 'qiniu-ai-sdk',
+            version: SDK_VERSION,
+        });
+    });
+
+    it('resolves tokenProvider for HTTP servers before connect', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+        const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
+        const tokenProvider = vi.fn().mockResolvedValue('dynamic-token');
+
+        const host = new NodeMCPHost({
+            servers: [
+                {
+                    name: 'server-c',
+                    transport: 'http',
+                    url: 'http://localhost:3001/mcp',
+                    tokenProvider,
+                },
+            ],
+        });
+
+        await host.connect();
+
+        expect(tokenProvider).toHaveBeenCalledTimes(1);
+        expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(
+            new URL('http://localhost:3001/mcp'),
+            expect.objectContaining({
+                requestInit: {
+                    headers: expect.objectContaining({
+                        Accept: 'application/json, text/event-stream',
+                        Authorization: 'Bearer dynamic-token',
+                        'MCP-Protocol-Version': '2025-11-25',
+                    }),
+                },
+            }),
+        );
     });
 
     it('getTools() returns RegisteredTool[] with MCP source', async () => {
