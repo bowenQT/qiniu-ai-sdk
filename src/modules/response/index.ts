@@ -61,6 +61,11 @@ export interface ResponseCreateResponse {
     created_at?: number;
     status: string;
     output?: ResponseOutput[];
+    /**
+     * Convenience projection of text blocks from `output`.
+     * Mirrors the mainstream Response API ergonomics for direct text consumption.
+     */
+    output_text?: string;
     reasoning?: {
         effort?: string;
         encrypted_content?: string;
@@ -102,8 +107,26 @@ export class ResponseAPI {
             hasReasoning: !!request.reasoning,
         });
 
-        return this.client.post<ResponseCreateResponse>('/llm/v1/responses', request);
+        const response = await this.client.post<ResponseCreateResponse>('/llm/v1/responses', request);
+        return {
+            ...response,
+            output_text: extractResponseOutputText(response),
+        };
     }
+}
+
+export function extractResponseOutputText(response: Pick<ResponseCreateResponse, 'output'>): string | undefined {
+    const parts: string[] = [];
+
+    for (const item of response.output ?? []) {
+        for (const block of item.content ?? []) {
+            if (typeof block.text === 'string') {
+                parts.push(block.text);
+            }
+        }
+    }
+
+    return parts.length > 0 ? parts.join('') : undefined;
 }
 
 async function normalizeResponseRequest(params: ResponseCreateRequest): Promise<ResponseCreateRequest> {

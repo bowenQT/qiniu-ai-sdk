@@ -126,7 +126,7 @@ export type {
     AnthropicContentBlock,
 } from '../modules/anthropic';
 
-export { ResponseAPI } from '../modules/response';
+export { ResponseAPI, extractResponseOutputText } from '../modules/response';
 export type {
     ResponseCreateRequest,
     ResponseCreateResponse,
