@@ -39,6 +39,48 @@ describe('Phase 2: File Module', () => {
 
         expect(result.id).toBe('file-abc123');
         expect(result.status).toBe('uploaded');
+        expect(JSON.parse(String(mockFetch.calls[0]?.init?.body))).toMatchObject({
+            file: 'base64data',
+            purpose: 'assistants',
+        });
+    });
+
+    it('should normalize data URLs and binary file sources before upload', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: { id: 'file-bin', status: 'uploaded' },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await client.file.create({
+            file: 'data:text/plain;base64,SGVsbG8=',
+            purpose: 'assistants',
+        });
+        await client.file.create({
+            file: new URL('https://example.com/spec.pdf'),
+            purpose: 'assistants',
+        });
+        await client.file.create({
+            file: Uint8Array.from([72, 105]),
+            purpose: 'assistants',
+        });
+        await client.file.create({
+            file: Uint8Array.from([72, 105]).buffer,
+            purpose: 'assistants',
+        });
+        await client.file.create({
+            file: new Blob([Uint8Array.from([72, 105])], { type: 'text/plain' }),
+            purpose: 'assistants',
+        });
+
+        expect(JSON.parse(String(mockFetch.calls[0]?.init?.body)).file).toBe('SGVsbG8=');
+        expect(JSON.parse(String(mockFetch.calls[1]?.init?.body)).file).toBe('https://example.com/spec.pdf');
+        expect(JSON.parse(String(mockFetch.calls[2]?.init?.body)).file).toBe('SGk=');
+        expect(JSON.parse(String(mockFetch.calls[3]?.init?.body)).file).toBe('SGk=');
+        expect(JSON.parse(String(mockFetch.calls[4]?.init?.body)).file).toBe('SGk=');
     });
 
     it('should get file status', async () => {
