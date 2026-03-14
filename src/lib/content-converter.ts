@@ -143,7 +143,7 @@ function imageSourceToDataUrl(source: ImageSource): string {
     throw new Error(`Unsupported image source type: ${typeof source}`);
 }
 
-async function imageSourceToDataUrlAsync(source: ImageSource): Promise<string> {
+export async function imageSourceToDataUrlAsync(source: ImageSource): Promise<string> {
     if (typeof source === 'string') {
         if (source.startsWith('data:') || source.startsWith('http://') || source.startsWith('https://')) {
             return source;
@@ -156,7 +156,8 @@ async function imageSourceToDataUrlAsync(source: ImageSource): Promise<string> {
     }
 
     if (typeof Blob !== 'undefined' && source instanceof Blob) {
-        return arrayBufferToDataUrl(new Uint8Array(await source.arrayBuffer()));
+        const mimeType = source.type || undefined;
+        return arrayBufferToDataUrl(new Uint8Array(await source.arrayBuffer()), mimeType);
     }
 
     if (source instanceof ArrayBuffer) {
@@ -173,9 +174,8 @@ async function imageSourceToDataUrlAsync(source: ImageSource): Promise<string> {
 /**
  * Convert Uint8Array to data URL.
  */
-function arrayBufferToDataUrl(buffer: Uint8Array): string {
-    // Detect MIME type from magic bytes
-    const mimeType = detectMimeType(buffer);
+function arrayBufferToDataUrl(buffer: Uint8Array, mimeTypeOverride?: string): string {
+    const mimeType = mimeTypeOverride || detectMimeType(buffer);
 
     // Convert to base64
     const base64 = uint8ArrayToBase64(buffer);
