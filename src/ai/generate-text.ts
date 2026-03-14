@@ -523,6 +523,8 @@ function parseToolArguments(payload: string): unknown {
 import { AgentGraph, type AgentGraphOptions, type AgentGraphResult, type TokenEvent } from './agent-graph';
 import type { RegisteredTool, ToolParameters } from '../lib/tool-registry';
 import type { Skill } from '../modules/skills/types';
+import type { SessionStore } from './session-store';
+import { serializeState } from './graph/checkpointer';
 
 /**
  * Extended options for graph-based generation.
@@ -546,6 +548,8 @@ export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
     approvalConfig?: ApprovalConfig;
     /** Memory manager for conversation summarization */
     memory?: MemoryManager;
+    /** Higher-level session persistence (checkpoint + summary) */
+    sessionStore?: SessionStore;
     /** Guardrails for input/output filtering */
     guardrails?: Guardrail[];
     /** Agent ID for guardrail attribution (defaults to threadId or 'default') */
@@ -616,6 +620,7 @@ export async function generateTextWithGraph(
         threadId,
         resumeFromCheckpoint = true,
         memory,
+        sessionStore,
         guardrails,
         onTokenEvent,
     } = options;
@@ -627,14 +632,22 @@ export async function generateTextWithGraph(
     const guardrailChain = guardrails?.length ? new GuardrailChain(guardrails) : null;
 
     // Validate checkpointer + threadId combination
-    if (checkpointer && !threadId) {
-        throw new Error('threadId is required when checkpointer is provided');
+    if ((checkpointer || sessionStore) && !threadId) {
+        throw new Error('threadId is required when checkpointer or sessionStore is provided');
     }
 
     // Try to resume from checkpoint if available
     let resumedMessages: ChatMessage[] | null = null;
-    if (checkpointer && threadId && resumeFromCheckpoint) {
-        const checkpoint = await checkpointer.load(threadId);
+    if (threadId && memory && sessionStore) {
+        const session = await sessionStore.load(threadId);
+        if (session?.summary) {
+            memory.setSummary(threadId, session.summary);
+        }
+    }
+
+    if (threadId && resumeFromCheckpoint) {
+        const sessionCheckpoint = sessionStore ? (await sessionStore.load(threadId))?.checkpoint : null;
+        const checkpoint = sessionCheckpoint ?? (checkpointer ? await checkpointer.load(threadId) : null);
         if (checkpoint) {
             // Extract historical messages and append new input
             // v0.32.0+: prefer internalMessages, fallback to legacy messages for migration
@@ -833,7 +846,7 @@ export async function generateTextWithGraph(
 
     // Save checkpoint AFTER post-response guardrails (use redacted content)
     // This overwrites the internal AgentGraph checkpoint with redacted version
-    if (checkpointer && threadId) {
+    if ((checkpointer || sessionStore) && threadId) {
         // If content was redacted, update the final assistant message in state
         const stateToSave = { ...graphResult.state };
 
@@ -855,11 +868,28 @@ export async function generateTextWithGraph(
         }
 
         // Save with completed status to overwrite any intermediate checkpoints
-        const savedMetadata = await checkpointer.save(threadId, stateToSave, { status: 'completed' });
+        const savedMetadata = checkpointer
+            ? await checkpointer.save(threadId, stateToSave, { status: 'completed' })
+            : {
+                id: `session_${threadId}_${Date.now()}`,
+                threadId,
+                createdAt: Date.now(),
+                stepCount: stateToSave.stepCount,
+                status: 'completed' as const,
+            };
+
+        if (sessionStore) {
+            await sessionStore.save({
+                threadId,
+                state: serializeState(stateToSave),
+                checkpointMetadata: savedMetadata,
+                summary: memory?.getSummary(threadId),
+            });
+        }
 
         // Clear old checkpoints to prevent access to unredacted versions
         // Pass the saved checkpoint ID to ensure we keep the correct one
-        if (finalText !== graphResult.text && checkpointer.clearHistory) {
+        if (finalText !== graphResult.text && checkpointer?.clearHistory) {
             await checkpointer.clearHistory(threadId, savedMetadata.id);
         }
     }

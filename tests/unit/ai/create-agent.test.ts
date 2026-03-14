@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { createAgent } from '../../../src/ai/create-agent';
+import { MemorySessionStore } from '../../../src/ai/session-store';
 import type { QiniuAI } from '../../../src/client';
 import type { Checkpointer } from '../../../src/ai/graph/checkpointer';
 
@@ -11,9 +12,21 @@ import type { Checkpointer } from '../../../src/ai/graph/checkpointer';
 const createMockClient = (): QiniuAI => ({
     chat: {
         create: vi.fn().mockResolvedValue({
-            choices: [{ message: { content: 'Hello!' }, finish_reason: 'stop' }],
+            choices: [{ message: { role: 'assistant', content: 'Hello!' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
         }),
-        createStream: vi.fn(),
+        createStream: vi.fn(async function* () {
+            yield {
+                choices: [{ index: 0, delta: { content: 'Hello!' }, finish_reason: 'stop' }],
+            };
+            return {
+                content: 'Hello!',
+                reasoningContent: '',
+                toolCalls: [],
+                finishReason: 'stop',
+                usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+            };
+        }),
     },
     getBaseUrl: () => 'https://api.qnaigc.com/v1',
     post: vi.fn(),
@@ -69,7 +82,7 @@ describe('createAgent', () => {
     });
 
     describe('runWithThread validation', () => {
-        it('should throw if checkpointer is not configured', async () => {
+        it('should throw if neither checkpointer nor sessionStore is configured', async () => {
             const client = createMockClient();
 
             const agent = createAgent({
@@ -79,7 +92,22 @@ describe('createAgent', () => {
 
             await expect(
                 agent.runWithThread({ threadId: 'test', prompt: 'Hello' }),
-            ).rejects.toThrow('runWithThread requires checkpointer');
+            ).rejects.toThrow('runWithThread requires checkpointer or sessionStore');
+        });
+
+        it('should accept a sessionStore instead of checkpointer', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                sessionStore,
+            });
+
+            await expect(
+                agent.runWithThread({ threadId: 'test', prompt: 'Hello' }),
+            ).resolves.toBeDefined();
         });
 
         it('should throw if threadId is empty', async () => {
