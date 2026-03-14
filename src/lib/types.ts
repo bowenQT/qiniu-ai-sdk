@@ -94,12 +94,15 @@ export interface VideoContentPart {
 }
 
 /** Cache control content part */
+export interface CacheControl {
+    type: string;
+    ttl?: string;
+}
+
+/** Cache control content part */
 export interface CacheControlContentPart {
     type: string;
-    cache_control: {
-        type: string;
-        ttl?: string;
-    };
+    cache_control: CacheControl;
 }
 
 /** Thinking block object (Claude response) */
@@ -130,6 +133,18 @@ export type ContentPart =
     | FileUrlContentPart
     | ThinkingContentPart
     | VideoContentPart;
+
+/** Content parts that may carry provider-specific cache directives */
+export type ContentPartWithCacheControl =
+    | (TextContentPart & { cache_control?: CacheControl })
+    | (ImageUrlContentPart & { cache_control?: CacheControl })
+    | (ImageContentPart & { cache_control?: CacheControl })
+    | (VideoUrlContentPart & { cache_control?: CacheControl })
+    | (FileContentPart & { cache_control?: CacheControl })
+    | (InputAudioContentPart & { cache_control?: CacheControl })
+    | (FileUrlContentPart & { cache_control?: CacheControl })
+    | (ThinkingContentPart & { cache_control?: CacheControl })
+    | (VideoContentPart & { cache_control?: CacheControl });
 
 export interface ToolCall {
     id: string;
@@ -314,4 +329,3 @@ export interface CompactionInfo {
     /** Recommendation for reducing context */
     recommendation?: string;
 }
-

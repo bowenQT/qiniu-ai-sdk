@@ -1,4 +1,9 @@
-import { IQiniuClient } from '../../lib/types';
+import {
+    IQiniuClient,
+    type ContentPartWithCacheControl,
+    type ImageObject,
+    type ThinkingBlock,
+} from '../../lib/types';
 
 // ============================================================================
 // Type Definitions (Response API - @experimental)
@@ -21,19 +26,29 @@ export interface ResponseCreateRequest {
 }
 
 export interface ResponseInputMessage {
-    role: 'user' | 'assistant' | 'system';
-    content: string;
+    role: 'user' | 'assistant' | 'system' | 'developer';
+    content: string | ResponseInputContentPart[];
 }
+
+export type ResponseInputContentPart = ContentPartWithCacheControl;
 
 export interface ResponseOutput {
     type: string;
     role?: string;
     content?: ResponseContentBlock[];
+    thinking_blocks?: ThinkingBlock[];
+    images?: ImageObject[];
 }
 
 export interface ResponseContentBlock {
     type: string;
     text?: string;
+    image_url?: { url: string; checksum?: string };
+    file_url?: { url: string; detail?: string };
+    input_audio?: { data: string; format: 'wav' | 'mp3' | 'ogg' | 'pcm' };
+    video_url?: { url: string };
+    thinking?: string;
+    annotations?: unknown[];
 }
 
 /**

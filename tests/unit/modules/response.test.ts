@@ -48,4 +48,54 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         expect(result.status).toBe('completed');
         expect(result.reasoning?.encrypted_content).toBe('enc_abc_123');
     });
+
+    it('should accept multimodal response input messages', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: { id: 'resp-1', status: 'completed' },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await client.response.create({
+            model: 'openai/gpt-5',
+            input: [
+                {
+                    role: 'developer',
+                    content: [
+                        {
+                            type: 'text',
+                            text: 'Prefer concise answers.',
+                            cache_control: { type: 'ephemeral' },
+                        },
+                    ],
+                },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'Analyze these inputs' },
+                        { type: 'file_url', file_url: { url: 'https://example.com/doc.pdf' } },
+                        {
+                            type: 'input_audio',
+                            input_audio: {
+                                data: 'YmFzZTY0LWF1ZGlv',
+                                format: 'mp3',
+                            },
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const body = JSON.parse(String(mockFetch.calls[0].init?.body));
+        expect(body.input[0].role).toBe('developer');
+        expect(body.input[0].content[0].cache_control).toEqual({ type: 'ephemeral' });
+        expect(body.input[1].content[1]).toEqual({
+            type: 'file_url',
+            file_url: { url: 'https://example.com/doc.pdf' },
+        });
+        expect(body.input[1].content[2].input_audio.format).toBe('mp3');
+    });
 });
