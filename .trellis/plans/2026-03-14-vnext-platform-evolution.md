@@ -16,6 +16,8 @@ This promoted plan tracks the SDK's next delivery model and product foundation.
 - node-integrations
 - dx-validation
 
+Lane briefs: `.trellis/plans/2026-03-14-vnext-lane-briefs.md`
+
 ## Core Outcomes
 
 - capability registry becomes the single source of truth for models and maturity
