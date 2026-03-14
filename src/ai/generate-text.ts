@@ -5,7 +5,7 @@ import { MaxStepsExceededError, ToolExecutionError } from '../lib/errors';
 import type { Checkpointer } from './graph/checkpointer';
 import type { ApprovalConfig, ApprovalHandler, ApprovalResult } from './tool-approval';
 import { checkApproval } from './tool-approval';
-import { normalizeContent } from '../lib/content-converter';
+import { normalizeContentAsync } from '../lib/content-converter';
 import { normalizeToJsonSchema } from '../lib/tool-schema';
 import type { MemoryManager } from './memory';
 import type { Guardrail } from './guardrails';
@@ -119,7 +119,7 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
     let finishReason: GenerateTextResult['finishReason'] = null;
 
     for (let stepIndex = 0; stepIndex < maxSteps; stepIndex += 1) {
-        const request = buildChatRequest({
+        const request = await buildChatRequest({
             model,
             messages,
             tools,
@@ -231,7 +231,7 @@ function normalizeMessages(options: GenerateTextOptions): ChatMessage[] {
     return messages;
 }
 
-function buildChatRequest(params: {
+async function buildChatRequest(params: {
     model: string;
     messages: ChatMessage[];
     tools?: Record<string, Tool>;
@@ -240,14 +240,14 @@ function buildChatRequest(params: {
     maxTokens?: number;
     responseFormat?: ResponseFormat;
     toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
-}): ChatCompletionRequest {
+}): Promise<ChatCompletionRequest> {
     const { model, messages, tools, temperature, topP, maxTokens, responseFormat, toolChoice } = params;
 
     // Normalize multimodal content (image -> image_url) for API compatibility
-    const normalizedMessages = messages.map(msg => ({
+    const normalizedMessages = await Promise.all(messages.map(async (msg) => ({
         ...msg,
-        content: normalizeContent(msg.content),
-    }));
+        content: await normalizeContentAsync(msg.content),
+    })));
 
     return {
         model,

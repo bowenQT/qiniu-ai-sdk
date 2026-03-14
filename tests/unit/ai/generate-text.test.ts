@@ -85,6 +85,39 @@ describe('generateText', () => {
         expect(result.steps.some((step) => step.type === 'tool_result')).toBe(true);
     });
 
+    it('should normalize Blob image inputs before calling the core runtime', async () => {
+        const adapter = {
+            fetch: vi.fn().mockResolvedValue(createSSEResponse([
+                buildChunk({ content: 'ok' }, null),
+                buildChunk({}, 'stop'),
+            ])),
+        };
+
+        const client = new QiniuAI({ apiKey: 'sk-test', adapter });
+        await generateText({
+            client,
+            model: 'test-model',
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'image',
+                            image: new Blob([Uint8Array.from([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }),
+                        } as any,
+                    ],
+                },
+            ],
+        });
+
+        const init = adapter.fetch.mock.calls[0]?.[1] as RequestInit;
+        const body = JSON.parse(String(init.body));
+        expect(body.messages[0].content[0]).toEqual({
+            type: 'image_url',
+            image_url: { url: 'data:image/png;base64,iVBORw==' },
+        });
+    });
+
     it('should throw when maxSteps is exceeded', async () => {
         const firstStepChunks = [
             buildChunk({
