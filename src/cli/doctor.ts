@@ -3,11 +3,13 @@ import * as path from 'path';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { getModuleMaturity } from '../lib/capability-registry';
+import type { ModuleMaturityInfo } from '../lib/capability-registry';
 import type { StarterTemplate } from './init';
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts']);
 const IGNORED_DIRS = new Set(['node_modules', '.git', 'dist', 'coverage']);
 const ROOT_IMPORT_RE = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"]@bowenqt\/qiniu-ai-sdk['"]/g;
+const SDK_IMPORT_RE = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"]@bowenqt\/qiniu-ai-sdk(?:\/(core|node|qiniu|browser))?['"]/g;
 const NODE_IMPORT_RE = /from\s+['"]@bowenqt\/qiniu-ai-sdk\/node['"]/;
 const CORE_IMPORT_RE = /from\s+['"]@bowenqt\/qiniu-ai-sdk\/core['"]/;
 const EXPERIMENTAL_PATTERNS = new Map<string, RegExp>([
@@ -15,6 +17,37 @@ const EXPERIMENTAL_PATTERNS = new Map<string, RegExp>([
     ['crew', /\bcreateCrew\b|\bcreateSequentialCrew\b|\bcreateParallelCrew\b|\bcreateHierarchicalCrew\b/],
     ['A2A', /\bAgentExpert\b|\bcreateA2ARequest\b|\bcreateA2AResponse\b/],
     ['QiniuMCPServer', /\bQiniuMCPServer\b/],
+]);
+const SYMBOL_TO_MODULE = new Map<string, string>([
+    ['generateText', 'generateText'],
+    ['streamText', 'streamText'],
+    ['generateObject', 'generateObject'],
+    ['createAgent', 'createAgent'],
+    ['MemoryManager', 'memory'],
+    ['MemorySessionStore', 'memory'],
+    ['CheckpointerSessionStore', 'memory'],
+    ['InMemoryVectorStore', 'memory'],
+    ['GuardrailChain', 'guardrails'],
+    ['inputFilter', 'guardrails'],
+    ['outputFilter', 'guardrails'],
+    ['tokenLimiter', 'guardrails'],
+    ['NodeMCPHost', 'NodeMCPHost'],
+    ['MCPHttpTransport', 'NodeMCPHost'],
+    ['createNodeQiniuAI', 'sandbox'],
+    ['QiniuSandbox', 'sandbox'],
+    ['SkillLoader', 'skills'],
+    ['SkillRegistry', 'skills'],
+    ['SkillInstaller', 'skills'],
+    ['RedisCheckpointer', 'RedisCheckpointer'],
+    ['PostgresCheckpointer', 'PostgresCheckpointer'],
+    ['KodoCheckpointer', 'KodoCheckpointer'],
+    ['auditLogger', 'auditLogger'],
+    ['AuditLoggerCollector', 'auditLogger'],
+    ['ResponseAPI', 'ResponseAPI'],
+    ['AgentExpert', 'A2A'],
+    ['createA2ARequest', 'A2A'],
+    ['createA2AResponse', 'A2A'],
+    ['QiniuMCPServer', 'QiniuMCPServer'],
 ]);
 
 export type WorktreeLane =
@@ -208,6 +241,27 @@ function extractRootImports(source: string): string[] {
     return imported;
 }
 
+function extractSdkImports(source: string): Array<{ entrypoint: string; symbol: string }> {
+    const imported: Array<{ entrypoint: string; symbol: string }> = [];
+    for (const match of source.matchAll(SDK_IMPORT_RE)) {
+        const entrypoint = match[2] ? `@bowenqt/qiniu-ai-sdk/${match[2]}` : '@bowenqt/qiniu-ai-sdk';
+        const specifiers = match[1]
+            .split(',')
+            .map((item) => item.replace(/\btype\b/g, '').trim())
+            .filter(Boolean);
+        for (const symbol of specifiers) {
+            imported.push({ entrypoint, symbol });
+        }
+    }
+    return imported;
+}
+
+function formatModuleMaturity(entry: ModuleMaturityInfo): string {
+    const validatedAt = entry.validatedAt ? `, validated ${entry.validatedAt}` : '';
+    const notes = entry.notes ? `, ${entry.notes}` : '';
+    return `${entry.maturity}, ${entry.validationLevel}${validatedAt}${notes}`;
+}
+
 function summarizeStatus(checks: DoctorCheck[]): DoctorStatus {
     if (checks.some((check) => check.level === 'fail')) return 'fail';
     if (checks.some((check) => check.level === 'warn')) return 'warn';
@@ -279,11 +333,21 @@ export function doctorProject(options: DoctorCommandOptions): DoctorCommandResul
     const nodeImportFiles: string[] = [];
     const coreImportFiles: string[] = [];
     const experimentalUsage = new Map<string, string[]>();
+    const moduleUsage = new Map<string, { files: Set<string>; symbols: Set<string> }>();
 
     for (const entry of sources) {
         const rootImports = extractRootImports(entry.source);
+        const sdkImports = extractSdkImports(entry.source);
         if (rootImports.length > 0) {
             rootImportFiles.push(`${entry.relativePath}: ${rootImports.join(', ')}`);
+        }
+        for (const sdkImport of sdkImports) {
+            const moduleName = SYMBOL_TO_MODULE.get(sdkImport.symbol);
+            if (!moduleName) continue;
+            const usage = moduleUsage.get(moduleName) ?? { files: new Set<string>(), symbols: new Set<string>() };
+            usage.files.add(entry.relativePath);
+            usage.symbols.add(sdkImport.symbol);
+            moduleUsage.set(moduleName, usage);
         }
         if (NODE_IMPORT_RE.test(entry.source)) {
             nodeImportFiles.push(entry.relativePath);
@@ -318,6 +382,18 @@ export function doctorProject(options: DoctorCommandOptions): DoctorCommandResul
             `${moduleName} usage detected (${maturity?.maturity ?? 'unknown'}):\n- ${filesWithUsage.join('\n- ')}${
                 maturity?.docsUrl ? `\nDocs: ${maturity.docsUrl}` : ''
             }`,
+        );
+    }
+
+    for (const [moduleName, usage] of Array.from(moduleUsage.entries()).sort(([left], [right]) => left.localeCompare(right))) {
+        if (experimentalUsage.has(moduleName)) continue;
+        const maturity = getModuleMaturity(moduleName);
+        if (!maturity) continue;
+
+        addCheck(
+            checks,
+            maturity.maturity === 'experimental' ? 'warn' : 'ok',
+            `${moduleName} imports detected (${formatModuleMaturity(maturity)}):\n- symbols: ${Array.from(usage.symbols).sort().join(', ')}\n- files: ${Array.from(usage.files).sort().join('\n- ')}\nDocs: ${maturity.docsUrl}`,
         );
     }
 
