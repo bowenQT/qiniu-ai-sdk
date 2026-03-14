@@ -68,6 +68,37 @@ export class MCPHttpTransport {
         this.config = config;
     }
 
+    private requestTimeout(): number {
+        return this.config.timeout ?? DEFAULT_MCP_CONFIG.httpTimeout;
+    }
+
+    private async fetchWithTimeout(
+        input: string,
+        init: RequestInit,
+        timeoutLabel: string,
+    ): Promise<Response> {
+        const timeout = this.requestTimeout();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        try {
+            return await fetch(input, {
+                ...init,
+                signal: controller.signal,
+            });
+        } catch (error) {
+            if (controller.signal.aborted) {
+                throw new MCPHttpTransportError(
+                    `${timeoutLabel} timeout after ${timeout}ms`,
+                    this.config.name,
+                );
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
     private async resolveToken(): Promise<string | undefined> {
         if (this.config.token) {
             return this.config.token;
@@ -127,7 +158,7 @@ export class MCPHttpTransport {
         );
 
         // Connect with timeout
-        const timeout = this.config.timeout ?? DEFAULT_MCP_CONFIG.httpTimeout;
+        const timeout = this.requestTimeout();
         const timeoutPromise = new Promise<never>((_, reject) => {
             setTimeout(() => reject(new MCPHttpTransportError(
                 `Connection timeout after ${timeout}ms`,
@@ -159,13 +190,13 @@ export class MCPHttpTransport {
      * Open the server event stream for resume / long polling scenarios.
      */
     async openEventStream(lastEventId?: string): Promise<Response> {
-        const response = await fetch(this.config.url, {
+        const response = await this.fetchWithTimeout(this.config.url, {
             method: 'GET',
             headers: await this.resolveHeaders({
                 accept: 'text/event-stream',
                 lastEventId: lastEventId ?? this.config.lastEventId,
             }),
-        });
+        }, 'Open event stream');
 
         if (!response.ok) {
             throw new MCPHttpTransportError(
@@ -183,10 +214,10 @@ export class MCPHttpTransport {
      * Returns false when the server does not support DELETE termination.
      */
     async terminateSession(): Promise<boolean> {
-        const response = await fetch(this.config.url, {
+        const response = await this.fetchWithTimeout(this.config.url, {
             method: 'DELETE',
             headers: await this.resolveHeaders(),
-        });
+        }, 'Terminate session');
 
         if (response.status === 404 || response.status === 405 || response.status === 501) {
             return false;
@@ -215,6 +246,11 @@ export class MCPHttpTransport {
             headers: this.config.headers,
             protocolVersion: this.config.protocolVersion ?? DEFAULT_MCP_CONFIG.protocolVersion,
             challengeHeader,
+            fetchImpl: (input, init) => this.fetchWithTimeout(
+                typeof input === 'string' ? input : input.toString(),
+                init ?? {},
+                'OAuth metadata discovery',
+            ),
         });
     }
 
