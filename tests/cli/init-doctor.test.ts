@@ -137,6 +137,37 @@ describe('CLI init and doctor', () => {
         expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Lane "runtime" should not own Node-only imports'));
     });
 
+    it('doctor reports maturity and validation metadata for imported public modules', async () => {
+        const { runCLI } = await import('../../src/cli/skill-cli');
+        const projectDir = path.join(tmpRoot, 'maturity-app');
+        fs.mkdirSync(path.join(projectDir, 'src'), { recursive: true });
+        fs.mkdirSync(path.join(projectDir, 'node_modules', 'zod'), { recursive: true });
+        fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'maturity-app' }), 'utf8');
+        fs.writeFileSync(path.join(projectDir, 'node_modules', 'zod', 'package.json'), JSON.stringify({ name: 'zod' }), 'utf8');
+        fs.writeFileSync(
+            path.join(projectDir, 'src', 'index.ts'),
+            [
+                "import { createAgent } from '@bowenqt/qiniu-ai-sdk/core';",
+                "import { ResponseAPI } from '@bowenqt/qiniu-ai-sdk/qiniu';",
+                'console.log(createAgent, ResponseAPI);',
+            ].join('\n'),
+            'utf8',
+        );
+
+        await runCLI(
+            ['doctor', '--template', 'agent', '--dir', projectDir],
+            { cwd: tmpRoot, env: { QINIU_API_KEY: 'sk-test' }, nodeVersion: 'v20.0.0' },
+        );
+
+        expect(process.exitCode).toBe(2);
+        expect(consoleLogSpy).toHaveBeenCalledWith(
+            expect.stringContaining('createAgent imports detected (ga, contract'),
+        );
+        expect(consoleLogSpy).toHaveBeenCalledWith(
+            expect.stringContaining('ResponseAPI usage detected (experimental)'),
+        );
+    });
+
     it('doctor succeeds for a clean node-agent project', async () => {
         const { runCLI } = await import('../../src/cli/skill-cli');
         const projectDir = path.join(tmpRoot, 'clean-node-agent');
