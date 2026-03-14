@@ -34,6 +34,7 @@
 - 🏭 **createAgent** — 可复用的 Agent 工厂
 
 ### 高级能力
+- 🧭 **能力注册表** — 通过 SDK 查询模型能力和模块成熟度
 - 📋 **技能注入** — Markdown 格式的 Agent 知识库（兼容 Claude Skills）
 - 🏪 **Skill 市场** — 远程技能加载 + SHA256 完整性验证 (v0.32.0+)
 - 🔐 **安全加固** — 原子远程安装、累计大小限制、deny-first 工具策略 (v0.38.0+)
@@ -57,19 +58,103 @@
 npm install @bowenqt/qiniu-ai-sdk
 ```
 
-### 推荐导入方式
+### 如何选择入口
 
-```typescript
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
-import { createAgent, generateText } from '@bowenqt/qiniu-ai-sdk/core';
-import { createNodeQiniuAI, NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
-```
+| 我想做什么 | 使用哪个入口 |
+|------------|--------------|
+| 直接调用七牛云 API | `@bowenqt/qiniu-ai-sdk/qiniu` |
+| 构建 agent/runtime 工作流 | `@bowenqt/qiniu-ai-sdk/qiniu` + `@bowenqt/qiniu-ai-sdk/core` |
+| 接入 MCP、sandbox、skills 或非内存 checkpointer | `@bowenqt/qiniu-ai-sdk/qiniu` + `@bowenqt/qiniu-ai-sdk/core` + `@bowenqt/qiniu-ai-sdk/node` |
 
 ### 入口契约
 
 - `@bowenqt/qiniu-ai-sdk/node` 是 MCP、sandbox、audit sink 以及非内存 checkpointer 的唯一正式 Node integration 入口。
 - `@bowenqt/qiniu-ai-sdk/core` 和 `@bowenqt/qiniu-ai-sdk/browser` 保持不含 Node-only 传递依赖。
 - `ResponseAPI` 继续保持 experimental/provider-only；推荐使用 `QiniuAI#response` 或从 `@bowenqt/qiniu-ai-sdk/qiniu` 导入，不再从 root 入口导入。
+- root 入口继续保留兼容性，但不再作为新项目的默认教学入口。
+
+### Cloud API Quickstart
+
+```typescript
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+
+const client = new QiniuAI({
+  apiKey: process.env.QINIU_API_KEY || '',
+});
+
+const result = await client.chat.create({
+  model: 'gemini-2.5-flash',
+  messages: [{ role: 'user', content: '用一句话介绍七牛 AI SDK。' }],
+});
+
+console.log(result.choices[0]?.message?.content ?? '');
+```
+
+### Agent Quickstart
+
+```typescript
+import { z } from 'zod';
+import { zodToJsonSchema } from '@bowenqt/qiniu-ai-sdk/ai-tools';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateText } from '@bowenqt/qiniu-ai-sdk/core';
+
+const calculatorSchema = z.object({ a: z.number(), b: z.number() });
+
+const client = new QiniuAI({
+  apiKey: process.env.QINIU_API_KEY || '',
+});
+
+const result = await generateText({
+  client,
+  model: 'gemini-2.5-flash',
+  prompt: '42 乘以 17 等于多少？',
+  tools: {
+    calculator: {
+      description: '做乘法计算',
+      parameters: zodToJsonSchema(calculatorSchema),
+      execute: async (args) => {
+        const { a, b } = calculatorSchema.parse(args);
+        return a * b;
+      },
+    },
+  },
+});
+
+console.log(result.text);
+```
+
+### Node Agent Quickstart
+
+```typescript
+import { z } from 'zod';
+import { zodToJsonSchema } from '@bowenqt/qiniu-ai-sdk/ai-tools';
+import { createAgent } from '@bowenqt/qiniu-ai-sdk/core';
+import { createNodeQiniuAI } from '@bowenqt/qiniu-ai-sdk/node';
+
+const nowSchema = z.object({});
+
+const client = createNodeQiniuAI({
+  apiKey: process.env.QINIU_API_KEY || '',
+});
+
+const agent = createAgent({
+  client,
+  model: 'gemini-2.5-flash',
+  tools: {
+    now: {
+      description: '返回当前 ISO 时间戳',
+      parameters: zodToJsonSchema(nowSchema),
+      execute: async () => ({ now: new Date().toISOString() }),
+    },
+  },
+});
+
+const result = await agent.run({
+  prompt: '先调用 now 工具，再说明为什么 ISO 时间戳适合做系统集成。',
+});
+
+console.log(result.text);
+```
 
 ### v0.46 迁移表
 
@@ -113,6 +198,45 @@ npm install ioredis
 npm install pg
 ```
 
+### 能力元数据
+
+```typescript
+import {
+  getModelCapabilities,
+  getModuleMaturity,
+  listModels,
+} from '@bowenqt/qiniu-ai-sdk/qiniu';
+
+const featuredChatModels = listModels({ type: 'chat' }).slice(0, 3);
+const responseApi = getModuleMaturity('ResponseAPI');
+const gemini = getModelCapabilities('gemini-2.5-flash');
+
+console.log(featuredChatModels.map((model) => model.id));
+console.log(responseApi?.maturity); // experimental
+console.log(gemini?.capabilities);
+```
+
+### Worktree 交付流
+
+```bash
+# 初始化 integration worktree，并建立默认 .worktrees/ 目录
+qiniu-ai worktree init
+
+# 从 codex/vnext-integration 派生 lane
+qiniu-ai worktree spawn --lane foundation
+
+# 查看当前 worktree 与推断出来的 lane
+qiniu-ai worktree status
+
+# 把 lane 合流回 integration branch
+qiniu-ai worktree integrate --lane foundation
+
+# 运行该 lane 的默认 live probe
+qiniu-ai verify live --lane runtime
+```
+
+适用于跨模块的大规模 SDK 演进：root 工作区只负责编排和集成，每个 lane 只负责一组子系统。
+
 ### Kodo 审计 Sink
 
 ```typescript
@@ -129,36 +253,6 @@ const logger = auditLogger({
   }),
 });
 ```
-
----
-
-## 🚀 快速开始
-
-```typescript
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
-
-const client = new QiniuAI({
-  apiKey: 'Sk-xxxxxxxxxxxxxxxx',
-});
-
-// 对话补全
-const chat = await client.chat.create({
-  model: 'gemini-2.5-flash',
-  messages: [{ role: 'user', content: '你好！' }],
-});
-console.log(chat.choices[0].message.content);
-
-// 流式对话
-const stream = await client.chat.createStream({
-  model: 'gemini-2.5-flash',
-  messages: [{ role: 'user', content: '简单介绍一下 AI' }],
-});
-for await (const chunk of stream) {
-  process.stdout.write(chunk.choices[0]?.delta?.content || '');
-}
-```
-
----
 
 ## 🤖 Agent 使用
 
@@ -489,12 +583,35 @@ await instance.kill();
 
 ---
 
-## 🛠️ CLI：MCP Server
+## 🛠️ CLI
+
+### 项目初始化与诊断
+
+```bash
+npx qiniu-ai init --template chat
+npx qiniu-ai init --template agent
+npx qiniu-ai init --template node-agent
+npx qiniu-ai doctor --template agent
+```
+
+### MCP Server
 
 运行内置的七牛 MCP Server：
 
 ```bash
 npx qiniu-mcp-server
+```
+
+### Skill CLI
+
+```bash
+npx qiniu-ai doctor --template node-agent   # 检查环境、peer deps 与导入路径
+npx qiniu-ai skill list                     # 列出已安装 skills
+npx qiniu-ai skill add <url>                # 从 manifest URL 安装远端 skill
+npx qiniu-ai skill add <url> --sha256 <hash>  # 附带完整性校验
+npx qiniu-ai skill verify                   # 校验 lockfile 与本地文件
+npx qiniu-ai skill verify --fix             # 从本地目录重建 lockfile
+npx qiniu-ai skill remove <name>            # 删除 skill 与 lockfile 条目
 ```
 
 **环境变量：**

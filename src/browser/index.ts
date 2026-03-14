@@ -39,6 +39,12 @@ export {
     VIDEO_MODELS,
     MODEL_CATALOG,
 } from '../models';
+export {
+    listModels,
+    getModelCapabilities,
+    listModuleMaturities,
+    getModuleMaturity,
+} from '../lib/capability-registry';
 
 export type {
     ChatModel,
@@ -47,6 +53,13 @@ export type {
     Model,
     ModelInfo,
 } from '../models';
+export type {
+    ModuleMaturity,
+    ValidationLevel,
+    ModelCapabilityInfo,
+    ModuleMaturityInfo,
+    ListModelsOptions,
+} from '../lib/capability-registry';
 
 // ============================================================================
 // Error Types

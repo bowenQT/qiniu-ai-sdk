@@ -140,6 +140,8 @@ describe('entry points', () => {
 
         expect(root.QiniuAI).toBeDefined();
         expect(root.createAgent).toBeDefined();
+        expect(root.listModels).toBeDefined();
+        expect(root.getModuleMaturity).toBeDefined();
         expect(root.MemoryCheckpointer).toBeDefined();
         expect('auditLogger' in root).toBe(false);
         expect('QiniuSandbox' in root).toBe(false);
@@ -168,6 +170,8 @@ describe('entry points', () => {
 
         expect(qiniu.QiniuAI).toBeDefined();
         expect(qiniu.CHAT_MODELS).toBeDefined();
+        expect(qiniu.listModels).toBeDefined();
+        expect(qiniu.getModelCapabilities).toBeDefined();
         expect(qiniu.ResponseAPI).toBeDefined();
         expect('createAgent' in qiniu).toBe(false);
     });
@@ -189,6 +193,7 @@ describe('entry points', () => {
         const browser = await import('../../src/browser/index');
 
         expect(browser.createAgent).toBeDefined();
+        expect(browser.listModels).toBeDefined();
         expect('MCPHttpTransport' in browser).toBe(false);
         expect('FileTokenStore' in browser).toBe(false);
         expect('NodeMCPHost' in browser).toBe(false);

@@ -28,7 +28,7 @@ describe('CLI skill add (5A)', () => {
 
     it('shows usage when add is called without URL', async () => {
         const { runCLI } = await import('../../src/cli/skill-cli');
-        runCLI(['skill', 'add']);
+        await runCLI(['skill', 'add']);
 
         expect(consoleErrorSpy).toHaveBeenCalledWith(
             expect.stringContaining('Usage: qiniu-ai skill add')
@@ -38,7 +38,7 @@ describe('CLI skill add (5A)', () => {
 
     it('shows usage when add URL starts with --', async () => {
         const { runCLI } = await import('../../src/cli/skill-cli');
-        runCLI(['skill', 'add', '--sha256']);
+        await runCLI(['skill', 'add', '--sha256']);
 
         expect(consoleErrorSpy).toHaveBeenCalledWith(
             expect.stringContaining('Usage: qiniu-ai skill add')
@@ -50,7 +50,7 @@ describe('CLI skill add (5A)', () => {
         const { runCLI } = await import('../../src/cli/skill-cli');
 
         // --sha256 --allow-actions → getArgValue should reject
-        runCLI(['skill', 'add', 'https://example.com/skill.json', '--sha256', '--allow-actions']);
+        await runCLI(['skill', 'add', 'https://example.com/skill.json', '--sha256', '--allow-actions']);
 
         // Wait a tick for any async commandAdd to resolve if it was called
         await new Promise(r => setTimeout(r, 50));
@@ -70,7 +70,7 @@ describe('CLI skill add (5A)', () => {
     it('rejects --auth when followed by another flag and does NOT attempt install', async () => {
         const { runCLI } = await import('../../src/cli/skill-cli');
 
-        runCLI(['skill', 'add', 'https://example.com/skill.json', '--auth', '--sha256']);
+        await runCLI(['skill', 'add', 'https://example.com/skill.json', '--auth', '--sha256']);
 
         await new Promise(r => setTimeout(r, 50));
 
@@ -87,7 +87,7 @@ describe('CLI skill add (5A)', () => {
 
     it('includes add in help output', async () => {
         const { runCLI } = await import('../../src/cli/skill-cli');
-        runCLI(['help']);
+        await runCLI(['help']);
 
         expect(consoleLogSpy).toHaveBeenCalledWith(
             expect.stringContaining('add <url>')
@@ -96,7 +96,7 @@ describe('CLI skill add (5A)', () => {
 
     it('shows updated default usage for unknown subcommand', async () => {
         const { runCLI } = await import('../../src/cli/skill-cli');
-        runCLI(['skill', 'unknown']);
+        await runCLI(['skill', 'unknown']);
 
         expect(consoleLogSpy).toHaveBeenCalledWith(
             expect.stringContaining('list|add|verify|remove')

@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.49.0] - 2026-03-14
+
+### ✨ New Features
+
+- Added capability metadata APIs: `listModels()`, `getModelCapabilities()`, `listModuleMaturities()`, and `getModuleMaturity()`
+- Added `qiniu-ai worktree <init|spawn|status|integrate>` for lane-based `git worktree` orchestration
+
+### 🔧 Improvements
+
+- `doctor` now understands worktree lanes and reports maturity-aware warnings for experimental surfaces
+- Added repo-tracked workflow guidance for multi-agent product evolution with an integration branch
+- Added `.worktrees/` ignore support and CLI coverage for integration/lane worktree creation and merge flow
+- Added release-gate coverage for capability metadata exports and worktree CLI behavior
+
+### 📚 Notes
+
+- This release establishes the foundation for lane-based product evolution without adding new npm entry points
+- `ResponseAPI`, `crew`, `A2A`, and `QiniuMCPServer` remain experimental surfaces
+
+## [0.48.0] - 2026-03-14
+
+### ✨ New Features
+
+- Added `qiniu-ai init --template <chat|agent|node-agent>` for first-run project scaffolding
+- Added `qiniu-ai doctor [--template <chat|agent|node-agent>]` for environment, peer dependency, and import-path diagnostics
+
+### 🔧 Improvements
+
+- Added published starter templates for `chat`, `agent`, and `node-agent`
+- Reworked README and cookbook around the three recommended product paths: cloud API, agent runtime, and Node agent integrations
+- Added docs contract and template smoke scripts to the release gate so starter assets and import guidance cannot drift silently
+
+### 📚 Notes
+
+- This release stays minor-safe: no new npm entry points and no breaking runtime API changes
+- `ResponseAPI` remains experimental and provider-specific
+
 ## [0.47.0] - 2026-03-14
 
 ### 🔧 Improvements

@@ -43,4 +43,5 @@ npm run clean && npm run build
 ## Notes
 - Durable plans live in `../.trellis/plans/`.
 - Shared SOPs live in `./workflows/`.
+- Use `./workflows/multi-agent-product-evolution.md` for repo-wide lane-based upgrades.
 - This file is an index; do not expand it back into a long-form knowledge base.

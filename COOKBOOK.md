@@ -29,7 +29,7 @@ This cookbook provides focused, copy‑ready examples for common workflows.
 17. [Checkpointer - State Persistence](#17-checkpointer---state-persistence)
 18. [Tool Approval (HITL)](#18-tool-approval-hitl)
 19. [Interrupt/Resume - Resumable Execution](#19-interruptresume---resumable-execution)
-20. [MCP Client Integration](#20-mcp-client-integration)
+20. [NodeMCPHost Integration](#20-nodemcphost-integration)
 21. [Asset Resolver - Qiniu URI Resolution](#21-asset-resolver---qiniu-uri-resolution)
 22. [Built-in Cloud Tools (OCR/Censor/Vframe)](#22-built-in-cloud-tools-ocrcensorvframe)
 23. [OpenTelemetry Tracing](#23-opentelemetry-tracing)
@@ -43,10 +43,12 @@ This cookbook provides focused, copy‑ready examples for common workflows.
 
 ---
 
+## Start Here
+
 ## 1. Basic Chat (Sync)
 
 ```ts
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -61,7 +63,7 @@ console.log(result.choices[0].message.content);
 ## 2. Streaming Chat (SSE)
 
 ```ts
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -78,7 +80,8 @@ for await (const chunk of stream) {
 ## 3. Tool Calls (Agentic Loop)
 
 ```ts
-import { QiniuAI, generateText } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateText } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -118,7 +121,8 @@ console.log('Steps:', result.steps.length);
 The SDK auto-converts Zod schemas to JSON Schema:
 
 ```ts
-import { QiniuAI, generateText } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateText } from '@bowenqt/qiniu-ai-sdk/core';
 import { z } from 'zod';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
@@ -156,7 +160,8 @@ console.log(result.text);
 ## 5. JSON Mode (Structured Output)
 
 ```ts
-import { QiniuAI, generateText } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateText } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -175,7 +180,8 @@ console.log(scientists);
 ## 6. JSON Schema Mode (Strict Schema)
 
 ```ts
-import { QiniuAI, generateText } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateText } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -209,7 +215,8 @@ console.log(product);
 ## 7. Cancellable Requests
 
 ```ts
-import { QiniuAI, generateText } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateText } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 const controller = new AbortController();
@@ -264,10 +271,12 @@ const { text } = await generateText({
 console.log(JSON.parse(text));
 ```
 
+## Common Workflows
+
 ## 9. Image Generation + Polling
 
 ```ts
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -283,7 +292,7 @@ console.log(finalResult.data?.[0]?.url || finalResult.data?.[0]?.b64_json);
 ## 10. Image-to-Image Generation
 
 ```ts
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -301,7 +310,7 @@ console.log(finalResult.data?.[0]?.url);
 ## 11. Video Generation
 
 ```ts
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -322,7 +331,7 @@ viduq models use the fal-ai queue system. `create()` returns a `VideoTaskHandle`
 viduq 模型使用 fal-ai 队列系统，`create()` 返回 `VideoTaskHandle` 句柄用于可靠的异步轮询。
 
 ```ts
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -359,7 +368,7 @@ console.log(i2vResult.task_result?.videos[0].url);
 `kling-image-o1` 使用 fal-ai 队列系统，支持参考图。
 
 ```ts
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -392,7 +401,7 @@ Export request logs for monitoring and analysis.
 导出请求日志用于监控和分析。
 
 ```ts
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -414,7 +423,8 @@ for (const entry of logs) {
 ## 12. Multi-Step Agent with Step Callbacks
 
 ```ts
-import { QiniuAI, generateText } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateText } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -449,12 +459,15 @@ console.log('Final:', result.text);
 
 # Advanced Features
 
+## Advanced Integrations
+
 ## 13. createAgent - Reusable Agent Factory
 
 Create a reusable agent with pre-configured settings:
 
 ```ts
-import { QiniuAI, createAgent, MemoryCheckpointer } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { createAgent, MemoryCheckpointer } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 const checkpointer = new MemoryCheckpointer({ maxItems: 100 });
@@ -499,11 +512,8 @@ console.log('Response:', result2.text);
 Manage conversation memory with sliding window, automatic summarization, and token budgeting:
 
 ```ts
-import { 
-  QiniuAI, 
-  generateTextWithGraph, 
-  MemoryManager,
-} from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateTextWithGraph, MemoryManager } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -557,12 +567,8 @@ if (result.graphInfo?.compaction?.occurred) {
 Use vector store for semantic search over past conversations:
 
 ```ts
-import { 
-  QiniuAI, 
-  MemoryManager, 
-  InMemoryVectorStore,
-  generateTextWithGraph,
-} from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { MemoryManager, InMemoryVectorStore, generateTextWithGraph } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -616,11 +622,9 @@ console.log('Vector store usage:', (vectorStore.usage() * 100).toFixed(1) + '%')
 Load and inject agent skills (Markdown-based knowledge):
 
 ```ts
-import { 
-  QiniuAI, 
-  SkillLoader, 
-  generateTextWithGraph,
-} from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateTextWithGraph } from '@bowenqt/qiniu-ai-sdk/core';
+import { SkillLoader } from '@bowenqt/qiniu-ai-sdk/node';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -687,12 +691,8 @@ description: Git best practices for commit messages and branching
 Manage skills from local and remote sources with integrity verification:
 
 ```ts
-import {
-  SkillRegistry,
-  SkillManifest,
-  parseManifest,
-  generateTextWithGraph,
-} from '@bowenqt/qiniu-ai-sdk';
+import { generateTextWithGraph } from '@bowenqt/qiniu-ai-sdk/core';
+import { SkillRegistry } from '@bowenqt/qiniu-ai-sdk/node';
 
 // Create registry with security settings
 const registry = new SkillRegistry({
@@ -755,10 +755,7 @@ Save and restore agent state across sessions:
 ### Memory Checkpointer (Testing/Short-lived)
 
 ```ts
-import { 
-  MemoryCheckpointer, 
-  deserializeCheckpoint,
-} from '@bowenqt/qiniu-ai-sdk';
+import { MemoryCheckpointer, deserializeCheckpoint } from '@bowenqt/qiniu-ai-sdk/core';
 
 const checkpointer = new MemoryCheckpointer({ maxItems: 100 });
 
@@ -792,7 +789,7 @@ console.log('Cleared:', cleared, 'checkpoints');
 ### Redis Checkpointer (Production)
 
 ```ts
-import { RedisCheckpointer } from '@bowenqt/qiniu-ai-sdk';
+import { RedisCheckpointer } from '@bowenqt/qiniu-ai-sdk/node';
 import Redis from 'ioredis';
 
 const redis = new Redis(process.env.REDIS_URL);
@@ -809,7 +806,7 @@ const checkpoint = await checkpointer.load('thread-123');
 ### PostgreSQL Checkpointer (Production)
 
 ```ts
-import { PostgresCheckpointer } from '@bowenqt/qiniu-ai-sdk';
+import { PostgresCheckpointer } from '@bowenqt/qiniu-ai-sdk/node';
 import { Pool } from 'pg';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -826,7 +823,7 @@ const checkpoint = await checkpointer.load('thread-123');
 ### Kodo Checkpointer (Cloud-Native/Serverless)
 
 ```ts
-import { KodoCheckpointer } from '@bowenqt/qiniu-ai-sdk';
+import { KodoCheckpointer } from '@bowenqt/qiniu-ai-sdk/node';
 
 const checkpointer = new KodoCheckpointer({
   accessKey: process.env.QINIU_ACCESS_KEY!,
@@ -847,12 +844,8 @@ const checkpoint = await checkpointer.load('thread-123');
 Implement Human-in-the-Loop approval for sensitive tool calls:
 
 ```ts
-import { 
-  QiniuAI, 
-  generateText,
-  type ApprovalConfig,
-  type ApprovalContext,
-} from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateText, type ApprovalConfig, type ApprovalContext } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -927,13 +920,8 @@ console.log('Result:', result.text);
 Implement asynchronous approval flows with checkpoint-based resume:
 
 ```ts
-import { 
-  QiniuAI, 
-  AgentGraph, 
-  MemoryCheckpointer,
-  type ApprovalConfig,
-  type PendingApproval,
-} from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { AgentGraph, MemoryCheckpointer, type ApprovalConfig, type PendingApproval } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 const checkpointer = new MemoryCheckpointer();
@@ -1028,7 +1016,8 @@ Connect to Model Context Protocol servers via `NodeMCPHost`:
 
 ```ts
 import { NodeMCPHost } from '@bowenqt/qiniu-ai-sdk/node';
-import { QiniuAI, createAgent } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { createAgent } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -1072,7 +1061,8 @@ await mcpHost.dispose();
 
 ```ts
 import { NodeMCPHost } from '@bowenqt/qiniu-ai-sdk/node';
-import { QiniuAI, createAgent } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { createAgent } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -1105,13 +1095,7 @@ await mcpHost.dispose();
 Resolve `qiniu://` URIs to signed URLs:
 
 ```ts
-import { 
-  parseQiniuUri, 
-  resolveAsset, 
-  resolveAssets,
-  CachedSigner,
-  type QiniuSigner,
-} from '@bowenqt/qiniu-ai-sdk';
+import { parseQiniuUri, resolveAsset, resolveAssets, CachedSigner, type QiniuSigner } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 // Create signer (in browser, delegate to backend)
 const signer: QiniuSigner = {
@@ -1163,14 +1147,9 @@ console.log('Cache size:', cachedSigner.cacheSize);
 Use pre-built Qiniu cloud tools in your agent:
 
 ```ts
-import { 
-  QiniuAI, 
-  generateText,
-  QINIU_TOOLS,
-  getQiniuToolsArray,
-  getQiniuToolSchemas,
-  type QiniuToolContext,
-} from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateText } from '@bowenqt/qiniu-ai-sdk/core';
+import { QINIU_TOOLS, getQiniuToolsArray, getQiniuToolSchemas, type QiniuToolContext } from '@bowenqt/qiniu-ai-sdk';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -1295,11 +1274,7 @@ const result = await generateTextWithGraph({
 Export structured metrics in Prometheus format for monitoring:
 
 ```ts
-import { 
-  MetricsCollector, 
-  createMetricsHandler,
-  AgentGraph,
-} from '@bowenqt/qiniu-ai-sdk';
+import { MetricsCollector, createMetricsHandler, AgentGraph } from '@bowenqt/qiniu-ai-sdk/core';
 
 // Create metrics collector
 const metrics = new MetricsCollector();
@@ -1345,17 +1320,9 @@ metrics.reset();
 A complete example combining multiple advanced features:
 
 ```ts
-import {
-  QiniuAI,
-  createAgent,
-  MemoryManager,
-  InMemoryVectorStore,
-  MemoryCheckpointer,
-  QINIU_TOOLS,
-  setGlobalTracer,
-  ConsoleTracer,
-  type ApprovalConfig,
-} from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { createAgent, MemoryManager, InMemoryVectorStore, MemoryCheckpointer, setGlobalTracer, ConsoleTracer, type ApprovalConfig } from '@bowenqt/qiniu-ai-sdk/core';
+import { QINIU_TOOLS } from '@bowenqt/qiniu-ai-sdk';
 import { SkillLoader, NodeMCPHost } from '@bowenqt/qiniu-ai-sdk/node';
 
 // --- Setup ---
@@ -1475,7 +1442,7 @@ try {
 ### Token Estimation
 
 ```ts
-import { estimateMessageTokens, estimateTokens } from '@bowenqt/qiniu-ai-sdk';
+import { estimateMessageTokens, estimateTokens } from '@bowenqt/qiniu-ai-sdk/core';
 
 // Estimate tokens for text
 const tokenCount = estimateTokens('Hello, world!');
@@ -1513,46 +1480,41 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/db
 Implement pre-request and post-response content filtering:
 
 ```ts
-import { 
-  QiniuAI, 
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import {
   createAgent,
-  GuardrailChain,
-  createInputFilter,
-  createOutputFilter,
-  createPIIRedactor,
+  inputFilter,
+  outputFilter,
   type Guardrail,
-} from '@bowenqt/qiniu-ai-sdk';
+} from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
-// Create guardrails
+const piiRedactor: Guardrail = {
+  name: 'pii-redactor',
+  phase: 'post-response',
+  execute: async (content) => ({
+    blocked: false,
+    modified: true,
+    content
+      .replace(/\b[\w.-]+@[\w.-]+\.\w+\b/g, '[REDACTED_EMAIL]')
+      .replace(/\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g, '[REDACTED_PHONE]'),
+  }),
+};
+
 const guardrails: Guardrail[] = [
-  // Block harmful input
-  createInputFilter({
+  inputFilter({
     blockedPatterns: [/jailbreak/i, /ignore instructions/i],
     maxInputLength: 10000,
   }),
-  
-  // Block harmful output
-  createOutputFilter({
+  outputFilter({
     blockedPatterns: [/confidential/i, /password:\s*\S+/i],
   }),
-  
-  // Redact PII from output
-  createPIIRedactor({
-    patterns: {
-      email: /\b[\w.-]+@[\w.-]+\.\w+\b/g,
-      phone: /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g,
-      ssn: /\b\d{3}-\d{2}-\d{4}\b/g,
-    },
-    replacement: '[REDACTED]',
-  }),
-  
-  // Custom guardrail
+  piiRedactor,
   {
     name: 'custom-check',
     phase: 'post-response',
-    execute: async (content, context) => {
+    execute: async (content) => {
       if (content.includes('secret')) {
         return {
           blocked: false,
@@ -1594,18 +1556,24 @@ try {
 When using checkpointer with guardrails, sensitive content is automatically redacted from saved checkpoints:
 
 ```ts
-import { 
-  createAgent, 
-  MemoryCheckpointer,
-} from '@bowenqt/qiniu-ai-sdk';
+import { createAgent, MemoryCheckpointer } from '@bowenqt/qiniu-ai-sdk/core';
 
 const checkpointer = new MemoryCheckpointer();
+const piiRedactor = {
+  name: 'pii-redactor',
+  phase: 'post-response',
+  execute: async (content) => ({
+    blocked: false,
+    modified: true,
+    content: content.replace(/\b[\w.-]+@[\w.-]+\.\w+\b/g, '[REDACTED_EMAIL]'),
+  }),
+};
 
 const agent = createAgent({
   client,
   model: 'gemini-2.5-flash',
   checkpointer,
-  guardrails: [createPIIRedactor({ /* config */ })],
+  guardrails: [piiRedactor],
 });
 
 // Run with thread - checkpoint will contain redacted content
@@ -1619,6 +1587,8 @@ const checkpoint = await checkpointer.load('user-123');
 console.log(checkpoint.state.output); // Email replaced with [REDACTED]
 ```
 
+## Experimental
+
 ## 26. Multi-Agent Crew - Orchestration
 
 Orchestrate multiple agents working together:
@@ -1628,11 +1598,8 @@ Orchestrate multiple agents working together:
 Agents execute in order, passing output as context to the next:
 
 ```ts
-import { 
-  QiniuAI, 
-  createAgent, 
-  createSequentialCrew,
-} from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { createAgent, createSequentialCrew } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -1678,7 +1645,7 @@ result.results.forEach((r, i) => {
 Agents execute concurrently, results are aggregated:
 
 ```ts
-import { createParallelCrew } from '@bowenqt/qiniu-ai-sdk';
+import { createParallelCrew } from '@bowenqt/qiniu-ai-sdk/core';
 
 const crew = createParallelCrew({
   agents: [securityAnalyst, performanceAnalyst, codeReviewer],
@@ -1703,7 +1670,7 @@ console.log('Errors:', result.errors); // Partial failures captured
 Manager agent delegates tasks to worker agents:
 
 ```ts
-import { createHierarchicalCrew } from '@bowenqt/qiniu-ai-sdk';
+import { createHierarchicalCrew } from '@bowenqt/qiniu-ai-sdk/core';
 
 const manager = createAgent({
   client,
@@ -1756,7 +1723,7 @@ Securely execute code in isolated cloud sandboxes.
 ### Lifecycle Management
 
 ```ts
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
@@ -1898,7 +1865,7 @@ console.log(tools.map(t => `${t.name} (approval: ${t.requiresApproval})`));
 ### Deny-First Tool Approval
 
 ```ts
-import { generateText } from '@bowenqt/qiniu-ai-sdk';
+import { generateText } from '@bowenqt/qiniu-ai-sdk/core';
 
 const result = await generateText({
   client,
@@ -1934,7 +1901,8 @@ Stream text from LLM with token-level granularity. Unlike `generateText()` which
 ### Basic Usage
 
 ```typescript
-import { QiniuAI, streamText } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { streamText } from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: 'your-key' });
 
@@ -1956,7 +1924,8 @@ const finalText = await result.text;
 ### Agent Streaming
 
 ```typescript
-import { QiniuAI, createAgent } from '@bowenqt/qiniu-ai-sdk';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { createAgent } from '@bowenqt/qiniu-ai-sdk/core';
 
 const agent = createAgent({
     client: new QiniuAI({ apiKey: 'your-key' }),
