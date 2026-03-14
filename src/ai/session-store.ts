@@ -5,7 +5,9 @@ import type {
     Checkpointer,
     SerializedAgentState,
 } from './graph/checkpointer';
-import { serializeState } from './graph/checkpointer';
+import { deserializeCheckpoint, serializeState } from './graph/checkpointer';
+
+const SESSION_SUMMARY_KEY = 'session_summary';
 
 export interface SessionRecord {
     threadId: string;
@@ -50,6 +52,28 @@ function buildCheckpoint(threadId: string, input: SessionSaveInput): Checkpoint 
     return { metadata, state };
 }
 
+function extractPersistedSummary(checkpoint?: Checkpoint | null): string | undefined {
+    const value = checkpoint?.metadata.custom?.[SESSION_SUMMARY_KEY];
+    return typeof value === 'string' ? value : undefined;
+}
+
+function mergeCheckpointCustom(
+    existing: Record<string, unknown> | undefined,
+    next: Record<string, unknown> | undefined,
+    summary: string | undefined,
+): Record<string, unknown> | undefined {
+    const merged: Record<string, unknown> = {
+        ...(existing ?? {}),
+        ...(next ?? {}),
+    };
+
+    if (summary !== undefined) {
+        merged[SESSION_SUMMARY_KEY] = summary;
+    }
+
+    return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
 export class MemorySessionStore implements SessionStore {
     private sessions = new Map<string, SessionRecord>();
 
@@ -58,11 +82,12 @@ export class MemorySessionStore implements SessionStore {
     }
 
     async save(input: SessionSaveInput): Promise<SessionRecord> {
-        const checkpoint = buildCheckpoint(input.threadId, input);
+        const previous = this.sessions.get(input.threadId);
+        const checkpoint = buildCheckpoint(input.threadId, input) ?? previous?.checkpoint;
         const record: SessionRecord = {
             threadId: input.threadId,
             checkpoint,
-            summary: input.summary,
+            summary: input.summary ?? previous?.summary,
             updatedAt: Date.now(),
         };
         this.sessions.set(input.threadId, record);
@@ -76,7 +101,8 @@ export class MemorySessionStore implements SessionStore {
 
 /**
  * Adapter that lets existing checkpointers participate in the higher-level SessionStore contract.
- * Checkpoint persistence is delegated to the underlying checkpointer; summaries stay in-process.
+ * Checkpoint persistence is delegated to the underlying checkpointer, and summaries are mirrored
+ * into checkpoint metadata so they survive process restarts.
  */
 export class CheckpointerSessionStore implements SessionStore {
     private summaries = new Map<string, string>();
@@ -85,7 +111,10 @@ export class CheckpointerSessionStore implements SessionStore {
 
     async load(threadId: string): Promise<SessionRecord | null> {
         const checkpoint = await this.checkpointer.load(threadId);
-        const summary = this.summaries.get(threadId);
+        const summary = this.summaries.get(threadId) ?? extractPersistedSummary(checkpoint);
+        if (summary !== undefined) {
+            this.summaries.set(threadId, summary);
+        }
         if (!checkpoint && !summary) {
             return null;
         }
@@ -98,7 +127,17 @@ export class CheckpointerSessionStore implements SessionStore {
     }
 
     async save(input: SessionSaveInput): Promise<SessionRecord> {
+        const existingCheckpoint = input.checkpoint
+            ? null
+            : await this.checkpointer.load(input.threadId);
+        const resolvedSummary = input.summary ?? this.summaries.get(input.threadId) ?? extractPersistedSummary(existingCheckpoint);
         let checkpoint = input.checkpoint;
+        const mergedCustom = mergeCheckpointCustom(
+            existingCheckpoint?.metadata.custom,
+            input.checkpointMetadata?.custom,
+            resolvedSummary,
+        );
+
         if (!checkpoint && input.state) {
             const metadata = await this.checkpointer.save(input.threadId, isSerializedState(input.state)
                 ? ({
@@ -115,23 +154,35 @@ export class CheckpointerSessionStore implements SessionStore {
                 : input.state, {
                 status: input.checkpointMetadata?.status,
                 pendingApproval: input.checkpointMetadata?.pendingApproval,
-                custom: input.checkpointMetadata?.custom,
+                custom: mergedCustom,
             });
             const loaded = await this.checkpointer.load(input.threadId);
             checkpoint = loaded ?? {
                 metadata,
                 state: isSerializedState(input.state) ? input.state : serializeState(input.state),
             };
+        } else if (!checkpoint && resolvedSummary !== undefined && existingCheckpoint) {
+            const existingState = deserializeCheckpoint(existingCheckpoint);
+            const metadata = await this.checkpointer.save(input.threadId, existingState, {
+                status: input.checkpointMetadata?.status ?? existingCheckpoint.metadata.status,
+                pendingApproval: input.checkpointMetadata?.pendingApproval ?? existingCheckpoint.metadata.pendingApproval,
+                custom: mergedCustom,
+            });
+            const loaded = await this.checkpointer.load(input.threadId);
+            checkpoint = loaded ?? {
+                metadata,
+                state: existingCheckpoint.state,
+            };
         }
 
-        if (input.summary !== undefined) {
-            this.summaries.set(input.threadId, input.summary);
+        if (resolvedSummary !== undefined) {
+            this.summaries.set(input.threadId, resolvedSummary);
         }
 
         return {
             threadId: input.threadId,
             checkpoint,
-            summary: this.summaries.get(input.threadId),
+            summary: this.summaries.get(input.threadId) ?? extractPersistedSummary(checkpoint),
             updatedAt: checkpoint?.metadata.createdAt ?? Date.now(),
         };
     }
