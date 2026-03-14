@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SDK_VERSION } from '../../../src/lib/version';
+
+const serverCtorCalls: Array<{ info: Record<string, unknown> }> = [];
 
 // Mock MCP SDK modules to avoid requiring actual MCP dependencies in tests
 vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
@@ -7,6 +10,9 @@ vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
 
 vi.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
     Server: class MockServer {
+        constructor(info: Record<string, unknown>) {
+            serverCtorCalls.push({ info });
+        }
         setRequestHandler() { }
         connect() { return Promise.resolve(); }
         close() { return Promise.resolve(); }
@@ -25,7 +31,12 @@ describe('QiniuMCPServer - Dynamic Tool Registration', () => {
     let server: QiniuMCPServer;
 
     beforeEach(() => {
+        serverCtorCalls.length = 0;
         server = new QiniuMCPServer({ apiKey: 'test-key' });
+    });
+
+    it('should default the MCP server version to SDK_VERSION', () => {
+        expect(serverCtorCalls[0]?.info.version).toBe(SDK_VERSION);
     });
 
     describe('registerTool', () => {

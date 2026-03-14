@@ -42,6 +42,7 @@ describe('entry points', () => {
         const node = await import('../../src/node/index');
 
         expect(node.createNodeQiniuAI).toBeDefined();
+        expect(node.createKodoAuditSink).toBeDefined();
         expect(node.NodeMCPHost).toBeDefined();
         expect(node.MCPHttpTransport).toBeDefined();
         expect(node.FileTokenStore).toBeDefined();
@@ -76,6 +77,7 @@ describe('entry points', () => {
             'src/modules/account/index.ts',
             'src/modules/video/index.ts',
             'src/modules/tts/index.ts',
+            'src/ai/graph/index.ts',
         ];
 
         for (const relativePath of browserSafeFiles) {
@@ -86,6 +88,8 @@ describe('entry points', () => {
             expect(source).not.toMatch(/require\(['"]crypto['"]\)/);
             expect(source).not.toMatch(/import\(['"]ws['"]\)/);
             expect(source).not.toMatch(/from ['"]ws['"]/);
+            expect(source).not.toMatch(/kodo-checkpointer/);
+            expect(source).not.toMatch(/(?:\.\.\/)+node\//);
         }
 
         const browserEntryPath = join(process.cwd(), 'src/browser/index.ts');
@@ -97,5 +101,21 @@ describe('entry points', () => {
         const qiniuEntrySource = await readFile(qiniuEntryPath, 'utf8');
         expect(qiniuEntrySource).toContain("./client");
         expect(qiniuEntrySource).not.toContain("../client';");
+    });
+
+    it('node-only sources do not depend on the root compatibility client', async () => {
+        const rootClientImportPattern = /from ['"](?:\.\.\/)+client['"]/;
+        const guardedSources = [
+            'src/modules/mcp/server.ts',
+            'src/node/index.ts',
+            'src/node/kodo-checkpointer.ts',
+            'src/node/kodo-audit-sink.ts',
+            'src/node/kodo-client.ts',
+        ];
+
+        for (const relativePath of guardedSources) {
+            const source = await readFile(join(process.cwd(), relativePath), 'utf8');
+            expect(source).not.toMatch(rootClientImportPattern);
+        }
     });
 });

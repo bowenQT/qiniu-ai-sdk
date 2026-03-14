@@ -65,7 +65,7 @@ import { createAgent, generateText } from '@bowenqt/qiniu-ai-sdk/core';
 import { createNodeQiniuAI, NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
 ```
 
-### v0.43 Migration
+### v0.44 Migration
 
 | Removed from `@bowenqt/qiniu-ai-sdk` | Import from now |
 |--------------------------------------|-----------------|
@@ -75,6 +75,7 @@ import { createNodeQiniuAI, NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-a
 | `SkillLoader`, `SkillRegistry`, `RegistryProtocolStub` | `@bowenqt/qiniu-ai-sdk/node` |
 | `MCPHttpTransport`, OAuth helpers, token stores, `QiniuMCPServer` | `@bowenqt/qiniu-ai-sdk/node` |
 | `RedisCheckpointer`, `PostgresCheckpointer`, `KodoCheckpointer` | `@bowenqt/qiniu-ai-sdk/node` |
+| `auditLogger({ sink: 'kodo://...' })` | `auditLogger({ sink: createKodoAuditSink(...) })` from `@bowenqt/qiniu-ai-sdk/node` |
 
 | Removed model alias | Use instead |
 |---------------------|-------------|
@@ -98,6 +99,23 @@ npm install ioredis
 
 # For PostgreSQL checkpointer
 npm install pg
+```
+
+### Kodo Audit Sink
+
+```typescript
+import { auditLogger } from '@bowenqt/qiniu-ai-sdk/node';
+import { createKodoAuditSink } from '@bowenqt/qiniu-ai-sdk/node';
+
+const logger = auditLogger({
+  sink: createKodoAuditSink({
+    bucket: 'my-audit-bucket',
+    accessKey: process.env.QINIU_ACCESS_KEY!,
+    secretKey: process.env.QINIU_SECRET_KEY!,
+    region: 'z0',
+    prefix: 'guardrail/audit',
+  }),
+});
 ```
 
 ---

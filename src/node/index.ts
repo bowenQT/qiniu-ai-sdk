@@ -39,7 +39,9 @@ export { createLockEntry, writeLockfile, readLockfile } from '../modules/skills/
 export type { SkillLockEntry } from '../modules/skills/lockfile';
 export { applyReferenceMode } from '../modules/skills/reference-mode';
 export { auditLogger, AuditLoggerCollector } from '../ai/guardrails/audit-logger';
-export type { AuditLoggerConfig, AuditLogEntry } from '../ai/guardrails/types';
+export { createKodoAuditSink } from './kodo-audit-sink';
+export type { AuditLoggerConfig, AuditLogEntry, AuditSinkLike, AuditLoggerSink } from '../ai/guardrails/types';
+export type { KodoAuditSinkConfig } from './kodo-audit-sink';
 
 // MCP HTTP transport + OAuth + token stores are Node-only in the current implementation
 export {
@@ -73,15 +75,15 @@ export type {
 } from '../modules/mcp';
 
 // Node-only runtime/integration exports
-export { RedisCheckpointer, PostgresCheckpointer, KodoCheckpointer } from '../ai/graph';
+export { RedisCheckpointer, PostgresCheckpointer } from '../ai/graph';
+export { KodoCheckpointer } from './kodo-checkpointer';
 export type {
     RedisClient,
     RedisCheckpointerConfig,
     PostgresClient,
     PostgresCheckpointerConfig,
-    KodoCheckpointerConfig,
-    KodoRegion,
 } from '../ai/graph';
+export type { KodoCheckpointerConfig, KodoRegion } from './kodo-checkpointer';
 
 export { Sandbox as QiniuSandbox } from '../modules/sandbox';
 export { SandboxInstance, CommandHandle, SandboxPty } from '../modules/sandbox';

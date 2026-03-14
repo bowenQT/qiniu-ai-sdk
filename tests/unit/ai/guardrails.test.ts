@@ -283,10 +283,9 @@ describe('auditLogger', () => {
         consoleSpy.mockRestore();
     });
 
-    it('should warn (not throw) with kodo:// sink and onError=warn', async () => {
+    it('should warn with a migration hint for deprecated kodo:// string sinks', async () => {
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 
-        // async: false so we can await the full process
         const logger = auditLogger({ sink: 'kodo://my-bucket/audit', onError: 'warn', async: false });
         const result = await logger.process({
             phase: 'pre-request',
@@ -294,11 +293,12 @@ describe('auditLogger', () => {
             agentId: 'agent1',
         });
 
-        // Should pass (not throw), but warn about unsupported sink
         expect(result.action).toBe('pass');
         expect(warnSpy).toHaveBeenCalledWith(
             '[AuditLogger] Failed to write logs:',
-            expect.any(Error)
+            expect.objectContaining({
+                message: expect.stringContaining('createKodoAuditSink()'),
+            })
         );
 
         warnSpy.mockRestore();
@@ -328,7 +328,7 @@ describe('auditLogger', () => {
         await rm(tempDir, { recursive: true, force: true });
     });
 
-    it('AuditLoggerCollector should throw with kodo:// sink', async () => {
+    it('AuditLoggerCollector should throw a migration error for kodo:// sink', async () => {
         const collector = new AuditLoggerCollector({
             sink: 'kodo://my-bucket/audit',
             onError: 'block',
@@ -339,7 +339,7 @@ describe('auditLogger', () => {
                 { phase: 'pre-request', content: 'test', agentId: 'agent1' },
                 [{ guardrail: 'test', action: 'pass' }]
             )
-        ).rejects.toThrow('experimental');
+        ).rejects.toThrow('createKodoAuditSink()');
     });
 });
 

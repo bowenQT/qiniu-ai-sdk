@@ -16,6 +16,8 @@ export type {
     GuardrailTokenStore,
     AuditLoggerConfig,
     AuditLogEntry,
+    AuditSinkLike,
+    AuditLoggerSink,
 } from './types';
 
 export { ACTION_PRIORITY } from './types';

@@ -27,7 +27,7 @@ const ENVD_PORT = 49983;
 
 /**
  * Sandbox client — creates, connects, and lists sandbox instances.
- * Available on clients created via `createNodeQiniuAI()` and the deprecated root-entry compatibility client.
+ * Available on clients created via `createNodeQiniuAI()`.
  */
 export class Sandbox {
     private transport: ChildTransport;

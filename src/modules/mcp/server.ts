@@ -16,6 +16,7 @@ import {
     type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import { QiniuAI } from '../../qiniu/client';
+import { SDK_VERSION } from '../../lib/version';
 import { z } from 'zod';
 import { validateAgainstSchema, type JsonSchema } from './schema-validator';
 
@@ -162,7 +163,7 @@ export class QiniuMCPServer {
         this.server = new Server(
             {
                 name: config.name ?? 'qiniu-ai-server',
-                version: config.version ?? '0.22.0',
+                version: config.version ?? SDK_VERSION,
             },
             {
                 capabilities: {

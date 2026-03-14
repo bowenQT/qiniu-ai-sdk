@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.44.0] - 2026-03-13
+
+### ✨ New Features
+
+- Added `createKodoAuditSink()` to `@bowenqt/qiniu-ai-sdk/node` for explicit Kodo-backed audit logging
+
+### 🔧 Improvements
+
+- `auditLogger` now accepts explicit sink objects in addition to `console` and `file://...` string sinks
+- `kodo://...` string sinks remain unsupported and now emit a migration message directing callers to `createKodoAuditSink()`
+- `KodoCheckpointer` and Kodo audit sink now share a Node-only Kodo client for upload token generation, retries, and object operations
+- `QiniuMCPServer` now defaults its reported version to `SDK_VERSION`
+- Added guardrail and Node-boundary regression coverage for explicit Kodo audit sinks and root-client import bans inside Node-only integrations
+
+### 📚 Migration
+
+| Before | After |
+|--------|-------|
+| `auditLogger({ sink: 'kodo://bucket/prefix' })` | `auditLogger({ sink: createKodoAuditSink({ bucket, prefix, accessKey, secretKey, region }) })` from `@bowenqt/qiniu-ai-sdk/node` |
+
 ## [0.43.0] - 2026-03-13
 
 ### 📦 Breaking Changes

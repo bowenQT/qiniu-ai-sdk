@@ -102,18 +102,32 @@ export interface GuardrailTokenStore {
 }
 
 /**
+ * Explicit audit sink contract for non-string integrations.
+ */
+export interface AuditSinkLike {
+    write(entries: AuditLogEntry[]): Promise<void>;
+}
+
+/**
+ * Accepted sink input for audit logging.
+ */
+export type AuditLoggerSink = string | AuditSinkLike;
+
+/**
  * Audit logger configuration.
  */
 export interface AuditLoggerConfig {
     /**
-     * Sink URL for audit logs.
-     * Supported:
+     * Audit sink target.
+     *
+     * Supported string sinks:
      * - 'console'
      * - 'file:///absolute/path/to/audit.log' (Node.js runtime)
      *
-     * Other sink schemes are reserved for future integrations and are currently unsupported.
+     * For Node-only integrations such as Kodo, pass an explicit sink object
+     * created by `createKodoAuditSink()` from `@bowenqt/qiniu-ai-sdk/node`.
      */
-    sink: string;
+    sink: AuditLoggerSink;
     /** Content to log */
     content?: 'original' | 'redacted';
     /** Error handling behavior */

@@ -13,10 +13,15 @@ import type {
     AuditLoggerConfig,
     AuditLogEntry,
     GuardrailAction,
+    AuditLoggerSink,
+    AuditSinkLike,
 } from './types';
 
 /** Placeholder for redacted content */
 const REDACTED_PLACEHOLDER = '[CONTENT_REDACTED]';
+const KODO_SINK_MIGRATION_MESSAGE =
+    'AuditLogger: kodo:// string sinks are no longer supported. ' +
+    'Use createKodoAuditSink() from "@bowenqt/qiniu-ai-sdk/node" instead.';
 
 // ============================================================================
 // Audit Logger Collector
@@ -149,18 +154,26 @@ export function auditLogger(config: AuditLoggerConfig): Guardrail {
 // ============================================================================
 
 interface SinkInfo {
-    type: 'kodo' | 'console' | 'file';
+    type: 'deprecated-kodo' | 'console' | 'file' | 'custom';
     bucket?: string;
     prefix?: string;
     path?: string;
+    sink?: AuditSinkLike;
 }
 
-function parseSink(sink: string): SinkInfo {
+function parseSink(sink: AuditLoggerSink): SinkInfo {
+    if (typeof sink !== 'string') {
+        return {
+            type: 'custom',
+            sink,
+        };
+    }
+
     if (sink.startsWith('kodo://')) {
         const path = sink.slice(7);
         const [bucket, ...rest] = path.split('/');
         return {
-            type: 'kodo',
+            type: 'deprecated-kodo',
             bucket,
             prefix: rest.join('/'),
         };
@@ -195,8 +208,15 @@ async function flushLogs(sink: SinkInfo, entries: AuditLogEntry[]): Promise<void
             await appendEntriesToFile(sink.path, entries);
             break;
 
-        case 'kodo':
-            throw new Error('AuditLogger: kodo:// sink is experimental and not yet implemented. Use "console" or "file://" instead.');
+        case 'custom':
+            if (!sink.sink) {
+                throw new Error('AuditLogger: custom sink is missing a write() implementation.');
+            }
+            await sink.sink.write(entries);
+            break;
+
+        case 'deprecated-kodo':
+            throw new Error(KODO_SINK_MIGRATION_MESSAGE);
     }
 }
 
