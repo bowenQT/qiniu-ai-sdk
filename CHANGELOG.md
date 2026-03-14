@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.46.0] - 2026-03-14
+
+### 📦 Breaking Changes
+
+- Removed `ResponseAPI` and its related types from the root entry. Import them from `@bowenqt/qiniu-ai-sdk/qiniu` instead, or access the feature via `QiniuAI#response`.
+
+### 🔧 Improvements
+
+- Extended entry-point contract coverage so `root/core/browser/qiniu` cannot reach Node-only implementation paths such as MCP, sandbox, skill loading, or non-memory checkpointers
+
+### 📚 Notes
+
+- `@bowenqt/qiniu-ai-sdk/node` remains the only supported Node integration surface
+- `ResponseAPI` remains experimental and provider-specific
+
+### 📚 Migration
+
+| Before | After |
+|--------|-------|
+| `import { ResponseAPI } from '@bowenqt/qiniu-ai-sdk'` | `import { ResponseAPI } from '@bowenqt/qiniu-ai-sdk/qiniu'` |
+
 ## [0.45.0] - 2026-03-14
 
 ### 🔧 Improvements

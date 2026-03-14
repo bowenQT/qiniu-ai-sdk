@@ -69,7 +69,13 @@ import { createNodeQiniuAI, NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-a
 
 - `@bowenqt/qiniu-ai-sdk/node` 是 MCP、sandbox、audit sink 以及非内存 checkpointer 的唯一正式 Node integration 入口。
 - `@bowenqt/qiniu-ai-sdk/core` 和 `@bowenqt/qiniu-ai-sdk/browser` 保持不含 Node-only 传递依赖。
-- `ResponseAPI` 继续保持 experimental/provider-only，不进入 root 默认叙事。
+- `ResponseAPI` 继续保持 experimental/provider-only；推荐使用 `QiniuAI#response` 或从 `@bowenqt/qiniu-ai-sdk/qiniu` 导入，不再从 root 入口导入。
+
+### v0.46 迁移表
+
+| 从 `@bowenqt/qiniu-ai-sdk` 移除 | 现在改用 |
+|--------------------------------|----------|
+| `ResponseAPI` 及其相关类型 | `@bowenqt/qiniu-ai-sdk/qiniu` |
 
 ### v0.44 迁移表
 

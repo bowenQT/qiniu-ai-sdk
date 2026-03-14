@@ -522,7 +522,7 @@ function parseToolArguments(payload: string): unknown {
 
 import { AgentGraph, type AgentGraphOptions, type AgentGraphResult, type TokenEvent } from './agent-graph';
 import type { RegisteredTool, ToolParameters } from '../lib/tool-registry';
-import type { Skill } from '../modules/skills';
+import type { Skill } from '../modules/skills/types';
 
 /**
  * Extended options for graph-based generation.

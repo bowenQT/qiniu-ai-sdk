@@ -5,7 +5,7 @@
 
 import type { LanguageModelClient } from '../core/client';
 import type { ResponseFormat } from '../lib/types';
-import type { Skill } from '../modules/skills';
+import type { Skill } from '../modules/skills/types';
 import type { Checkpointer } from './graph/checkpointer';
 import type { ApprovalConfig } from './tool-approval';
 import type { MemoryManager } from './memory';

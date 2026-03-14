@@ -18,7 +18,7 @@ import {
 import { QiniuAI } from '../../qiniu/client';
 import { SDK_VERSION } from '../../lib/version';
 import { z } from 'zod';
-import { validateAgainstSchema, type JsonSchema } from './schema-validator';
+import { validateAgainstSchema, type JsonSchema } from '../../lib/mcp-schema-validator';
 
 // ============================================================================
 // Configuration

@@ -8,7 +8,7 @@
 import type { LanguageModelClient } from '../core/client';
 import type { ResponseFormat } from '../lib/types';
 import type { RegisteredTool } from '../lib/tool-registry';
-import type { Skill } from '../modules/skills';
+import type { Skill } from '../modules/skills/types';
 import type { ReferenceMode } from '../modules/skills/reference-mode';
 import { applyReferenceMode } from '../modules/skills/reference-mode';
 import { StateGraph, END } from './graph';

@@ -258,16 +258,6 @@ export type {
     AnthropicContentBlock,
 } from './modules/anthropic';
 
-// Module types - Response API (Phase 3, @experimental)
-export { ResponseAPI } from './modules/response';
-export type {
-    ResponseCreateRequest,
-    ResponseCreateResponse,
-    ResponseInputMessage,
-    ResponseOutput,
-    ResponseContentBlock,
-} from './modules/response';
-
 // Module types - Log Export (Phase 4)
 export { Log } from './modules/log';
 export type {
@@ -488,9 +478,9 @@ export {
     createToolValidator,
     SUPPORTED_KEYWORDS,
     UNSUPPORTED_KEYWORDS,
-} from './modules/mcp/schema-validator';
+} from './lib/mcp-schema-validator';
 export type {
     JsonSchema as MCPJsonSchema,
     ValidationResult as MCPValidationResult,
     ValidationError as MCPValidationError,
-} from './modules/mcp/schema-validator';
+} from './lib/mcp-schema-validator';

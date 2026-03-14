@@ -69,7 +69,13 @@ import { createNodeQiniuAI, NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-a
 
 - `@bowenqt/qiniu-ai-sdk/node` is the only supported Node integration surface for MCP, sandbox, audit sinks, and non-memory checkpointers.
 - `@bowenqt/qiniu-ai-sdk/core` and `@bowenqt/qiniu-ai-sdk/browser` are kept free of Node-only transitive dependencies.
-- `ResponseAPI` remains experimental and provider-specific; it is not part of the root/default runtime story.
+- `ResponseAPI` remains experimental and provider-specific; use `QiniuAI#response` or import it from `@bowenqt/qiniu-ai-sdk/qiniu`, not from the root entry.
+
+### v0.46 Migration
+
+| Removed from `@bowenqt/qiniu-ai-sdk` | Import from now |
+|--------------------------------------|-----------------|
+| `ResponseAPI` and response-related types | `@bowenqt/qiniu-ai-sdk/qiniu` |
 
 ### v0.44 Migration
 

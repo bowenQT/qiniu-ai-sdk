@@ -5,7 +5,7 @@ import {
     SUPPORTED_KEYWORDS,
     UNSUPPORTED_KEYWORDS,
     type JsonSchema,
-} from '../../../src/modules/mcp/schema-validator';
+} from '../../../src/lib/mcp-schema-validator';
 import { RecoverableError } from '../../../src/lib/errors';
 
 describe('validateAgainstSchema', () => {

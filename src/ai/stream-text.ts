@@ -13,7 +13,7 @@ import type { Checkpointer } from './graph/checkpointer';
 import type { LanguageModelClient } from '../core/client';
 import type { ChatMessage, ResponseFormat } from '../lib/types';
 import type { Tool } from './generate-text';
-import type { Skill } from '../modules/skills';
+import type { Skill } from '../modules/skills/types';
 import type { ApprovalConfig } from './tool-approval';
 import type { MemoryManager } from './memory';
 

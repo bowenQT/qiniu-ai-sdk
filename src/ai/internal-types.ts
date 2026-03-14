@@ -5,7 +5,7 @@
 
 import type { ChatMessage, ToolCall } from '../lib/types';
 import type { RegisteredTool } from '../lib/tool-registry';
-import type { Skill } from '../modules/skills';
+import type { Skill } from '../modules/skills/types';
 import type { ApprovalConfig } from './tool-approval';
 
 /**

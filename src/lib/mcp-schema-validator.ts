@@ -1,17 +1,17 @@
 /**
  * MCP Dynamic Schema Validation.
- * 
+ *
  * Lightweight JSON Schema validator for MCP tool inputSchema validation.
- * 
+ *
  * Design decisions (v0.32.0):
  * - Explicit subset of JSON Schema Draft-07/OpenAPI 3.0
  * - Unsupported keywords throw RecoverableError (fail-fast, not silent)
  * - additionalProperties is NOT supported (throws error for safety)
- * 
+ *
  * @module
  */
 
-import { RecoverableError } from '../../lib/errors';
+import { RecoverableError } from './errors';
 
 // ============================================================================
 // Constants
@@ -107,13 +107,13 @@ export interface ValidationError {
 
 /**
  * Validate data against a JSON Schema.
- * 
+ *
  * @param data - Data to validate
  * @param schema - JSON Schema to validate against
  * @param path - Internal path tracking (for error messages)
  * @returns Validation result
  * @throws RecoverableError if schema contains unsupported keywords
- * 
+ *
  * @example
  * ```typescript
  * const schema = {
@@ -277,8 +277,8 @@ function checkUnsupportedKeywords(schema: JsonSchema): void {
         throw new RecoverableError(
             `Schema contains unsupported keywords: ${foundUnsupported.join(', ')}`,
             'schema-validator',
-            'Simplify schema to use only supported keywords: ' +
-            Array.from(SUPPORTED_KEYWORDS).join(', '),
+            'Simplify schema to use only supported keywords: '
+            + Array.from(SUPPORTED_KEYWORDS).join(', '),
             { unsupportedKeywords: foundUnsupported },
         );
     }
@@ -329,7 +329,7 @@ function validateType(
 
 /**
  * Create a validation wrapper for MCP tool execution.
- * 
+ *
  * @param schema - Tool input schema
  * @param toolName - Tool name for error context
  * @returns Validator function

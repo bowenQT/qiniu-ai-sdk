@@ -3,9 +3,15 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'];
+const NODE_ONLY_PATH_PREFIXES = [
+    'src/node/',
+    'src/modules/mcp/',
+    'src/modules/sandbox/',
+];
 const NODE_ONLY_IMPLEMENTATIONS = new Set([
     'src/ai/graph/redis-checkpointer.ts',
     'src/ai/graph/postgres-checkpointer.ts',
+    'src/modules/skills/loader.ts',
 ]);
 
 interface ModuleGraph {
@@ -19,6 +25,11 @@ function normalizeRelativePath(path: string): string {
 
 function repoRelativePath(path: string): string {
     return normalizeRelativePath(relative(process.cwd(), path));
+}
+
+function isNodeOnlyImplementation(path: string): boolean {
+    return NODE_ONLY_PATH_PREFIXES.some((prefix) => path.startsWith(prefix))
+        || NODE_ONLY_IMPLEMENTATIONS.has(path);
 }
 
 function extractModuleSpecifiers(source: string): string[] {
@@ -109,6 +120,7 @@ describe('entry points', () => {
         expect('RedisCheckpointer' in root).toBe(false);
         expect('PostgresCheckpointer' in root).toBe(false);
         expect('KodoCheckpointer' in root).toBe(false);
+        expect('ResponseAPI' in root).toBe(false);
     });
 
     it('core entry exposes runtime APIs without Qiniu client exports', async () => {
@@ -125,6 +137,7 @@ describe('entry points', () => {
 
         expect(qiniu.QiniuAI).toBeDefined();
         expect(qiniu.CHAT_MODELS).toBeDefined();
+        expect(qiniu.ResponseAPI).toBeDefined();
         expect('createAgent' in qiniu).toBe(false);
     });
 
@@ -175,8 +188,7 @@ describe('entry points', () => {
             expect(graph.nodeSpecifiers).toEqual([]);
 
             for (const file of graph.files) {
-                expect(file.startsWith('src/node/')).toBe(false);
-                expect(NODE_ONLY_IMPLEMENTATIONS.has(file)).toBe(false);
+                expect(isNodeOnlyImplementation(file)).toBe(false);
             }
         }
 

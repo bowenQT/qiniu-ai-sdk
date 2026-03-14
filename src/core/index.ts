@@ -191,7 +191,7 @@ export {
 } from '../ai/internal-types';
 
 // Skills (core type-only surface)
-export type { Skill } from '../modules/skills';
+export type { Skill } from '../modules/skills/types';
 
 // Memory
 export { MemoryManager, InMemoryVectorStore, isDroppable as isMessageDroppable } from '../ai/memory';
