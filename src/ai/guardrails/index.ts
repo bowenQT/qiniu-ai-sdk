@@ -6,6 +6,7 @@
 export type {
     Guardrail,
     GuardrailPhase,
+    CanonicalGuardrailPhase,
     GuardrailAction,
     GuardrailContext,
     GuardrailResult,
@@ -24,4 +25,5 @@ export { GuardrailChain, GuardrailBlockedError } from './chain';
 // Built-in guardrails
 export { inputFilter } from './input-filter';
 export { outputFilter } from './output-filter';
+export { toolFilter } from './tool-filter';
 export { tokenLimiter } from './token-limiter';

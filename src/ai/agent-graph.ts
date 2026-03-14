@@ -11,6 +11,7 @@ import type { RegisteredTool } from '../lib/tool-registry';
 import type { Skill } from '../modules/skills/types';
 import type { ReferenceMode } from '../modules/skills/reference-mode';
 import { applyReferenceMode } from '../modules/skills/reference-mode';
+import type { Guardrail } from './guardrails';
 import { StateGraph, END } from './graph';
 import { predict, type PredictResult, type PredictChunk } from './nodes/predict-node';
 import { executeTools, toolResultsToMessages, type ToolExecutionResult } from './nodes/execute-node';
@@ -59,6 +60,10 @@ export interface AgentGraphOptions {
     memory?: MemoryManager;
     /** Thread ID for memory isolation (used with memory option) */
     threadId?: string;
+    /** Guardrails applied across runtime phases */
+    guardrails?: Guardrail[];
+    /** Agent ID for guardrail attribution */
+    agentId?: string;
     /** Auto-retry configuration for RecoverableError handling */
     autoRetry?: AutoRetryConfig;
     /** Skill reference injection mode (default: 'none') */
@@ -807,6 +812,13 @@ export class AgentGraph {
                 },
                 state.approvalConfig,
                 state.skipApprovalCheck, // Pass through for invokeResumable
+                this.options.guardrails?.length
+                    ? {
+                        guardrails: this.options.guardrails,
+                        agentId: this.options.agentId ?? this.options.threadId ?? 'default',
+                        threadId: this.options.threadId,
+                    }
+                    : undefined,
             );
 
             // Create tool result steps and messages
