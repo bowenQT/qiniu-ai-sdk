@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +8,7 @@ const docs = [
   resolve(repoRoot, 'README.zh-CN.md'),
   resolve(repoRoot, 'COOKBOOK.md'),
 ];
+const capabilityScorecardPath = resolve(repoRoot, 'docs', 'capability-scorecard.md');
 
 const forbiddenRootSymbols = new Set([
   'QiniuAI',
@@ -66,6 +67,9 @@ if (!readme.includes('### Capability Metadata')) {
 if (!readme.includes('### Worktree Delivery')) {
   errors.push('README.md: missing "Worktree Delivery" section');
 }
+if (!readme.includes('[Capability Scorecard](docs/capability-scorecard.md)')) {
+  errors.push('README.md: missing Capability Scorecard link');
+}
 
 const readmeZh = readFileSync(resolve(repoRoot, 'README.zh-CN.md'), 'utf8');
 if (!readmeZh.includes('### 能力元数据')) {
@@ -73,6 +77,20 @@ if (!readmeZh.includes('### 能力元数据')) {
 }
 if (!readmeZh.includes('### Worktree 交付流')) {
   errors.push('README.zh-CN.md: missing "Worktree 交付流" section');
+}
+if (!readmeZh.includes('[Capability Scorecard](docs/capability-scorecard.md)')) {
+  errors.push('README.zh-CN.md: missing Capability Scorecard link');
+}
+
+if (!existsSync(capabilityScorecardPath)) {
+  errors.push('docs/capability-scorecard.md: missing generated scorecard');
+} else {
+  const scorecard = readFileSync(capabilityScorecardPath, 'utf8');
+  for (const section of ['# Capability Scorecard', '## Validated Models', '## Module Maturity']) {
+    if (!scorecard.includes(section)) {
+      errors.push(`docs/capability-scorecard.md: missing section "${section}"`);
+    }
+  }
 }
 
 const cookbook = readFileSync(resolve(repoRoot, 'COOKBOOK.md'), 'utf8');
