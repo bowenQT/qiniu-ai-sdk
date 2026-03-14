@@ -5,8 +5,8 @@
  * only triggers one fetch, and returns the correct manifest name.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SkillRegistry } from '../../../src/modules/skills/index';
-import type { RemoteSkillSource } from '../../../src/modules/skills/index';
+import { SkillRegistry } from '../../../src/node/skills/index';
+import type { RemoteSkillSource } from '../../../src/node/skills/index';
 
 // Minimal valid manifest for testing
 const MOCK_MANIFEST = JSON.stringify({

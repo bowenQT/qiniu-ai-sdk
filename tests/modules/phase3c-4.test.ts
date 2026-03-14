@@ -218,7 +218,7 @@ describe('4.1 Skill CLI', () => {
 // ============================================================================
 describe('4.2 MCPClient removed', () => {
     it('MCPClient has been removed from internal module', async () => {
-        const mod = await import('../../src/modules/mcp/index');
+        const mod = await import('../../src/node/mcp/index');
         expect((mod as any).MCPClient).toBeUndefined();
         expect((mod as any).adaptMCPToolsToRegistry).toBeUndefined();
         expect((mod as any).getAllMCPToolsAsRegistered).toBeUndefined();
@@ -244,21 +244,21 @@ describe('4.2 MCPClient removed', () => {
 // ============================================================================
 describe('4.3 Registry Protocol v2', () => {
     it('RegistryProtocolStub.search returns empty array', async () => {
-        const { RegistryProtocolStub } = await import('../../src/modules/skills/registry-protocol');
+        const { RegistryProtocolStub } = await import('../../src/node/skills/registry-protocol');
         const stub = new RegistryProtocolStub();
         const results = await stub.search({ query: 'test' });
         expect(results).toEqual([]);
     });
 
     it('RegistryProtocolStub.resolve returns null', async () => {
-        const { RegistryProtocolStub } = await import('../../src/modules/skills/registry-protocol');
+        const { RegistryProtocolStub } = await import('../../src/node/skills/registry-protocol');
         const stub = new RegistryProtocolStub();
         const result = await stub.resolve('nonexistent');
         expect(result).toBeNull();
     });
 
     it('SkillRegistryProtocol interface types are correctly exported', async () => {
-        const mod = await import('../../src/modules/skills/registry-protocol');
+        const mod = await import('../../src/node/skills/registry-protocol');
         expect(mod.RegistryProtocolStub).toBeDefined();
     });
 });

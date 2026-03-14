@@ -1,6 +1,6 @@
 {
   "name": "@bowenqt/qiniu-ai-sdk",
-  "version": "0.46.0",
+  "version": "0.47.0",
   "description": "TypeScript SDK for Qiniu Cloud AI Token API - Chat, Image, Video generation and more",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -88,7 +88,7 @@
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm.js",
     "clean": "rm -rf dist",
     "test:package-smoke": "node scripts/package-smoke.mjs",
-    "prepublishOnly": "npm run clean && npm run build && npm run test:package-smoke",
+    "prepublishOnly": "npm run clean && npm run build && npm test && npm run test:package-smoke",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

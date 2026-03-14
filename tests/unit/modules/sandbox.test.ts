@@ -8,7 +8,7 @@ import {
     normalizeEntryInfo,
     normalizeTemplateInfo,
     normalizeTemplateBuildInfo,
-} from '../../../src/modules/sandbox/types';
+} from '../../../src/node/sandbox/types';
 import type {
     RawSandboxInfo,
     RawListedSandbox,
@@ -16,8 +16,8 @@ import type {
     RawEntryInfo,
     RawTemplateInfo,
     RawTemplateBuildInfo,
-} from '../../../src/modules/sandbox/types';
-import { CommandHandle } from '../../../src/modules/sandbox/sandbox';
+} from '../../../src/node/sandbox/types';
+import { CommandHandle } from '../../../src/node/sandbox/sandbox';
 import { noopLogger } from '../../../src/lib/logger';
 
 // ============================================================================

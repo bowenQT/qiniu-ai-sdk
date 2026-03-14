@@ -14,9 +14,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { SkillValidator, DEFAULT_CONTENT_EXTENSIONS, DEFAULT_ACTION_EXTENSIONS } from '../modules/skills/validator';
-import { SkillRegistry } from '../modules/skills/registry';
-import type { RemoteSkillSource } from '../modules/skills/registry';
+import {
+    SkillValidator,
+    DEFAULT_CONTENT_EXTENSIONS,
+    DEFAULT_ACTION_EXTENSIONS,
+} from '../node/skills';
+import { SkillRegistry } from '../node/skills';
+import type { RemoteSkillSource } from '../node/skills';
 
 // ============================================================================
 // Lockfile helpers (re-import to keep CLI standalone-ish)

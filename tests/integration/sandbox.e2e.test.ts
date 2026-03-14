@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { createNodeQiniuAI } from '../../src/node/client';
-import type { SandboxInstance } from '../../src/modules/sandbox/sandbox';
+import type { SandboxInstance } from '../../src/node/sandbox/sandbox';
 
 const API_KEY = process.env.QINIU_API_KEY;
 if (!API_KEY) {

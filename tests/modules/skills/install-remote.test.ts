@@ -40,7 +40,7 @@ describe('3.1 installRemote()', () => {
             baseUrl?: string;
         } = {},
     ) {
-        const { SkillRegistry } = await import('../../../src/modules/skills/registry');
+        const { SkillRegistry } = await import('../../../src/node/skills/registry');
 
         const manifestFiles = createManifestWithFiles(files);
         const manifest = {
@@ -93,7 +93,7 @@ describe('3.1 installRemote()', () => {
     // Guard: empty skillsDir
     // ======================================================================
     it('throws when no installDir and empty skillsDir', async () => {
-        const { SkillRegistry } = await import('../../../src/modules/skills/registry');
+        const { SkillRegistry } = await import('../../../src/node/skills/registry');
 
         const manifest = {
             name: 'orphan-skill',

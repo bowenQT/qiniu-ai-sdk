@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SkillRegistry } from '../../../src/modules/skills/registry';
+import { SkillRegistry } from '../../../src/node/skills/registry';
 
 describe('SkillRegistry', () => {
     describe('constructor', () => {

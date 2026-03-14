@@ -2,7 +2,6 @@
  * Skills module public exports.
  */
 
-export { SkillLoader, SkillSecurityError, SkillNotFoundError } from './loader';
 export type {
     Skill,
     SkillLoaderConfig,
@@ -26,19 +25,9 @@ export type {
     ManifestParseResult,
     CompatibilityCheckResult,
 } from './manifest';
-
-export { SkillRegistry } from './registry';
+export { applyReferenceMode } from './reference-mode';
 export type {
-    SkillRegistryConfig,
-    RemoteSkillSource,
-    RegisteredSkill,
-    SkillSearchResult,
-} from './registry';
-
-// Registry Protocol v2 (interface reservation)
-export { RegistryProtocolStub } from './registry-protocol';
-export type {
-    SkillRegistryProtocol,
-    RegistrySkillEntry,
-    RegistrySearchOptions,
-} from './registry-protocol';
+    ReferenceMode,
+    SkillInput,
+    ReferenceModeResult,
+} from './reference-mode';

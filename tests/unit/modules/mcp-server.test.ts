@@ -25,7 +25,7 @@ vi.mock('@modelcontextprotocol/sdk/types.js', () => ({
 }));
 
 // Import after mocks are set up
-import { QiniuMCPServer, type DynamicTool } from '../../../src/modules/mcp/server';
+import { QiniuMCPServer, type DynamicTool } from '../../../src/node/mcp/server';
 
 describe('QiniuMCPServer - Dynamic Tool Registration', () => {
     let server: QiniuMCPServer;

@@ -7,8 +7,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Skill, SkillLoaderConfig, SkillReference } from './types';
-import { DEFAULT_SKILL_CONFIG } from './types';
+import type { Skill, SkillLoaderConfig, SkillReference } from '../../modules/skills/types';
+import { DEFAULT_SKILL_CONFIG } from '../../modules/skills/types';
 import { defaultContentEstimator } from '../../lib/token-estimator';
 import { SkillValidator } from './validator';
 

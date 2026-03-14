@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { SkillLoader, SkillSecurityError, SkillNotFoundError } from '../../../src/modules/skills/loader';
+import { SkillLoader, SkillSecurityError, SkillNotFoundError } from '../../../src/node/skills/loader';
 
 describe('SkillLoader', () => {
     let tempDir: string;

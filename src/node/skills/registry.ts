@@ -14,9 +14,14 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { RecoverableError } from '../../lib/errors';
-import { parseManifest, parseManifestStrict, checkCompatibility, type SkillManifest } from './manifest';
+import {
+    parseManifest,
+    parseManifestStrict,
+    checkCompatibility,
+    type SkillManifest,
+} from '../../modules/skills/manifest';
 import { SkillLoader, SkillNotFoundError } from './loader';
-import type { Skill } from './types';
+import type { Skill } from '../../modules/skills/types';
 
 // ============================================================================
 // Types

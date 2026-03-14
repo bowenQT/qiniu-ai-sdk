@@ -7,12 +7,12 @@
 import { describe, it, expect } from 'vitest';
 import {
     RegistryProtocolStub,
-} from '../../../src/modules/skills/index';
+} from '../../../src/node/skills/index';
 import type {
     SkillRegistryProtocol,
     RegistrySkillEntry,
     RegistrySearchOptions,
-} from '../../../src/modules/skills/index';
+} from '../../../src/node/skills/index';
 
 describe('RegistryProtocolStub (5B export)', () => {
     it('is importable and instantiable', () => {

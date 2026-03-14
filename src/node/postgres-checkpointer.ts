@@ -15,9 +15,14 @@
  * ```
  */
 
-import type { AgentState } from '../internal-types';
-import type { Checkpoint, CheckpointMetadata, Checkpointer, SerializedAgentState } from './checkpointer';
-import { serializeState } from './checkpointer';
+import type { AgentState } from '../ai/internal-types';
+import type {
+    Checkpoint,
+    CheckpointMetadata,
+    Checkpointer,
+    SerializedAgentState,
+} from '../ai/graph/checkpointer';
+import { serializeState } from '../ai/graph/checkpointer';
 
 /** Postgres client interface (compatible with pg Pool) */
 export interface PostgresClient {

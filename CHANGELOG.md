@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.47.0] - 2026-03-14
+
+### 🔧 Improvements
+
+- Moved all Node-only MCP, sandbox, skills, audit, and non-memory checkpointer implementations into `src/node/*` so the source tree now mirrors the published entry contracts
+- Reduced shared `src/modules/skills/index.ts` to a shared-safe barrel (`types`, `manifest`, `reference-mode`) and kept Node-only skill runtime/install registry code under `src/node/skills/*`
+- Simplified entry-boundary contract tests so `root/core/browser/qiniu` only need to guard against reaching `src/node/*`, with a repo-level scan that verifies legacy Node-only implementation paths are gone
+
+### 📚 Notes
+
+- This release is internal-structure only: public npm entry points remain `@bowenqt/qiniu-ai-sdk`, `/core`, `/qiniu`, `/node`, and `/browser`
+
 ## [0.46.0] - 2026-03-14
 
 ### 📦 Breaking Changes

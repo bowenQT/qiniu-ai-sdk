@@ -67,7 +67,7 @@ describe('SkillInstaller', () => {
     }
 
     it('validates all files against manifest hashes', async () => {
-        const { SkillInstaller } = await import('../../../src/modules/skills/installer');
+        const { SkillInstaller } = await import('../../../src/node/skills/installer');
         const { dir, manifest } = setupSkillDir({
             'SKILL.md': '# My Skill\nInstructions here.',
             'references/guide.txt': 'Reference content.',
@@ -82,7 +82,7 @@ describe('SkillInstaller', () => {
     });
 
     it('detects tampered file (hash mismatch)', async () => {
-        const { SkillInstaller } = await import('../../../src/modules/skills/installer');
+        const { SkillInstaller } = await import('../../../src/node/skills/installer');
         const { dir, manifest } = setupSkillDir({
             'SKILL.md': '# Original content',
         });
@@ -99,7 +99,7 @@ describe('SkillInstaller', () => {
     });
 
     it('detects missing file', async () => {
-        const { SkillInstaller } = await import('../../../src/modules/skills/installer');
+        const { SkillInstaller } = await import('../../../src/node/skills/installer');
         const { dir, manifest } = setupSkillDir({
             'SKILL.md': '# Skill',
             'extra.txt': 'extra content',
@@ -117,7 +117,7 @@ describe('SkillInstaller', () => {
     });
 
     it('detects size mismatch', async () => {
-        const { SkillInstaller } = await import('../../../src/modules/skills/installer');
+        const { SkillInstaller } = await import('../../../src/node/skills/installer');
         const content = '# Skill';
         const { dir, manifest } = setupSkillDir({ 'SKILL.md': content });
 
@@ -133,7 +133,7 @@ describe('SkillInstaller', () => {
     });
 
     it('[security] rejects path traversal (../outside.sh)', async () => {
-        const { SkillInstaller } = await import('../../../src/modules/skills/installer');
+        const { SkillInstaller } = await import('../../../src/node/skills/installer');
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'si-traverse-'));
 
         // Create a file outside skillDir
@@ -163,7 +163,7 @@ describe('SkillInstaller', () => {
     });
 
     it('[security] rejects blocked extension (.exe)', async () => {
-        const { SkillInstaller } = await import('../../../src/modules/skills/installer');
+        const { SkillInstaller } = await import('../../../src/node/skills/installer');
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'si-ext-'));
 
         // Create file with blocked extension
@@ -192,7 +192,7 @@ describe('SkillInstaller', () => {
     });
 
     it('[security] allows whitelisted extensions (.md, .ts, .json, .sh)', async () => {
-        const { SkillInstaller } = await import('../../../src/modules/skills/installer');
+        const { SkillInstaller } = await import('../../../src/node/skills/installer');
         const { dir, manifest } = setupSkillDir({
             'SKILL.md': '# Skill Instructions',
             'scripts/helper.ts': 'export const x = 1;',

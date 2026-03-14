@@ -10,25 +10,25 @@ describe('SkillValidator', () => {
     // =========================================================================
     describe('isWithinRoot', () => {
         it('returns true for path inside root', async () => {
-            const { SkillValidator } = await import('../../../src/modules/skills/validator');
+            const { SkillValidator } = await import('../../../src/node/skills/validator');
             const v = new SkillValidator();
             expect(v.isWithinRoot('/skills/my-skill/SKILL.md', '/skills')).toBe(true);
         });
 
         it('returns false for path outside root', async () => {
-            const { SkillValidator } = await import('../../../src/modules/skills/validator');
+            const { SkillValidator } = await import('../../../src/node/skills/validator');
             const v = new SkillValidator();
             expect(v.isWithinRoot('/etc/passwd', '/skills')).toBe(false);
         });
 
         it('returns false for path traversal attack', async () => {
-            const { SkillValidator } = await import('../../../src/modules/skills/validator');
+            const { SkillValidator } = await import('../../../src/node/skills/validator');
             const v = new SkillValidator();
             expect(v.isWithinRoot('/skills/../etc/passwd', '/skills')).toBe(false);
         });
 
         it('returns true for root itself', async () => {
-            const { SkillValidator } = await import('../../../src/modules/skills/validator');
+            const { SkillValidator } = await import('../../../src/node/skills/validator');
             const v = new SkillValidator();
             expect(v.isWithinRoot('/skills', '/skills')).toBe(true);
         });
@@ -39,19 +39,19 @@ describe('SkillValidator', () => {
     // =========================================================================
     describe('isAllowedExtension', () => {
         it('returns true for allowed extension', async () => {
-            const { SkillValidator } = await import('../../../src/modules/skills/validator');
+            const { SkillValidator } = await import('../../../src/node/skills/validator');
             const v = new SkillValidator();
             expect(v.isAllowedExtension('SKILL.md', ['.md', '.txt', '.json'])).toBe(true);
         });
 
         it('returns false for disallowed extension', async () => {
-            const { SkillValidator } = await import('../../../src/modules/skills/validator');
+            const { SkillValidator } = await import('../../../src/node/skills/validator');
             const v = new SkillValidator();
             expect(v.isAllowedExtension('malicious.exe', ['.md', '.txt', '.json'])).toBe(false);
         });
 
         it('is case-insensitive', async () => {
-            const { SkillValidator } = await import('../../../src/modules/skills/validator');
+            const { SkillValidator } = await import('../../../src/node/skills/validator');
             const v = new SkillValidator();
             expect(v.isAllowedExtension('README.MD', ['.md'])).toBe(true);
         });
@@ -62,7 +62,7 @@ describe('SkillValidator', () => {
     // =========================================================================
     describe('checkFileSize', () => {
         it('passes for file under limit', async () => {
-            const { SkillValidator } = await import('../../../src/modules/skills/validator');
+            const { SkillValidator } = await import('../../../src/node/skills/validator');
             const v = new SkillValidator();
 
             const tmpFile = path.join(os.tmpdir(), `sv-test-${Date.now()}.txt`);
@@ -75,7 +75,7 @@ describe('SkillValidator', () => {
         });
 
         it('throws for file over limit', async () => {
-            const { SkillValidator } = await import('../../../src/modules/skills/validator');
+            const { SkillValidator } = await import('../../../src/node/skills/validator');
             const v = new SkillValidator();
 
             const tmpFile = path.join(os.tmpdir(), `sv-test-big-${Date.now()}.txt`);
@@ -93,7 +93,7 @@ describe('SkillValidator', () => {
     // =========================================================================
     describe('verifyIntegrity', () => {
         it('returns true for matching SHA256', async () => {
-            const { SkillValidator } = await import('../../../src/modules/skills/validator');
+            const { SkillValidator } = await import('../../../src/node/skills/validator');
             const v = new SkillValidator();
 
             const tmpFile = path.join(os.tmpdir(), `sv-hash-${Date.now()}.txt`);
@@ -109,7 +109,7 @@ describe('SkillValidator', () => {
         });
 
         it('returns false for mismatched SHA256', async () => {
-            const { SkillValidator } = await import('../../../src/modules/skills/validator');
+            const { SkillValidator } = await import('../../../src/node/skills/validator');
             const v = new SkillValidator();
 
             const tmpFile = path.join(os.tmpdir(), `sv-hash-bad-${Date.now()}.txt`);

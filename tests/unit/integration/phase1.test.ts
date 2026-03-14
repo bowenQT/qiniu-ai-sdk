@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { ToolRegistry } from '../../../src/lib/tool-registry';
-import { SkillLoader } from '../../../src/modules/skills';
+import { SkillLoader } from '../../../src/node/skills';
 import { compactMessages, buildToolPairs } from '../../../src/ai/nodes';
 import { StateGraph, END } from '../../../src/ai/graph';
 import type { ChatMessage } from '../../../src/lib/types';

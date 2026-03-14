@@ -1,7 +1,7 @@
 import { QiniuAI } from '../qiniu/client';
 import type { QiniuAIOptions } from '../qiniu/client';
-import { Sandbox } from '../modules/sandbox';
-import type { SandboxConfig } from '../modules/sandbox';
+import { Sandbox } from './sandbox';
+import type { SandboxConfig } from './sandbox';
 
 export interface NodeQiniuAIOptions extends QiniuAIOptions {
     /** Sandbox service configuration */

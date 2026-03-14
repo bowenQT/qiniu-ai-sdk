@@ -15,7 +15,7 @@ import type {
     GuardrailAction,
     AuditLoggerSink,
     AuditSinkLike,
-} from './types';
+} from '../ai/guardrails/types';
 
 /** Placeholder for redacted content */
 const REDACTED_PLACEHOLDER = '[CONTENT_REDACTED]';

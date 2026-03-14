@@ -180,7 +180,7 @@ describe('3.2 MCP Tool Policy', () => {
 // ============================================================================
 describe('3.3 SkillLoader uses SkillValidator.isWithinRoot', () => {
     it('SkillLoader should not have its own isWithinRoot implementation', async () => {
-        const { SkillLoader } = await import('../../src/modules/skills/loader');
+        const { SkillLoader } = await import('../../src/node/skills/loader');
         // SkillLoader should delegate to SkillValidator, not have its own private method
         // We verify by checking prototype — the private method should not exist as own method
         const proto = SkillLoader.prototype;

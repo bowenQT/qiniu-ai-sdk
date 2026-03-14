@@ -56,7 +56,7 @@ describe('Manifest v2 actions and runtime', () => {
 // ============================================================================
 describe('Dual whitelist (content vs action extensions)', () => {
     it('SkillValidator allows content extensions by default', async () => {
-        const { SkillValidator } = await import('../../../src/modules/skills/validator');
+        const { SkillValidator } = await import('../../../src/node/skills/validator');
         const v = new SkillValidator();
 
         expect(v.isAllowedExtension('SKILL.md', ['.md', '.txt', '.json'])).toBe(true);
@@ -65,7 +65,7 @@ describe('Dual whitelist (content vs action extensions)', () => {
     });
 
     it('SkillValidator allows action extensions when enabled', async () => {
-        const { SkillValidator } = await import('../../../src/modules/skills/validator');
+        const { SkillValidator } = await import('../../../src/node/skills/validator');
         const v = new SkillValidator();
 
         const actionExts = ['.ts', '.js', '.mjs', '.sh'];
@@ -75,7 +75,7 @@ describe('Dual whitelist (content vs action extensions)', () => {
     });
 
     it('SkillValidator rejects unknown extensions in both lists', async () => {
-        const { SkillValidator } = await import('../../../src/modules/skills/validator');
+        const { SkillValidator } = await import('../../../src/node/skills/validator');
         const v = new SkillValidator();
 
         const allExts = ['.md', '.txt', '.json', '.ts', '.js', '.mjs', '.sh'];
@@ -84,7 +84,7 @@ describe('Dual whitelist (content vs action extensions)', () => {
     });
 
     it('DEFAULT_CONTENT_EXTENSIONS and DEFAULT_ACTION_EXTENSIONS are exported', async () => {
-        const { DEFAULT_CONTENT_EXTENSIONS, DEFAULT_ACTION_EXTENSIONS } = await import('../../../src/modules/skills/validator');
+        const { DEFAULT_CONTENT_EXTENSIONS, DEFAULT_ACTION_EXTENSIONS } = await import('../../../src/node/skills/validator');
 
         expect(DEFAULT_CONTENT_EXTENSIONS).toContain('.md');
         expect(DEFAULT_CONTENT_EXTENSIONS).toContain('.txt');
@@ -101,7 +101,7 @@ describe('Dual whitelist (content vs action extensions)', () => {
 // ============================================================================
 describe('Skill lockfile (skill-lock.json)', () => {
     it('writeLockEntry creates a valid lock entry', async () => {
-        const { createLockEntry } = await import('../../../src/modules/skills/lockfile');
+        const { createLockEntry } = await import('../../../src/node/skills/lockfile');
 
         const entry = createLockEntry({
             name: 'my-skill',
@@ -122,7 +122,7 @@ describe('Skill lockfile (skill-lock.json)', () => {
     });
 
     it('writeLockfile + readLockfile round-trips correctly', async () => {
-        const { writeLockfile, readLockfile, createLockEntry } = await import('../../../src/modules/skills/lockfile');
+        const { writeLockfile, readLockfile, createLockEntry } = await import('../../../src/node/skills/lockfile');
 
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lock-test-'));
         const lockPath = path.join(tmpDir, 'skill-lock.json');
@@ -154,7 +154,7 @@ describe('Skill lockfile (skill-lock.json)', () => {
     });
 
     it('readLockfile returns empty array for missing file', async () => {
-        const { readLockfile } = await import('../../../src/modules/skills/lockfile');
+        const { readLockfile } = await import('../../../src/node/skills/lockfile');
 
         const result = readLockfile('/nonexistent/skill-lock.json');
         expect(result).toEqual([]);

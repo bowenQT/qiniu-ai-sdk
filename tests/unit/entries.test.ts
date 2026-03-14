@@ -1,22 +1,31 @@
-import { readFile } from 'node:fs/promises';
+import { builtinModules } from 'node:module';
+import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'];
-const NODE_ONLY_PATH_PREFIXES = [
-    'src/node/',
-    'src/modules/mcp/',
-    'src/modules/sandbox/',
-];
-const NODE_ONLY_IMPLEMENTATIONS = new Set([
+const SHARED_SKILL_FILES = new Set([
+    'src/modules/skills/index.ts',
+    'src/modules/skills/manifest.ts',
+    'src/modules/skills/reference-mode.ts',
+    'src/modules/skills/types.ts',
+]);
+const LEGACY_NODE_ONLY_FILES = [
     'src/ai/graph/redis-checkpointer.ts',
     'src/ai/graph/postgres-checkpointer.ts',
-    'src/modules/skills/loader.ts',
-]);
+    'src/ai/guardrails/audit-logger.ts',
+];
+
+const NODE_BUILTIN_SPECIFIERS = new Set(
+    builtinModules.flatMap((specifier) => {
+        const normalized = specifier.startsWith('node:') ? specifier.slice(5) : specifier;
+        return [normalized, `node:${normalized}`];
+    }),
+);
 
 interface ModuleGraph {
     files: Set<string>;
-    nodeSpecifiers: Array<{ importer: string; specifier: string }>;
+    builtinSpecifiers: Array<{ importer: string; specifier: string }>;
 }
 
 function normalizeRelativePath(path: string): string {
@@ -27,9 +36,31 @@ function repoRelativePath(path: string): string {
     return normalizeRelativePath(relative(process.cwd(), path));
 }
 
-function isNodeOnlyImplementation(path: string): boolean {
-    return NODE_ONLY_PATH_PREFIXES.some((prefix) => path.startsWith(prefix))
-        || NODE_ONLY_IMPLEMENTATIONS.has(path);
+async function collectFilesRecursive(dirRelativePath: string): Promise<string[]> {
+    const base = resolve(process.cwd(), dirRelativePath);
+    const output: string[] = [];
+
+    async function walk(current: string): Promise<void> {
+        const entries = await readdir(current, { withFileTypes: true });
+        for (const entry of entries) {
+            const absolute = join(current, entry.name);
+            if (entry.isDirectory()) {
+                await walk(absolute);
+                continue;
+            }
+            output.push(repoRelativePath(absolute));
+        }
+    }
+
+    try {
+        await walk(base);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return [];
+        }
+        throw error;
+    }
+    return output.sort();
 }
 
 function extractModuleSpecifiers(source: string): string[] {
@@ -71,7 +102,7 @@ async function resolveRelativeModule(fromFile: string, specifier: string): Promi
 
 async function collectRelativeModuleGraph(entryRelativePath: string): Promise<ModuleGraph> {
     const visited = new Set<string>();
-    const nodeSpecifiers: Array<{ importer: string; specifier: string }> = [];
+    const builtinSpecifiers: Array<{ importer: string; specifier: string }> = [];
     const queue = [resolve(process.cwd(), entryRelativePath)];
 
     while (queue.length > 0) {
@@ -81,8 +112,8 @@ async function collectRelativeModuleGraph(entryRelativePath: string): Promise<Mo
 
         const source = await readFile(current, 'utf8');
         for (const specifier of extractModuleSpecifiers(source)) {
-            if (specifier.startsWith('node:')) {
-                nodeSpecifiers.push({ importer: repoRelativePath(current), specifier });
+            if (NODE_BUILTIN_SPECIFIERS.has(specifier)) {
+                builtinSpecifiers.push({ importer: repoRelativePath(current), specifier });
                 continue;
             }
 
@@ -99,7 +130,7 @@ async function collectRelativeModuleGraph(entryRelativePath: string): Promise<Mo
 
     return {
         files: new Set(Array.from(visited, repoRelativePath)),
-        nodeSpecifiers,
+        builtinSpecifiers,
     };
 }
 
@@ -185,10 +216,10 @@ describe('entry points', () => {
         for (const entryRelativePath of crossPlatformEntries) {
             const graph = await collectRelativeModuleGraph(entryRelativePath);
 
-            expect(graph.nodeSpecifiers).toEqual([]);
+            expect(graph.builtinSpecifiers).toEqual([]);
 
             for (const file of graph.files) {
-                expect(isNodeOnlyImplementation(file)).toBe(false);
+                expect(file.startsWith('src/node/')).toBe(false);
             }
         }
 
@@ -209,10 +240,25 @@ describe('entry points', () => {
 
         expect(graph.files.has('src/node/checkpointers.ts')).toBe(true);
         expect(graph.files.has('src/node/internal/kodo-client.ts')).toBe(true);
+        expect(graph.builtinSpecifiers.length).toBeGreaterThan(0);
 
         for (const relativePath of graph.files) {
             const source = await readFile(join(process.cwd(), relativePath), 'utf8');
             expect(source).not.toMatch(rootClientImportPattern);
+        }
+    });
+
+    it('node-only implementations live under src/node', async () => {
+        const modulesMcpFiles = await collectFilesRecursive('src/modules/mcp');
+        const modulesSandboxFiles = await collectFilesRecursive('src/modules/sandbox');
+        const sharedSkillFiles = await collectFilesRecursive('src/modules/skills');
+
+        expect(modulesMcpFiles).toEqual([]);
+        expect(modulesSandboxFiles).toEqual([]);
+        expect(new Set(sharedSkillFiles)).toEqual(SHARED_SKILL_FILES);
+
+        for (const relativePath of LEGACY_NODE_ONLY_FILES) {
+            await expect(readFile(join(process.cwd(), relativePath), 'utf8')).rejects.toThrow();
         }
     });
 });
