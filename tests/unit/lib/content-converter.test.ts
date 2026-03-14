@@ -107,6 +107,20 @@ describe('Content Converter', () => {
             expect((result[0] as ImageUrlContentPart).image_url.detail).toBe('high');
         });
 
+        it('should preserve cache_control when converting image sugar parts', () => {
+            const result = normalizeContent([
+                {
+                    type: 'image',
+                    image: 'https://example.com/image.jpg',
+                    cache_control: { type: 'ephemeral' },
+                } as ImageContentPart & { cache_control: { type: string } },
+            ]) as Array<ImageUrlContentPart & { cache_control?: { type: string } }>;
+
+            expect(result[0].type).toBe('image_url');
+            expect(result[0].cache_control).toEqual({ type: 'ephemeral' });
+            expect(result[0].image_url.url).toBe('https://example.com/image.jpg');
+        });
+
         it('should handle mixed content parts', () => {
             const content: ContentPart[] = [
                 { type: 'text', text: 'Describe this:' },

@@ -2,7 +2,7 @@
 
 export interface ChatMessage {
     role: 'system' | 'user' | 'assistant' | 'tool' | 'function';
-    content: string | ContentPart[];
+    content: string | ContentPartWithCacheControl[];
     name?: string;
     tool_calls?: ToolCall[];
     /** Required for tool role messages to match the corresponding tool_call */
