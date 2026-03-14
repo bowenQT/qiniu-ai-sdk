@@ -18,27 +18,20 @@ import type {
 } from '../lib/mcp-host-types';
 import type { RegisteredTool, RegisteredToolContext } from '../lib/tool-registry';
 import { SDK_VERSION } from '../lib/version';
+import {
+    DEFAULT_MCP_CONFIG,
+    type MCPHttpServerConfig,
+    type MCPServerConfig as MCPTransportServerConfig,
+} from './mcp/types';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export interface MCPServerConfig {
-    /** Unique server name */
-    name: string;
-    /** Transport type */
-    transport: 'stdio' | 'http';
-    /** Command for stdio transport */
-    command?: string;
-    /** Args for stdio transport */
-    args?: string[];
-    /** URL for http transport */
-    url?: string;
-    /** Environment vars for stdio */
-    env?: Record<string, string>;
+export type MCPServerConfig = MCPTransportServerConfig & {
     /** Per-server tool execution policy */
     toolPolicy?: MCPToolPolicy;
-}
+};
 
 export interface NodeMCPHostConfig {
     /** MCP server configurations */
@@ -68,7 +61,7 @@ export class NodeMCPHost implements MCPHostProvider {
 
         try {
             for (const server of this.config.servers) {
-                const transport = this.createTransport(server);
+                const transport = await this.createTransport(server);
                 const client = new Client(
                     {
                         name: this.config.clientName ?? 'qiniu-ai-sdk',
@@ -220,16 +213,23 @@ export class NodeMCPHost implements MCPHostProvider {
     // Private
     // ========================================================================
 
-    private createTransport(server: MCPServerConfig): any {
+    private async createTransport(server: MCPServerConfig): Promise<any> {
         if (server.transport === 'stdio') {
             return new StdioClientTransport({
-                command: server.command!,
+                command: server.command,
                 args: server.args,
                 env: server.env,
             });
         }
 
-        return new StreamableHTTPClientTransport(new URL(server.url!));
+        const token = server.token ?? await server.tokenProvider?.();
+        const headers = buildHttpHeaders(server, token);
+
+        return new StreamableHTTPClientTransport(new URL(server.url!), {
+            requestInit: {
+                headers,
+            },
+        });
     }
 
     private async refreshTools(): Promise<void> {
@@ -307,4 +307,24 @@ export class NodeMCPHost implements MCPHostProvider {
         const serverConfig = this.config.servers.find(s => s.name === serverName);
         return serverConfig?.toolPolicy ?? {};
     }
+}
+
+function buildHttpHeaders(server: MCPHttpServerConfig, token?: string): Record<string, string> {
+    const headers: Record<string, string> = {
+        Accept: server.accept ?? DEFAULT_MCP_CONFIG.accept,
+        'MCP-Protocol-Version': server.protocolVersion ?? DEFAULT_MCP_CONFIG.protocolVersion,
+        ...server.headers,
+    };
+
+    if (server.sessionId) {
+        headers['MCP-Session-Id'] = server.sessionId;
+    }
+    if (server.origin) {
+        headers.Origin = server.origin;
+    }
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+
+    return headers;
 }

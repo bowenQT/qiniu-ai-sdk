@@ -9,6 +9,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { MCPHttpServerConfig, MCPToolDefinition, MCPToolResult } from './types';
 import { DEFAULT_MCP_CONFIG } from './types';
+import { SDK_VERSION } from '../../lib/version';
 
 /** HTTP Transport error */
 export class MCPHttpTransportError extends Error {
@@ -24,6 +25,26 @@ export class MCPHttpTransportError extends Error {
 
 /** OAuth token provider function */
 export type TokenProvider = () => Promise<string | undefined>;
+
+function buildHttpHeaders(config: MCPHttpServerConfig, token?: string): Record<string, string> {
+    const headers: Record<string, string> = {
+        Accept: config.accept ?? DEFAULT_MCP_CONFIG.accept,
+        'MCP-Protocol-Version': config.protocolVersion ?? DEFAULT_MCP_CONFIG.protocolVersion,
+        ...config.headers,
+    };
+
+    if (config.sessionId) {
+        headers['MCP-Session-Id'] = config.sessionId;
+    }
+    if (config.origin) {
+        headers.Origin = config.origin;
+    }
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+
+    return headers;
+}
 
 /**
  * HTTP Transport wrapper for MCP servers.
@@ -46,19 +67,17 @@ export class MCPHttpTransport {
         if (this.connected) return;
 
         // Build headers
-        const headers: Record<string, string> = {
-            ...this.config.headers,
-        };
-
-        // Add bearer token if available
+        let resolvedToken: string | undefined;
         if (this.config.token) {
-            headers['Authorization'] = `Bearer ${this.config.token}`;
+            resolvedToken = this.config.token;
         } else if (this.config.tokenProvider) {
             const token = await this.config.tokenProvider();
             if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
+                resolvedToken = token;
             }
         }
+
+        const headers = buildHttpHeaders(this.config, resolvedToken);
 
         // Create transport
         this.transport = new StreamableHTTPClientTransport(
@@ -73,8 +92,8 @@ export class MCPHttpTransport {
         // Create client
         this.client = new Client(
             {
-                name: 'qiniu-sdk',
-                version: '0.13.0',
+                name: 'qiniu-ai-sdk',
+                version: SDK_VERSION,
             },
             {
                 capabilities: {},
