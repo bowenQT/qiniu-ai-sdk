@@ -216,6 +216,8 @@ console.log(responseApi?.maturity); // experimental
 console.log(gemini?.capabilities);
 ```
 
+See the generated [Capability Scorecard](docs/capability-scorecard.md) for the current validated-model subset and module maturity matrix.
+
 ### Worktree Delivery
 
 ```bash
