@@ -319,6 +319,9 @@ function buildHttpHeaders(server: MCPHttpServerConfig, token?: string): Record<s
     if (server.sessionId) {
         headers['MCP-Session-Id'] = server.sessionId;
     }
+    if (server.lastEventId) {
+        headers['Last-Event-ID'] = server.lastEventId;
+    }
     if (server.origin) {
         headers.Origin = server.origin;
     }

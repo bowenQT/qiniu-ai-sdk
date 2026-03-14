@@ -63,6 +63,8 @@ export interface MCPHttpServerConfig extends MCPServerConfigBase {
     protocolVersion?: string;
     /** Existing MCP session id for stream resume / sticky sessions */
     sessionId?: string;
+    /** Last SSE event id for stream resume */
+    lastEventId?: string;
     /** Origin header for servers that validate browser-style origins */
     origin?: string;
     /** Accept header override for transport negotiation */

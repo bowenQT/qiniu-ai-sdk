@@ -10,6 +10,11 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { MCPHttpServerConfig, MCPToolDefinition, MCPToolResult } from './types';
 import { DEFAULT_MCP_CONFIG } from './types';
 import { SDK_VERSION } from '../../lib/version';
+import {
+    discoverMcpOAuthMetadata,
+    type AuthorizationServerMetadata,
+    type ProtectedResourceMetadata,
+} from './oauth';
 
 /** HTTP Transport error */
 export class MCPHttpTransportError extends Error {
@@ -36,6 +41,9 @@ function buildHttpHeaders(config: MCPHttpServerConfig, token?: string): Record<s
     if (config.sessionId) {
         headers['MCP-Session-Id'] = config.sessionId;
     }
+    if (config.lastEventId) {
+        headers['Last-Event-ID'] = config.lastEventId;
+    }
     if (config.origin) {
         headers.Origin = config.origin;
     }
@@ -60,24 +68,42 @@ export class MCPHttpTransport {
         this.config = config;
     }
 
+    private async resolveToken(): Promise<string | undefined> {
+        if (this.config.token) {
+            return this.config.token;
+        }
+
+        if (this.config.tokenProvider) {
+            return await this.config.tokenProvider();
+        }
+
+        return undefined;
+    }
+
+    private async resolveHeaders(overrides?: {
+        accept?: string;
+        lastEventId?: string;
+    }): Promise<Record<string, string>> {
+        const token = await this.resolveToken();
+        const headers = buildHttpHeaders(this.config, token);
+
+        if (overrides?.accept) {
+            headers.Accept = overrides.accept;
+        }
+        if (overrides?.lastEventId) {
+            headers['Last-Event-ID'] = overrides.lastEventId;
+        }
+
+        return headers;
+    }
+
     /**
      * Connect to the MCP server.
      */
     async connect(): Promise<void> {
         if (this.connected) return;
 
-        // Build headers
-        let resolvedToken: string | undefined;
-        if (this.config.token) {
-            resolvedToken = this.config.token;
-        } else if (this.config.tokenProvider) {
-            const token = await this.config.tokenProvider();
-            if (token) {
-                resolvedToken = token;
-            }
-        }
-
-        const headers = buildHttpHeaders(this.config, resolvedToken);
+        const headers = await this.resolveHeaders();
 
         // Create transport
         this.transport = new StreamableHTTPClientTransport(
@@ -127,6 +153,69 @@ export class MCPHttpTransport {
         this.client = null;
         this.transport = null;
         this.connected = false;
+    }
+
+    /**
+     * Open the server event stream for resume / long polling scenarios.
+     */
+    async openEventStream(lastEventId?: string): Promise<Response> {
+        const response = await fetch(this.config.url, {
+            method: 'GET',
+            headers: await this.resolveHeaders({
+                accept: 'text/event-stream',
+                lastEventId: lastEventId ?? this.config.lastEventId,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new MCPHttpTransportError(
+                `Failed to open event stream: ${response.status}`,
+                this.config.name,
+                response.status,
+            );
+        }
+
+        return response;
+    }
+
+    /**
+     * Terminate an active session using MCP DELETE semantics.
+     * Returns false when the server does not support DELETE termination.
+     */
+    async terminateSession(): Promise<boolean> {
+        const response = await fetch(this.config.url, {
+            method: 'DELETE',
+            headers: await this.resolveHeaders(),
+        });
+
+        if (response.status === 404 || response.status === 405 || response.status === 501) {
+            return false;
+        }
+
+        if (!response.ok) {
+            throw new MCPHttpTransportError(
+                `Failed to terminate session: ${response.status}`,
+                this.config.name,
+                response.status,
+            );
+        }
+
+        await this.disconnect();
+        return true;
+    }
+
+    /**
+     * Discover OAuth metadata from the MCP protected resource.
+     */
+    async discoverOAuthMetadata(challengeHeader?: string): Promise<{
+        protectedResource: ProtectedResourceMetadata;
+        authorizationServer: AuthorizationServerMetadata | null;
+    }> {
+        return discoverMcpOAuthMetadata(this.config.url, {
+            headers: this.config.headers,
+            protocolVersion: this.config.protocolVersion ?? DEFAULT_MCP_CONFIG.protocolVersion,
+            challengeHeader,
+        });
     }
 
     /**
