@@ -1,6 +1,96 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+
+const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'];
+const NODE_ONLY_IMPLEMENTATIONS = new Set([
+    'src/ai/graph/redis-checkpointer.ts',
+    'src/ai/graph/postgres-checkpointer.ts',
+]);
+
+interface ModuleGraph {
+    files: Set<string>;
+    nodeSpecifiers: Array<{ importer: string; specifier: string }>;
+}
+
+function normalizeRelativePath(path: string): string {
+    return path.replace(/\\/g, '/');
+}
+
+function repoRelativePath(path: string): string {
+    return normalizeRelativePath(relative(process.cwd(), path));
+}
+
+function extractModuleSpecifiers(source: string): string[] {
+    const specifiers = new Set<string>();
+    const patterns = [
+        /\bfrom\s*['"]([^'"]+)['"]/g,
+        /\bimport\s*['"]([^'"]+)['"]/g,
+        /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+    ];
+
+    for (const pattern of patterns) {
+        for (const match of source.matchAll(pattern)) {
+            specifiers.add(match[1]);
+        }
+    }
+
+    return Array.from(specifiers);
+}
+
+async function resolveRelativeModule(fromFile: string, specifier: string): Promise<string> {
+    const base = resolve(dirname(fromFile), specifier);
+    const candidates = [
+        base,
+        ...SOURCE_EXTENSIONS.map((extension) => `${base}${extension}`),
+        ...SOURCE_EXTENSIONS.map((extension) => join(base, `index${extension}`)),
+    ];
+
+    for (const candidate of candidates) {
+        try {
+            await readFile(candidate, 'utf8');
+            return candidate;
+        } catch {
+            // Try next candidate.
+        }
+    }
+
+    throw new Error(`Unable to resolve relative module "${specifier}" from ${repoRelativePath(fromFile)}`);
+}
+
+async function collectRelativeModuleGraph(entryRelativePath: string): Promise<ModuleGraph> {
+    const visited = new Set<string>();
+    const nodeSpecifiers: Array<{ importer: string; specifier: string }> = [];
+    const queue = [resolve(process.cwd(), entryRelativePath)];
+
+    while (queue.length > 0) {
+        const current = queue.pop()!;
+        if (visited.has(current)) continue;
+        visited.add(current);
+
+        const source = await readFile(current, 'utf8');
+        for (const specifier of extractModuleSpecifiers(source)) {
+            if (specifier.startsWith('node:')) {
+                nodeSpecifiers.push({ importer: repoRelativePath(current), specifier });
+                continue;
+            }
+
+            if (!specifier.startsWith('.')) {
+                continue;
+            }
+
+            const resolved = await resolveRelativeModule(current, specifier);
+            if (!visited.has(resolved)) {
+                queue.push(resolved);
+            }
+        }
+    }
+
+    return {
+        files: new Set(Array.from(visited, repoRelativePath)),
+        nodeSpecifiers,
+    };
+}
 
 describe('entry points', () => {
     it('root entry exposes only the cross-platform compatibility surface', async () => {
@@ -71,25 +161,23 @@ describe('entry points', () => {
         expect('browser' in (packageJson.exports?.['.'] ?? {})).toBe(false);
     });
 
-    it('browser-safe entry sources do not statically reference sandbox or Node builtins', async () => {
-        const browserSafeFiles = [
-            'src/qiniu/client.ts',
-            'src/modules/account/index.ts',
-            'src/modules/video/index.ts',
-            'src/modules/tts/index.ts',
-            'src/ai/graph/index.ts',
+    it('cross-platform entry graphs do not reach Node-only modules or builtins', async () => {
+        const crossPlatformEntries = [
+            'src/index.ts',
+            'src/core/index.ts',
+            'src/browser/index.ts',
+            'src/qiniu/index.ts',
         ];
 
-        for (const relativePath of browserSafeFiles) {
-            const source = await readFile(join(process.cwd(), relativePath), 'utf8');
-            expect(source).not.toMatch(/modules\/sandbox/);
-            expect(source).not.toMatch(/node:/);
-            expect(source).not.toMatch(/\bBuffer\b/);
-            expect(source).not.toMatch(/require\(['"]crypto['"]\)/);
-            expect(source).not.toMatch(/import\(['"]ws['"]\)/);
-            expect(source).not.toMatch(/from ['"]ws['"]/);
-            expect(source).not.toMatch(/kodo-checkpointer/);
-            expect(source).not.toMatch(/(?:\.\.\/)+node\//);
+        for (const entryRelativePath of crossPlatformEntries) {
+            const graph = await collectRelativeModuleGraph(entryRelativePath);
+
+            expect(graph.nodeSpecifiers).toEqual([]);
+
+            for (const file of graph.files) {
+                expect(file.startsWith('src/node/')).toBe(false);
+                expect(NODE_ONLY_IMPLEMENTATIONS.has(file)).toBe(false);
+            }
         }
 
         const browserEntryPath = join(process.cwd(), 'src/browser/index.ts');
@@ -103,17 +191,14 @@ describe('entry points', () => {
         expect(qiniuEntrySource).not.toContain("../client';");
     });
 
-    it('node-only sources do not depend on the root compatibility client', async () => {
+    it('node entry graph stays inside node integrations and never re-imports the root compatibility client', async () => {
         const rootClientImportPattern = /from ['"](?:\.\.\/)+client['"]/;
-        const guardedSources = [
-            'src/modules/mcp/server.ts',
-            'src/node/index.ts',
-            'src/node/kodo-checkpointer.ts',
-            'src/node/kodo-audit-sink.ts',
-            'src/node/kodo-client.ts',
-        ];
+        const graph = await collectRelativeModuleGraph('src/node/index.ts');
 
-        for (const relativePath of guardedSources) {
+        expect(graph.files.has('src/node/checkpointers.ts')).toBe(true);
+        expect(graph.files.has('src/node/internal/kodo-client.ts')).toBe(true);
+
+        for (const relativePath of graph.files) {
             const source = await readFile(join(process.cwd(), relativePath), 'utf8');
             expect(source).not.toMatch(rootClientImportPattern);
         }

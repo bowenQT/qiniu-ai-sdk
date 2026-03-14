@@ -1,5 +1,5 @@
 import type { AuditLogEntry, AuditSinkLike } from '../ai/guardrails/types';
-import { KodoClient, type KodoStorageConfig } from './kodo-client';
+import { KodoClient, type KodoStorageConfig } from './internal/kodo-client';
 
 export interface KodoAuditSinkConfig extends Omit<KodoStorageConfig, 'downloadDomain'> {
     prefix?: string;

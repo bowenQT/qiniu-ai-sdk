@@ -35,11 +35,3 @@ export type {
     ResumeWithApprovalResult,
     ToolExecutor,
 } from './checkpointer';
-
-// Redis Checkpointer (optional - requires ioredis)
-export { RedisCheckpointer } from './redis-checkpointer';
-export type { RedisClient, RedisCheckpointerConfig } from './redis-checkpointer';
-
-// Postgres Checkpointer (optional - requires pg)
-export { PostgresCheckpointer } from './postgres-checkpointer';
-export type { PostgresClient, PostgresCheckpointerConfig } from './postgres-checkpointer';

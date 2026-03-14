@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { auditLogger } from '../../src/ai/guardrails';
+import { auditLogger } from '../../src/ai/guardrails/audit-logger';
 import { createKodoAuditSink } from '../../src/node';
 
 describe('createKodoAuditSink', () => {

@@ -65,6 +65,12 @@ import { createAgent, generateText } from '@bowenqt/qiniu-ai-sdk/core';
 import { createNodeQiniuAI, NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
 ```
 
+### 入口契约
+
+- `@bowenqt/qiniu-ai-sdk/node` 是 MCP、sandbox、audit sink 以及非内存 checkpointer 的唯一正式 Node integration 入口。
+- `@bowenqt/qiniu-ai-sdk/core` 和 `@bowenqt/qiniu-ai-sdk/browser` 保持不含 Node-only 传递依赖。
+- `ResponseAPI` 继续保持 experimental/provider-only，不进入 root 默认叙事。
+
 ### v0.44 迁移表
 
 | 从 `@bowenqt/qiniu-ai-sdk` 移除 | 现在改用 |

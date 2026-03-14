@@ -65,6 +65,12 @@ import { createAgent, generateText } from '@bowenqt/qiniu-ai-sdk/core';
 import { createNodeQiniuAI, NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
 ```
 
+### Entry Guarantees
+
+- `@bowenqt/qiniu-ai-sdk/node` is the only supported Node integration surface for MCP, sandbox, audit sinks, and non-memory checkpointers.
+- `@bowenqt/qiniu-ai-sdk/core` and `@bowenqt/qiniu-ai-sdk/browser` are kept free of Node-only transitive dependencies.
+- `ResponseAPI` remains experimental and provider-specific; it is not part of the root/default runtime story.
+
 ### v0.44 Migration
 
 | Removed from `@bowenqt/qiniu-ai-sdk` | Import from now |

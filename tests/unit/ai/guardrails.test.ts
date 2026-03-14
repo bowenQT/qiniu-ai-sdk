@@ -12,12 +12,11 @@ import {
     inputFilter,
     outputFilter,
     tokenLimiter,
-    auditLogger,
-    AuditLoggerCollector,
     ACTION_PRIORITY,
 } from '../../../src/ai/guardrails';
+import { auditLogger, AuditLoggerCollector } from '../../../src/ai/guardrails/audit-logger';
 import { resolveFileUrlPath } from '../../../src/ai/guardrails/audit-logger';
-import type { Guardrail, GuardrailContext, GuardrailResult } from '../../../src/ai/guardrails';
+import type { Guardrail, GuardrailContext, GuardrailResult } from '../../../src/ai/guardrails/types';
 
 // ============================================================================
 // GuardrailChain Tests

@@ -34,9 +34,9 @@ import type {
     CheckpointSaveOptions,
 } from '../ai/graph/checkpointer';
 import { serializeState } from '../ai/graph/checkpointer';
-import { KodoClient, type KodoRegion } from './kodo-client';
+import { KodoClient, type KodoRegion } from './internal/kodo-client';
 
-export type { KodoRegion } from './kodo-client';
+export type { KodoRegion } from './internal/kodo-client';
 
 /** KodoCheckpointer configuration */
 export interface KodoCheckpointerConfig {

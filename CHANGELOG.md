@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.45.0] - 2026-03-14
+
+### 🔧 Improvements
+
+- Split shared-safe graph exports from Node-only checkpointers: `src/ai/graph/index.ts` now exposes only cross-platform graph/runtime APIs
+- Added `src/node/checkpointers.ts` as the single Node-only checkpointer barrel for Redis, Postgres, and Kodo
+- Moved the shared Kodo storage client into `src/node/internal/*` so Node integrations can reuse it without leaking into shared barrels
+- Added recursive entry-graph contract tests to prevent `root/core/browser/qiniu` from reaching `src/node/*`, Node builtins, or Node-only checkpointer implementations
+
+### 📚 Notes
+
+- `@bowenqt/qiniu-ai-sdk/node` remains the only supported Node integration surface
+- `ResponseAPI` remains experimental and provider-specific
+
 ## [0.44.0] - 2026-03-13
 
 ### ✨ New Features

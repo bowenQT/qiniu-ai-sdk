@@ -14,10 +14,6 @@ export type {
     ContentCategory,
     TokenLimiterConfig,
     GuardrailTokenStore,
-    AuditLoggerConfig,
-    AuditLogEntry,
-    AuditSinkLike,
-    AuditLoggerSink,
 } from './types';
 
 export { ACTION_PRIORITY } from './types';
@@ -29,4 +25,3 @@ export { GuardrailChain, GuardrailBlockedError } from './chain';
 export { inputFilter } from './input-filter';
 export { outputFilter } from './output-filter';
 export { tokenLimiter } from './token-limiter';
-export { auditLogger, AuditLoggerCollector } from './audit-logger';
