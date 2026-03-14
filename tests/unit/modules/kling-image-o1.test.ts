@@ -74,7 +74,10 @@ describe('kling-image-o1 fal-ai (Delivery B)', () => {
             const result = await client.image.generate({ model: 'kling-image-o1', prompt: 'test' });
             expect(result.isSync).toBe(false);
             if (!result.isSync) {
+                expect(result.id).toBe('qimage-root-300');
                 expect(result.task_id).toBe('qimage-root-300');
+                expect(result.get).toBeTypeOf('function');
+                expect(result.wait).toBeTypeOf('function');
             }
         });
     });

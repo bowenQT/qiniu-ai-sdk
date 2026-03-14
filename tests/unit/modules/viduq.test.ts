@@ -88,6 +88,8 @@ describe('viduq TaskHandle (Delivery A)', () => {
             expect(handle.id).toBe('qvideo-root-456');
             expect(handle.statusUrl).toBe('https://api.qnaigc.com/queue/fal-ai/vidu/requests/qvideo-root-456/status');
             expect(handle.responseUrl).toBe('https://api.qnaigc.com/queue/fal-ai/vidu/requests/qvideo-root-456');
+            expect(handle.get).toBeTypeOf('function');
+            expect(handle.wait).toBeTypeOf('function');
         });
 
         it('should still return { id } for Kling models (backward compat)', async () => {
@@ -143,6 +145,47 @@ describe('viduq TaskHandle (Delivery A)', () => {
             const status = await client.video.get(handle);
             expect(mockFetch.calls[1].url).toContain('queue/fal-ai/vidu/requests');
             expect(status.status).toBe('completed');
+        });
+
+        it('should allow handle.get() and handle.wait()', async () => {
+            const responses = [
+                { status: 200, body: { request_id: 'qvideo-root-101', status: 'IN_QUEUE', status_url: 'https://api.qnaigc.com/queue/fal-ai/vidu/requests/qvideo-root-101/status', response_url: '' } },
+                { status: 200, body: { status: 'IN_PROGRESS', request_id: 'qvideo-root-101' } },
+                {
+                    status: 200,
+                    body: {
+                        status: 'COMPLETED',
+                        request_id: 'qvideo-root-101',
+                        result: { video: { url: 'https://video.example.com/handle.mp4', content_type: 'video/mp4' } },
+                    },
+                },
+            ];
+            const mockFetch = createMockFetch(responses);
+            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+
+            const handle = await client.video.create({ model: 'viduq2', prompt: 'test' });
+            const status = await handle.get();
+            expect(status.status).toBe('in_progress');
+
+            const result = await handle.wait({ intervalMs: 10, timeoutMs: 1000 });
+            expect(result.status).toBe('completed');
+            expect(result.task_result?.videos?.[0]?.url).toBe('https://video.example.com/handle.mp4');
+        });
+
+        it('should surface unsupported cancel() explicitly', async () => {
+            const mockFetch = createStaticMockFetch({
+                status: 200,
+                body: {
+                    request_id: 'qvideo-root-102',
+                    status: 'IN_QUEUE',
+                    status_url: 'https://api.qnaigc.com/queue/fal-ai/vidu/requests/qvideo-root-102/status',
+                    response_url: '',
+                },
+            });
+            const client = new QiniuAI({ apiKey: 'sk-test', adapter: mockFetch.adapter });
+
+            const handle = await client.video.create({ model: 'viduq2', prompt: 'test' });
+            await expect(handle.cancel()).rejects.toThrow('video task cancellation is not supported');
         });
 
         it('should use cached statusUrl when get() is called with string ID', async () => {

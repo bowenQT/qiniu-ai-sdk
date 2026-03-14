@@ -21,6 +21,9 @@ describe('Image Module', () => {
             });
 
             expect(result.task_id).toBe('task-123');
+            expect(result.id).toBe('task-123');
+            expect(result.get).toBeTypeOf('function');
+            expect(result.wait).toBeTypeOf('function');
             expect(mockFetch.calls[0].url).toContain('/images/generations');
         });
 
@@ -92,7 +95,52 @@ describe('Image Module', () => {
 
             expect(result.isSync).toBe(false);
             if (!result.isSync) {
+                expect(result.id).toBe('task-123');
                 expect(result.task_id).toBe('task-123');
+                expect(result.get).toBeTypeOf('function');
+                expect(result.wait).toBeTypeOf('function');
+            }
+        });
+
+        it('should attach get() and wait() to async image results', async () => {
+            const mockFetch = createMockFetch([
+                { status: 200, body: { task_id: 'task-123' } },
+                {
+                    status: 200,
+                    body: {
+                        task_id: 'task-123',
+                        status: 'succeed',
+                        data: [{ index: 0, url: 'https://example.com/image.png' }],
+                    },
+                },
+                {
+                    status: 200,
+                    body: {
+                        task_id: 'task-123',
+                        status: 'succeed',
+                        data: [{ index: 0, url: 'https://example.com/image.png' }],
+                    },
+                },
+            ]);
+
+            const client = new QiniuAI({
+                apiKey: 'sk-test',
+                adapter: mockFetch.adapter,
+            });
+
+            const result = await client.image.generate({
+                model: 'kling-v2',
+                prompt: 'A cat',
+            });
+
+            expect(result.isSync).toBe(false);
+            if (!result.isSync) {
+                const status = await result.get();
+                expect(status.status).toBe('succeed');
+
+                const final = await result.wait({ intervalMs: 10, timeoutMs: 1000 });
+                expect(final.status).toBe('succeed');
+                expect(final.data[0].url).toBe('https://example.com/image.png');
             }
         });
 
@@ -185,6 +233,45 @@ describe('Image Module', () => {
             expect(result.isSync).toBe(false);
             expect(result.status).toBe('succeed');
             expect(result.data[0].url).toBe('https://example.com/image.png');
+        });
+
+        it('should allow create() handles to query and wait', async () => {
+            const mockFetch = createMockFetch([
+                { status: 200, body: { task_id: 'task-789' } },
+                {
+                    status: 200,
+                    body: {
+                        task_id: 'task-789',
+                        status: 'succeed',
+                        data: [{ index: 0, url: 'https://example.com/create.png' }],
+                    },
+                },
+                {
+                    status: 200,
+                    body: {
+                        task_id: 'task-789',
+                        status: 'succeed',
+                        data: [{ index: 0, url: 'https://example.com/create.png' }],
+                    },
+                },
+            ]);
+
+            const client = new QiniuAI({
+                apiKey: 'sk-test',
+                adapter: mockFetch.adapter,
+            });
+
+            const handle = await client.image.create({
+                model: 'kling-v2',
+                prompt: 'A castle',
+            });
+
+            const status = await handle.get();
+            expect(status.task_id).toBe('task-789');
+
+            const result = await handle.wait({ intervalMs: 10, timeoutMs: 1000 });
+            expect(result.status).toBe('succeed');
+            expect(result.data[0].url).toBe('https://example.com/create.png');
         });
     });
 

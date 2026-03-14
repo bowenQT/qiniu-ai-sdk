@@ -50,6 +50,7 @@ export type {
     MiddlewareResponse,
     RequestOptions,
 } from './client';
+export type { TaskHandle } from './lib/task-handle';
 
 // Error types
 export { APIError } from './lib/request';
@@ -206,6 +207,7 @@ export type { PollerOptions, PollResult } from './lib/poller';
 export type {
     ImageGenerationRequest,
     ImageTaskResponse,
+    ImageTaskHandle,
     ImageCreateResult,
     ImageGenerateResult,
     ImageUsage,

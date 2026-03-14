@@ -1,6 +1,7 @@
 import type { ImageModel as CatalogImageModel } from '../../models';
 import { IQiniuClient } from '../../lib/types';
 import { pollUntilComplete } from '../../lib/poller';
+import { createUnsupportedTaskCancellation, type TaskHandle } from '../../lib/task-handle';
 
 /**
  * Supported image generation models
@@ -116,11 +117,15 @@ export interface SyncImageResponse {
     usage?: ImageUsage;
 }
 
-export interface AsyncImageResponse {
-    isSync: false;
+export interface ImageTaskHandle extends TaskHandle<ImageTaskResponse, ImageGenerateResult, WaitOptions> {
+    id: string;
     task_id: string;
     /** fal-ai status URL for kling-image-o1 */
     statusUrl?: string;
+}
+
+export interface AsyncImageResponse extends ImageTaskHandle {
+    isSync: false;
 }
 
 export type ImageCreateResult = SyncImageResponse | AsyncImageResponse;
@@ -177,6 +182,32 @@ function normalizeFalAiImageResponse(raw: Record<string, unknown>): ImageTaskRes
     };
 }
 
+function attachImageTaskMethods(image: Image, handle: AsyncImageResponse): AsyncImageResponse {
+    return {
+        ...handle,
+        id: handle.task_id,
+        get: () => image.get(handle.task_id),
+        wait: (options?: WaitOptions) => image.waitForResult(handle, options),
+        cancel: createUnsupportedTaskCancellation('image', handle.task_id),
+    };
+}
+
+function createAsyncImageHandle(taskId: string, statusUrl?: string): AsyncImageResponse {
+    return {
+        isSync: false,
+        id: taskId,
+        task_id: taskId,
+        statusUrl,
+        get: async () => {
+            throw new Error('ImageTaskHandle.get() is only available on handles returned by Image.create()/generate()');
+        },
+        wait: async () => {
+            throw new Error('ImageTaskHandle.wait() is only available on handles returned by Image.create()/generate()');
+        },
+        cancel: createUnsupportedTaskCancellation('image', taskId),
+    };
+}
+
 export class Image {
     private client: IQiniuClient;
 
@@ -189,7 +220,7 @@ export class Image {
      *
      * @deprecated Use generate() for unified sync/async handling.
      */
-    async create(params: ImageGenerationRequest): Promise<{ task_id: string }> {
+    async create(params: ImageGenerationRequest): Promise<ImageTaskHandle> {
         if (isFalAiImageModel(params.model)) {
             // kling-image-o1: use fal-ai queue endpoint
             const baseUrl = this.client.getBaseUrl();
@@ -201,7 +232,10 @@ export class Image {
             if (params.aspect_ratio) payload.aspect_ratio = params.aspect_ratio;
 
             const raw = await this.client.postAbsolute<Record<string, unknown>>(absoluteUrl, payload);
-            return { task_id: raw.request_id as string };
+            return attachImageTaskMethods(this, createAsyncImageHandle(
+                raw.request_id as string,
+                raw.status_url as string | undefined,
+            ));
         }
 
         const response = await this.client.post<unknown>('/images/generations', params);
@@ -213,7 +247,7 @@ export class Image {
             );
         }
 
-        return { task_id: result.task_id };
+        return attachImageTaskMethods(this, createAsyncImageHandle(result.task_id));
     }
 
     /**
@@ -231,15 +265,14 @@ export class Image {
             if (params.aspect_ratio) payload.aspect_ratio = params.aspect_ratio;
 
             const raw = await this.client.postAbsolute<Record<string, unknown>>(absoluteUrl, payload);
-            return {
-                isSync: false,
-                task_id: raw.request_id as string,
-                statusUrl: raw.status_url as string | undefined,
-            };
+            return attachImageTaskMethods(this, createAsyncImageHandle(
+                raw.request_id as string,
+                raw.status_url as string | undefined,
+            ));
         }
 
         const response = await this.client.post<unknown>('/images/generations', params);
-        return normalizeCreateResponse(response);
+        return normalizeCreateResponse(this, response);
     }
 
     /**
@@ -344,14 +377,11 @@ export class Image {
     }
 }
 
-function normalizeCreateResponse(response: unknown): ImageCreateResult {
+function normalizeCreateResponse(image: Image, response: unknown): ImageCreateResult {
     const res = response as Record<string, unknown>;
 
     if (res.task_id && typeof res.task_id === 'string') {
-        return {
-            isSync: false,
-            task_id: res.task_id,
-        };
+        return attachImageTaskMethods(image, createAsyncImageHandle(res.task_id));
     }
 
     if (res.data && Array.isArray(res.data)) {
