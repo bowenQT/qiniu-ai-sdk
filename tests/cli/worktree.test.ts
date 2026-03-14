@@ -111,4 +111,15 @@ describe('CLI worktree workflow', () => {
             'Integration worktree at',
         );
     });
+
+    it('rejects integrating a lane worktree with uncommitted changes', () => {
+        initWorktreeWorkspace({ projectDir: repoDir });
+        const laneResult = spawnLaneWorktree({ projectDir: repoDir, lane: 'runtime' });
+
+        fs.writeFileSync(path.join(laneResult.path, 'dirty.txt'), 'not committed\n', 'utf8');
+
+        expect(() => integrateLaneWorktree({ projectDir: repoDir, lane: 'runtime' })).toThrow(
+            'has uncommitted changes',
+        );
+    });
 });

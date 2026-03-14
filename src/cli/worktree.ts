@@ -142,6 +142,14 @@ function currentBranchAtPath(repoRoot: string, cwd: string): string {
     return runGit(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
 }
 
+function currentHeadAtPath(repoRoot: string, cwd: string): string {
+    return runGit(repoRoot, ['rev-parse', 'HEAD'], { cwd });
+}
+
+function branchHead(repoRoot: string, branch: string): string {
+    return runGit(repoRoot, ['rev-parse', branch]);
+}
+
 function resolveGitCommonDir(cwd: string): string {
     const commonDir = runGit(cwd, ['rev-parse', '--git-common-dir'], { cwd });
     return fs.realpathSync.native(path.resolve(cwd, commonDir));
@@ -298,9 +306,29 @@ export function integrateLaneWorktree(options: {
     const lane = sanitizeLaneName(options.lane);
     const laneBranch = branchNameForLane(lane);
     const integrationPath = path.join(worktreeRoot, 'integration');
+    const lanePath = path.join(worktreeRoot, lane);
 
     if (!hasLocalBranch(repoRoot, laneBranch)) {
         throw new Error(`Lane branch "${laneBranch}" does not exist.`);
+    }
+
+    if (fs.existsSync(lanePath)) {
+        ensureWorktreePathMatchesBranch(repoRoot, lanePath, laneBranch, `Lane worktree "${lane}"`);
+
+        const laneDirty = runGit(repoRoot, ['status', '--porcelain'], { cwd: lanePath });
+        if (laneDirty) {
+            throw new Error(
+                `Lane worktree "${lane}" at ${lanePath} has uncommitted changes. Commit or stash them before integrating.`,
+            );
+        }
+
+        const laneHead = currentHeadAtPath(repoRoot, lanePath);
+        const laneBranchHead = branchHead(repoRoot, laneBranch);
+        if (laneHead !== laneBranchHead) {
+            throw new Error(
+                `Lane worktree "${lane}" at ${lanePath} is not aligned with branch "${laneBranch}". Refresh it before integrating.`,
+            );
+        }
     }
 
     if (!fs.existsSync(integrationPath)) {
