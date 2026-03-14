@@ -1,6 +1,7 @@
 import type { VideoModel as CatalogVideoModel } from '../../models';
 import { IQiniuClient } from '../../lib/types';
 import { pollUntilComplete } from '../../lib/poller';
+import { createUnsupportedTaskCancellation, type TaskHandle } from '../../lib/task-handle';
 
 // ============================================================================
 // Type Definitions
@@ -733,7 +734,7 @@ function normalizeVeoResponse(raw: VeoRawResponse): VideoTaskResponse {
  * Video task handle returned by create().
  * Backward compatible: { id } still works, with optional statusUrl/responseUrl for fal-ai models.
  */
-export interface VideoTaskHandle {
+export interface VideoTaskHandle extends TaskHandle<VideoTaskResponse, VideoTaskResponse, WaitOptions> {
     /** Task ID (universal) */
     id: string;
     /** fal-ai status query URL (viduq only) */
@@ -748,6 +749,13 @@ function normalizeViduqCreateResponse(raw: Record<string, unknown>): VideoTaskHa
         id: raw.request_id as string,
         statusUrl: raw.status_url as string | undefined,
         responseUrl: raw.response_url as string | undefined,
+        get: async () => {
+            throw new Error('VideoTaskHandle.get() is only available on handles returned by Video.create()');
+        },
+        wait: async () => {
+            throw new Error('VideoTaskHandle.wait() is only available on handles returned by Video.create()');
+        },
+        cancel: createUnsupportedTaskCancellation('video', raw.request_id as string),
     };
 }
 
@@ -764,6 +772,15 @@ function normalizeViduqStatusResponse(raw: Record<string, unknown>): VideoTaskRe
         };
     }
     return normalized;
+}
+
+function attachVideoTaskMethods(video: Video, handle: VideoTaskHandle): VideoTaskHandle {
+    return {
+        ...handle,
+        get: () => video.get(handle),
+        wait: (options?: WaitOptions) => video.waitForCompletion(handle, options),
+        cancel: createUnsupportedTaskCancellation('video', handle.id),
+    };
 }
 
 export class Video {
@@ -807,7 +824,7 @@ export class Video {
                 this.viduqStatusUrls.set(handle.id, handle.statusUrl);
             }
 
-            return handle;
+            return attachVideoTaskMethods(this, handle);
         }
 
         if (isVeoModel(params.model)) {
@@ -820,7 +837,13 @@ export class Video {
                 hasLastFrame: !!veoPayload.instances[0].lastFrame,
             });
 
-            return this.client.post<{ id: string }>('/videos/generations', veoPayload);
+            const handle = await this.client.post<{ id: string }>('/videos/generations', veoPayload);
+            return attachVideoTaskMethods(this, {
+                id: handle.id,
+                get: async () => this.get(handle.id),
+                wait: async (options?: WaitOptions) => this.waitForCompletion(handle.id, options),
+                cancel: createUnsupportedTaskCancellation('video', handle.id),
+            });
         }
 
         // Kling and other models use standard endpoint
@@ -833,7 +856,13 @@ export class Video {
             hasVideoList: !!(klingPayload.video_list as unknown[])?.length,
         });
 
-        return this.client.post<{ id: string }>('/videos', klingPayload);
+        const handle = await this.client.post<{ id: string }>('/videos', klingPayload);
+        return attachVideoTaskMethods(this, {
+            id: handle.id,
+            get: async () => this.get(handle.id),
+            wait: async (options?: WaitOptions) => this.waitForCompletion(handle.id, options),
+            cancel: createUnsupportedTaskCancellation('video', handle.id),
+        });
     }
 
     /**

@@ -55,6 +55,7 @@ export type {
 
 export { APIError } from '../lib/request';
 export type { IQiniuClient } from '../lib/types';
+export type { TaskHandle } from '../lib/task-handle';
 export type {
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -72,6 +73,7 @@ export type { StreamOptions, StreamResult } from '../modules/chat';
 export type {
     ImageGenerationRequest,
     ImageTaskResponse,
+    ImageTaskHandle,
     ImageCreateResult,
     ImageGenerateResult,
     ImageUsage,

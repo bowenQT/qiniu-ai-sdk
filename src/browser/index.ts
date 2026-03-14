@@ -29,6 +29,7 @@ export type {
     MiddlewareResponse,
     RequestOptions,
 } from '../qiniu/client';
+export type { TaskHandle } from '../lib/task-handle';
 
 // ============================================================================
 // Model Catalog
@@ -326,6 +327,7 @@ export type { StreamOptions, StreamResult } from '../modules/chat';
 export type {
     ImageGenerationRequest,
     ImageTaskResponse,
+    ImageTaskHandle,
     ImageCreateResult,
     ImageGenerateResult,
     ImageUsage,
@@ -347,6 +349,7 @@ export type {
     KlingImageListItem,
     VideoReference,
     VideoRemixRequest,
+    VideoTaskHandle,
 } from '../modules/video';
 export type { WebSearchRequest, WebSearchResult } from '../modules/tools';
 export type { OcrRequest, OcrResponse, OcrBlock } from '../modules/ocr';
