@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { normalizeContent, hasImageParts } from '../../../src/lib/content-converter';
+import { normalizeContent, normalizeContentAsync, hasImageParts } from '../../../src/lib/content-converter';
 import type { ContentPart, TextContentPart, ImageUrlContentPart, ImageContentPart } from '../../../src/lib/types';
 
 describe('Content Converter', () => {
@@ -133,6 +133,22 @@ describe('Content Converter', () => {
             expect(result[0].type).toBe('text');
             expect(result[1].type).toBe('image_url');
             expect(result[2].type).toBe('text');
+        });
+    });
+
+    describe('normalizeContentAsync', () => {
+        it('should preserve Blob MIME type when converting image sugar parts', async () => {
+            const result = await normalizeContentAsync([
+                {
+                    type: 'image',
+                    image: new Blob([Uint8Array.from([0x00, 0x01])], { type: 'image/jpeg' }),
+                } as ImageContentPart,
+            ]) as ContentPart[];
+
+            expect(result[0]).toEqual({
+                type: 'image_url',
+                image_url: { url: 'data:image/jpeg;base64,AAE=' },
+            });
         });
     });
 
