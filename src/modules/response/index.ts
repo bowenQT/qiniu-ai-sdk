@@ -4,7 +4,7 @@ import {
     type ImageObject,
     type ThinkingBlock,
 } from '../../lib/types';
-import { normalizeContent } from '../../lib/content-converter';
+import { normalizeContentAsync } from '../../lib/content-converter';
 
 // ============================================================================
 // Type Definitions (Response API - @experimental)
@@ -94,7 +94,7 @@ export class ResponseAPI {
      */
     async create(params: ResponseCreateRequest): Promise<ResponseCreateResponse> {
         const logger = this.client.getLogger();
-        const request = normalizeResponseRequest(params);
+        const request = await normalizeResponseRequest(params);
 
         logger.debug('Response API create (experimental)', {
             model: request.model,
@@ -106,16 +106,16 @@ export class ResponseAPI {
     }
 }
 
-function normalizeResponseRequest(params: ResponseCreateRequest): ResponseCreateRequest {
+async function normalizeResponseRequest(params: ResponseCreateRequest): Promise<ResponseCreateRequest> {
     if (typeof params.input === 'string') {
         return params;
     }
 
     return {
         ...params,
-        input: params.input.map((message) => ({
+        input: await Promise.all(params.input.map(async (message) => ({
             ...message,
-            content: normalizeContent(message.content),
-        })),
+            content: await normalizeContentAsync(message.content),
+        }))),
     };
 }
