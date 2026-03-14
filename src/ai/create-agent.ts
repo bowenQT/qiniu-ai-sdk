@@ -12,6 +12,7 @@ import type { MemoryManager } from './memory';
 import type { Guardrail } from './guardrails';
 import type { MCPHostProvider } from '../lib/mcp-host-types';
 import type { RegisteredTool } from '../lib/tool-registry';
+import type { SessionStore } from './session-store';
 import { ToolRegistry } from '../lib/tool-registry';
 import {
     generateTextWithGraph,
@@ -61,6 +62,8 @@ export interface AgentConfig {
     checkpointer?: Checkpointer;
     /** Memory manager for conversation summarization */
     memory?: MemoryManager;
+    /** Higher-level session persistence (checkpoint + summary) */
+    sessionStore?: SessionStore;
     /** Guardrails for input/output filtering */
     guardrails?: Guardrail[];
     /** MCP Host Provider (Node-only, injected via DI) */
@@ -181,6 +184,7 @@ export function createAgent(config: AgentConfig): Agent {
         approvalConfig,
         checkpointer,
         memory,
+        sessionStore,
         guardrails,
         hostProvider,
     } = config;
@@ -253,6 +257,7 @@ export function createAgent(config: AgentConfig): Agent {
         abortSignal,
         approvalConfig,
         memory,
+        sessionStore,
         guardrails,
         threadId,
         onStepFinish,
@@ -283,6 +288,7 @@ export function createAgent(config: AgentConfig): Agent {
         toolChoice,
         approvalConfig,
         memory,
+        sessionStore,
         guardrails,
         skillReferenceMode: config.skillInjection?.referenceMode,
         agentId,
@@ -326,8 +332,8 @@ export function createAgent(config: AgentConfig): Agent {
         async runWithThread(options: AgentRunWithThreadOptions): Promise<GenerateTextWithGraphResult> {
             const { prompt, threadId, resumeFromCheckpoint = true, onStepFinish, onNodeEnter, onNodeExit } = options;
 
-            if (!checkpointer) {
-                throw new Error('runWithThread requires checkpointer to be configured in createAgent');
+            if (!checkpointer && !sessionStore) {
+                throw new Error('runWithThread requires checkpointer or sessionStore to be configured in createAgent');
             }
 
             if (!threadId) {
@@ -342,6 +348,7 @@ export function createAgent(config: AgentConfig): Agent {
             return generateTextWithGraph({
                 ...buildOptions(prompt, threadId, onStepFinish, onNodeEnter, onNodeExit),
                 checkpointer,
+                sessionStore,
                 resumeFromCheckpoint,
                 agentId,
             });
@@ -370,8 +377,8 @@ export function createAgent(config: AgentConfig): Agent {
         async streamWithThread(options: AgentStreamWithThreadOptions): Promise<StreamTextResult> {
             const { prompt, threadId, resumeFromCheckpoint = true, onStepFinish, onNodeEnter, onNodeExit, abortSignal: streamAbortSignal } = options;
 
-            if (!checkpointer) {
-                throw new Error('streamWithThread requires checkpointer to be configured in createAgent');
+            if (!checkpointer && !sessionStore) {
+                throw new Error('streamWithThread requires checkpointer or sessionStore to be configured in createAgent');
             }
 
             if (!threadId) {
@@ -387,6 +394,7 @@ export function createAgent(config: AgentConfig): Agent {
                 ...buildStreamOptions(prompt, onStepFinish, onNodeEnter, onNodeExit),
                 threadId,
                 checkpointer,
+                sessionStore,
                 resumeFromCheckpoint,
                 abortSignal: streamAbortSignal ?? abortSignal,
             });

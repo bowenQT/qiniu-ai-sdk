@@ -16,6 +16,7 @@ import type { Tool } from './generate-text';
 import type { Skill } from '../modules/skills/types';
 import type { ApprovalConfig } from './tool-approval';
 import type { MemoryManager } from './memory';
+import type { SessionStore } from './session-store';
 
 // ============================================================================
 // Types
@@ -64,6 +65,8 @@ export interface StreamTextOptions {
     threadId?: string;
     /** Checkpointer for state persistence */
     checkpointer?: Checkpointer;
+    /** Higher-level session persistence (checkpoint + summary) */
+    sessionStore?: SessionStore;
     /** Resume from checkpoint if available */
     resumeFromCheckpoint?: boolean;
     /** Step finish callback */
@@ -212,6 +215,7 @@ export function streamText(options: StreamTextOptions): StreamTextResult {
         skillReferenceMode: options.skillReferenceMode,
         threadId: options.threadId,
         checkpointer: options.checkpointer,
+        sessionStore: options.sessionStore,
         resumeFromCheckpoint: options.resumeFromCheckpoint,
         agentId: options.agentId,
         onStepFinish: options.onStepFinish,
