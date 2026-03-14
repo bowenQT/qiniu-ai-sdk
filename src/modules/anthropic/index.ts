@@ -1,4 +1,8 @@
-import { IQiniuClient } from '../../lib/types';
+import {
+    IQiniuClient,
+    type CacheControl,
+    type ContentPartWithCacheControl,
+} from '../../lib/types';
 
 // ============================================================================
 // Type Definitions (Anthropic Protocol)
@@ -9,26 +13,48 @@ export interface AnthropicMessage {
     content: string | AnthropicContentBlock[];
 }
 
-export interface AnthropicContentBlock {
-    type: 'text' | 'image' | 'tool_use' | 'tool_result';
-    text?: string;
-    source?: {
+export interface AnthropicToolUseBlock {
+    type: 'tool_use';
+    id: string;
+    name: string;
+    input: unknown;
+    cache_control?: CacheControl;
+}
+
+export interface AnthropicToolResultBlock {
+    type: 'tool_result';
+    tool_use_id: string;
+    content: string | ContentPartWithCacheControl[];
+    cache_control?: CacheControl;
+}
+
+export interface AnthropicImageBlock {
+    type: 'image';
+    source: {
         type: 'base64';
         media_type: string;
         data: string;
     };
-    id?: string;
-    name?: string;
-    input?: unknown;
-    tool_use_id?: string;
-    content?: string;
+    cache_control?: CacheControl;
+}
+
+export type AnthropicContentBlock =
+    | ContentPartWithCacheControl
+    | AnthropicImageBlock
+    | AnthropicToolUseBlock
+    | AnthropicToolResultBlock;
+
+export interface AnthropicSystemBlock {
+    type: 'text';
+    text: string;
+    cache_control?: CacheControl;
 }
 
 export interface AnthropicRequest {
     model: string;
     messages: AnthropicMessage[];
     max_tokens: number;
-    system?: string;
+    system?: string | AnthropicSystemBlock[];
     temperature?: number;
     top_p?: number;
     top_k?: number;
