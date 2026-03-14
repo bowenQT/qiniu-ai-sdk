@@ -4,6 +4,7 @@ import {
     type ImageObject,
     type ThinkingBlock,
 } from '../../lib/types';
+import { normalizeContent } from '../../lib/content-converter';
 
 // ============================================================================
 // Type Definitions (Response API - @experimental)
@@ -93,13 +94,28 @@ export class ResponseAPI {
      */
     async create(params: ResponseCreateRequest): Promise<ResponseCreateResponse> {
         const logger = this.client.getLogger();
+        const request = normalizeResponseRequest(params);
 
         logger.debug('Response API create (experimental)', {
-            model: params.model,
+            model: request.model,
             endpoint: '/llm/v1/responses',
-            hasReasoning: !!params.reasoning,
+            hasReasoning: !!request.reasoning,
         });
 
-        return this.client.post<ResponseCreateResponse>('/llm/v1/responses', params);
+        return this.client.post<ResponseCreateResponse>('/llm/v1/responses', request);
     }
+}
+
+function normalizeResponseRequest(params: ResponseCreateRequest): ResponseCreateRequest {
+    if (typeof params.input === 'string') {
+        return params;
+    }
+
+    return {
+        ...params,
+        input: params.input.map((message) => ({
+            ...message,
+            content: normalizeContent(message.content),
+        })),
+    };
 }

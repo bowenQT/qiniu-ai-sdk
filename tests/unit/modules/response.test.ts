@@ -98,4 +98,38 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         });
         expect(body.input[1].content[2].input_audio.format).toBe('mp3');
     });
+
+    it('should normalize image sugar content in response inputs', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: { id: 'resp-2', status: 'completed' },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await client.response.create({
+            model: 'openai/gpt-5',
+            input: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'image',
+                            image: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]),
+                            cache_control: { type: 'ephemeral' },
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const body = JSON.parse(String(mockFetch.calls[0].init?.body));
+        expect(body.input[0].content[0]).toEqual({
+            type: 'image_url',
+            image_url: { url: 'data:image/png;base64,iVBORw==' },
+            cache_control: { type: 'ephemeral' },
+        });
+    });
 });
