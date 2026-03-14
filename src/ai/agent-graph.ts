@@ -18,7 +18,7 @@ import { executeTools, toolResultsToMessages, type ToolExecutionResult } from '.
 import { compactMessages, ContextOverflowError } from './nodes/memory-node';
 import type { CompactionConfig, CompactionResult } from './nodes/types';
 import { estimateMessageTokens, type TokenEstimatorConfig } from '../lib/token-estimator';
-import { normalizeContent } from '../lib/content-converter';
+import { normalizeContentAsync } from '../lib/content-converter';
 import type { MemoryManager } from './memory';
 import type {
     AgentState,
@@ -701,10 +701,10 @@ export class AgentGraph {
             const compactedState = this.compactIfNeeded(state);
 
             // Normalize multimodal content (image -> image_url) and strip metadata
-            const apiMessages = stripMeta(compactedState.messages).map(msg => ({
+            const apiMessages = await Promise.all(stripMeta(compactedState.messages).map(async (msg) => ({
                 ...msg,
-                content: normalizeContent(msg.content),
-            }));
+                content: await normalizeContentAsync(msg.content),
+            })));
 
             // Execute prediction with onChunk forwarding
             const result = await predict({

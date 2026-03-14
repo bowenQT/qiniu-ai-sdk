@@ -5,6 +5,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import { StructuredOutputError } from '../../../src/lib/errors';
+import { generateObject } from '../../../src/ai/generate-object';
+import { QiniuAI } from '../../../src/client';
+import { createStaticMockFetch } from '../../mocks/fetch';
 
 // Mock a minimal parseZodSchemaToJsonSchema equivalent for testing
 // (The actual function is internal to generate-object.ts)
@@ -101,5 +104,44 @@ describe('StructuredOutputError', () => {
         const error = new StructuredOutputError('Test', '', []);
         expect(error instanceof Error).toBe(true);
         expect(error instanceof StructuredOutputError).toBe(true);
+    });
+});
+
+describe('generateObject runtime', () => {
+    it('should normalize Blob image inputs before structured output requests', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                choices: [{ message: { content: '{"name":"ok"}' }, finish_reason: 'stop' }],
+                usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await generateObject({
+            client,
+            model: 'test-model',
+            schema: z.object({ name: z.string() }),
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'image',
+                            image: new Blob([Uint8Array.from([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }),
+                        } as any,
+                    ],
+                },
+            ],
+        });
+
+        const body = JSON.parse(String(mockFetch.calls[0].init?.body));
+        expect(body.messages[0].content[0]).toEqual({
+            type: 'image_url',
+            image_url: { url: 'data:image/png;base64,iVBORw==' },
+        });
     });
 });
