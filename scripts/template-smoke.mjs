@@ -8,13 +8,31 @@ import {
   symlinkSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, parse, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const templates = ['chat', 'agent', 'node-agent'];
-const nodeModulesRoot = join(repoRoot, 'node_modules');
+const nodeModulesRoot = findNodeModulesRoot(repoRoot);
 const tscBin = join(nodeModulesRoot, '.bin', 'tsc');
+
+function findNodeModulesRoot(startDir) {
+  const { root } = parse(startDir);
+  let currentDir = startDir;
+
+  while (true) {
+    const candidate = join(currentDir, 'node_modules');
+    if (existsSync(join(candidate, '.bin', 'tsc'))) {
+      return candidate;
+    }
+    if (currentDir === root) {
+      break;
+    }
+    currentDir = dirname(currentDir);
+  }
+
+  throw new Error(`unable to locate node_modules/.bin/tsc from ${startDir}`);
+}
 
 function ensureSymlink(source, target) {
   if (existsSync(target)) return;
