@@ -29,6 +29,7 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 
 describe('MCPHttpTransport', () => {
     beforeEach(() => {
+        vi.useRealTimers();
         vi.clearAllMocks();
         transportCtorCalls.length = 0;
         clientCtorCalls.length = 0;
@@ -197,5 +198,45 @@ describe('MCPHttpTransport', () => {
                 method: 'GET',
             }),
         );
+    });
+
+    it('applies configured timeout to event streams, terminate, and OAuth discovery', async () => {
+        vi.useFakeTimers();
+        const { MCPHttpTransport, MCPHttpTransportError } = await import('../../src/node/mcp/http-transport');
+
+        fetchMock.mockImplementation((_input: string, init?: RequestInit) => new Promise((_, reject) => {
+            const signal = init?.signal;
+            signal?.addEventListener('abort', () => {
+                reject(new DOMException('Aborted', 'AbortError'));
+            }, { once: true });
+        }));
+
+        const transport = new MCPHttpTransport({
+            name: 'server-timeout',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+            timeout: 25,
+        });
+
+        const streamPromise = expect(transport.openEventStream()).rejects.toMatchObject({
+            message: 'Open event stream timeout after 25ms',
+            serverName: 'server-timeout',
+        });
+        await vi.advanceTimersByTimeAsync(25);
+        await streamPromise;
+
+        const terminatePromise = expect(transport.terminateSession()).rejects.toMatchObject({
+            message: 'Terminate session timeout after 25ms',
+            serverName: 'server-timeout',
+        });
+        await vi.advanceTimersByTimeAsync(25);
+        await terminatePromise;
+
+        const discoveryPromise = expect(transport.discoverOAuthMetadata()).rejects.toMatchObject({
+            message: 'OAuth metadata discovery timeout after 25ms',
+            serverName: 'server-timeout',
+        });
+        await vi.advanceTimersByTimeAsync(25);
+        await discoveryPromise;
     });
 });
