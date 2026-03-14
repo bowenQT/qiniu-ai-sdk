@@ -3,6 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { QiniuAI } from '../../../src/client';
+import { extractResponseOutputText } from '../../../src/modules/response';
 import { createStaticMockFetch } from '../../mocks/fetch';
 
 describe('Phase 3: Response API Module (@experimental)', () => {
@@ -46,6 +47,7 @@ describe('Phase 3: Response API Module (@experimental)', () => {
 
         expect(result.id).toBe('resp-abc123');
         expect(result.status).toBe('completed');
+        expect(result.output_text).toBe('Hello!');
         expect(result.reasoning?.encrypted_content).toBe('enc_abc_123');
     });
 
@@ -163,5 +165,36 @@ describe('Phase 3: Response API Module (@experimental)', () => {
             type: 'image_url',
             image_url: { url: 'data:image/png;base64,iVBORw==' },
         });
+    });
+
+    it('should extract concatenated text from response outputs', () => {
+        expect(extractResponseOutputText({
+            output: [
+                {
+                    type: 'message',
+                    content: [
+                        { type: 'output_text', text: 'Hello' },
+                        { type: 'output_text', text: ', world' },
+                    ],
+                },
+                {
+                    type: 'message',
+                    content: [
+                        { type: 'output_text', text: '!' },
+                    ],
+                },
+            ],
+        } as any)).toBe('Hello, world!');
+
+        expect(extractResponseOutputText({
+            output: [
+                {
+                    type: 'message',
+                    content: [
+                        { type: 'image', image_url: { url: 'https://example.com/image.png' } },
+                    ],
+                },
+            ],
+        } as any)).toBeUndefined();
     });
 });
