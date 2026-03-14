@@ -132,4 +132,36 @@ describe('Phase 3: Response API Module (@experimental)', () => {
             cache_control: { type: 'ephemeral' },
         });
     });
+
+    it('should normalize Blob image sugar content in response inputs', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: { id: 'resp-3', status: 'completed' },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await client.response.create({
+            model: 'openai/gpt-5',
+            input: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'image',
+                            image: new Blob([Uint8Array.from([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }),
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const body = JSON.parse(String(mockFetch.calls[0].init?.body));
+        expect(body.input[0].content[0]).toEqual({
+            type: 'image_url',
+            image_url: { url: 'data:image/png;base64,iVBORw==' },
+        });
+    });
 });

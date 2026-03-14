@@ -38,6 +38,20 @@ export function normalizeContent(
 }
 
 /**
+ * Async variant of normalizeContent.
+ * Supports Blob inputs in addition to the synchronous sources.
+ */
+export async function normalizeContentAsync(
+    content: string | ContentPartWithCacheControl[],
+): Promise<string | ContentPartWithCacheControl[]> {
+    if (typeof content === 'string') {
+        return content;
+    }
+
+    return Promise.all(content.map((part) => normalizeContentPartAsync(part)));
+}
+
+/**
  * Normalize a single content part.
  */
 function normalizeContentPart(part: ContentPartWithCacheControl): ContentPartWithCacheControl {
@@ -64,6 +78,30 @@ function normalizeContentPart(part: ContentPartWithCacheControl): ContentPartWit
     }
 
     // Unknown type, return as-is
+    return part;
+}
+
+async function normalizeContentPartAsync(part: ContentPartWithCacheControl): Promise<ContentPartWithCacheControl> {
+    if (part.type === 'text' || part.type === 'image_url') {
+        return part;
+    }
+
+    if (part.type === 'image') {
+        const normalized: ContentPartWithCacheControl = {
+            type: 'image_url',
+            image_url: {
+                url: await imageSourceToDataUrlAsync(part.image),
+                detail: part.detail,
+            },
+        };
+
+        if ('cache_control' in part && part.cache_control) {
+            normalized.cache_control = part.cache_control;
+        }
+
+        return normalized;
+    }
+
     return part;
 }
 
@@ -94,6 +132,33 @@ function imageSourceToDataUrl(source: ImageSource): string {
     }
 
     // ArrayBuffer or Uint8Array
+    if (source instanceof ArrayBuffer) {
+        return arrayBufferToDataUrl(new Uint8Array(source));
+    }
+
+    if (source instanceof Uint8Array) {
+        return arrayBufferToDataUrl(source);
+    }
+
+    throw new Error(`Unsupported image source type: ${typeof source}`);
+}
+
+async function imageSourceToDataUrlAsync(source: ImageSource): Promise<string> {
+    if (typeof source === 'string') {
+        if (source.startsWith('data:') || source.startsWith('http://') || source.startsWith('https://')) {
+            return source;
+        }
+        return `data:image/png;base64,${source}`;
+    }
+
+    if (source instanceof URL) {
+        return source.toString();
+    }
+
+    if (typeof Blob !== 'undefined' && source instanceof Blob) {
+        return arrayBufferToDataUrl(new Uint8Array(await source.arrayBuffer()));
+    }
+
     if (source instanceof ArrayBuffer) {
         return arrayBufferToDataUrl(new Uint8Array(source));
     }
