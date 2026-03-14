@@ -34,5 +34,54 @@ coverage/
 local-tests/
 local-reports/
 
-# Agent configuration (local only)
-.agent/
+# Agent runtime assets - selective tracking.
+# Default policy: new .agent/skills/* stay ignored until explicitly whitelisted.
+.agent/*
+!.agent/agent.md
+!.agent/workflows/
+!.agent/workflows/**
+!.agent/skills/
+.agent/skills/*
+!.agent/skills/README.md
+!.agent/skills/brainstorming/
+!.agent/skills/brainstorming/**
+!.agent/skills/connectrpc-protocol-debugging/
+!.agent/skills/connectrpc-protocol-debugging/**
+!.agent/skills/dispatching-parallel-agents/
+!.agent/skills/dispatching-parallel-agents/**
+!.agent/skills/executing-plans/
+!.agent/skills/executing-plans/**
+!.agent/skills/finishing-a-development-branch/
+!.agent/skills/finishing-a-development-branch/**
+!.agent/skills/frontend-design/
+!.agent/skills/frontend-design/**
+!.agent/skills/gap-analysis/
+!.agent/skills/gap-analysis/**
+!.agent/skills/requesting-code-review/
+!.agent/skills/requesting-code-review/**
+!.agent/skills/rfc-design-review/
+!.agent/skills/rfc-design-review/**
+!.agent/skills/subagent-driven-development/
+!.agent/skills/subagent-driven-development/**
+!.agent/skills/systematic-debugging/
+!.agent/skills/systematic-debugging/**
+!.agent/skills/test-driven-development/
+!.agent/skills/test-driven-development/**
+!.agent/skills/using-git-worktrees/
+!.agent/skills/using-git-worktrees/**
+!.agent/skills/verification-before-completion/
+!.agent/skills/verification-before-completion/**
+!.agent/skills/writing-plans/
+!.agent/skills/writing-plans/**
+
+# Agent local state
+.agent/local/
+.agent/cache/
+.agent/tmp/
+
+# Claude Code - track CLAUDE.md, ignore local state
+.claude/*
+!.claude/CLAUDE.md
+
+# Trellis local state
+.trellis/local/

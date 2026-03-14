@@ -1,0 +1,17 @@
+# Verification Matrix
+
+Use this matrix before claiming completion.
+
+| Change Area | Minimum Verification |
+| --- | --- |
+| `.agent/**`, `.trellis/**`, `AGENTS.md`, `.claude/CLAUDE.md` | `git check-ignore -v` on tracked and ignored paths, `rg 'docs/plans/' .agent`, and manual link/path review |
+| `package.json`, exports, `tsconfig*.json`, entrypoints | `npm run build` and `npm test` |
+| `src/lib/**`, `src/core/**`, `src/adapter/**` | `npm test` and `npm run build` |
+| `src/node/**`, MCP host/server, sandbox runtime | `npm test`, `npm run build`, and inspect relevant `tests/node/**` coverage |
+| `src/modules/skills/**` | `npm test`, `npm run build`, and inspect relevant `tests/modules/skills` or `tests/unit/modules/**` coverage |
+| README / COOKBOOK / CHANGELOG / governance docs | documentation consistency review plus any build/test needed by adjacent code changes |
+
+## Governance Checks
+- Remove stale `docs/plans/` references from tracked runtime assets.
+- Ensure new durable plans live under `.trellis/plans/`.
+- Ensure `.agent/agent.md` remains an index rather than a long-form knowledge base.
