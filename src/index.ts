@@ -110,11 +110,13 @@ export {
     GuardrailBlockedError,
     inputFilter,
     outputFilter,
+    toolFilter,
     tokenLimiter,
     ACTION_PRIORITY,
 } from './ai/guardrails';
 export type {
     Guardrail,
+    CanonicalGuardrailPhase,
     GuardrailPhase,
     GuardrailAction,
     GuardrailContext,

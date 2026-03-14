@@ -50,7 +50,7 @@ export function outputFilter(config: ContentFilterConfig): Guardrail {
 
     return {
         name: 'outputFilter',
-        phase: 'post-response',
+        phase: 'output',
 
         async process(context: GuardrailContext): Promise<GuardrailResult> {
             const content = context.content;

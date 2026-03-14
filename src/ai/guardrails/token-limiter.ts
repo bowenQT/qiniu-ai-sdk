@@ -65,7 +65,7 @@ export function tokenLimiter(config: TokenLimiterConfig): Guardrail {
 
     return {
         name: 'tokenLimiter',
-        phase: ['pre-request', 'post-response'],
+        phase: ['input', 'output'],
 
         async process(context: GuardrailContext): Promise<GuardrailResult> {
             const key = `tokens:${context.agentId}`;

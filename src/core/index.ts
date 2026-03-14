@@ -68,6 +68,9 @@ export {
     outputFilter,
 } from '../ai/guardrails/output-filter';
 export {
+    toolFilter,
+} from '../ai/guardrails/tool-filter';
+export {
     tokenLimiter,
 } from '../ai/guardrails/token-limiter';
 export {
@@ -75,6 +78,7 @@ export {
 } from '../ai/guardrails/types';
 export type {
     Guardrail,
+    CanonicalGuardrailPhase,
     GuardrailPhase,
     GuardrailAction,
     GuardrailContext,

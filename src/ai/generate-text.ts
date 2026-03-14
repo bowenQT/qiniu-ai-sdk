@@ -793,6 +793,8 @@ export async function generateTextWithGraph(
         approvalConfig: options.approvalConfig,
         memory,
         threadId,
+        guardrails,
+        agentId: resolvedAgentId,
         skillReferenceMode: options.skillReferenceMode,
         onTokenEvent,
     });

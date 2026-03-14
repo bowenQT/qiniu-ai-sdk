@@ -11,6 +11,7 @@ import {
     GuardrailBlockedError,
     inputFilter,
     outputFilter,
+    toolFilter,
     tokenLimiter,
     ACTION_PRIORITY,
 } from '../../../src/ai/guardrails';
@@ -107,7 +108,7 @@ describe('GuardrailChain', () => {
         const chain = new GuardrailChain([
             {
                 name: 'pre',
-                phase: 'pre-request',
+                phase: 'input',
                 async process() {
                     return { action: 'warn' };
                 }
@@ -125,6 +126,36 @@ describe('GuardrailChain', () => {
 
         expect(result.action).toBe('warn');
         expect(result.results).toHaveLength(1);
+    });
+
+    it('should match legacy and canonical phases interchangeably', async () => {
+        const chain = new GuardrailChain([
+            {
+                name: 'canonical-input',
+                phase: 'input',
+                async process(context) {
+                    expect(context.phase).toBe('pre-request');
+                    expect(context.canonicalPhase).toBe('input');
+                    return { action: 'warn' };
+                }
+            },
+            {
+                name: 'canonical-output',
+                phase: 'output',
+                async process(context) {
+                    expect(context.phase).toBe('post-response');
+                    expect(context.canonicalPhase).toBe('output');
+                    return { action: 'redact', modifiedContent: '[SAFE]' };
+                }
+            },
+        ]);
+
+        const inputResult = await chain.execute('pre-request', { content: 'test', agentId: 'agent1' });
+        const outputResult = await chain.execute('post-response', { content: 'response', agentId: 'agent1' });
+
+        expect(inputResult.action).toBe('warn');
+        expect(outputResult.action).toBe('redact');
+        expect(outputResult.content).toBe('[SAFE]');
     });
 });
 
@@ -220,6 +251,22 @@ describe('outputFilter', () => {
         });
 
         expect(result.action).toBe('block');
+    });
+});
+
+describe('toolFilter', () => {
+    it('should block sensitive tool payloads', async () => {
+        const filter = toolFilter({ block: ['pii'] });
+        const result = await filter.process({
+            phase: 'tool',
+            canonicalPhase: 'tool',
+            content: '{"email":"test@example.com"}',
+            agentId: 'agent1',
+            metadata: { toolStage: 'request', toolName: 'send_email' },
+        });
+
+        expect(result.action).toBe('block');
+        expect(result.reason).toContain('pii:email');
     });
 });
 

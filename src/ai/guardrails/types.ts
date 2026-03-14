@@ -7,9 +7,47 @@
 // ============================================================================
 
 /**
+ * Canonical guardrail phases used by the product surface.
+ */
+export type CanonicalGuardrailPhase = 'input' | 'output' | 'tool';
+
+/**
+ * Legacy phase aliases kept for backwards compatibility.
+ */
+export type LegacyGuardrailPhase = 'pre-request' | 'post-response';
+
+/**
  * Guardrail execution phase.
  */
-export type GuardrailPhase = 'pre-request' | 'post-response';
+export type GuardrailPhase = CanonicalGuardrailPhase | LegacyGuardrailPhase;
+
+/**
+ * Canonical phase alias map.
+ */
+export const GUARDRAIL_PHASE_ALIASES: Record<GuardrailPhase, CanonicalGuardrailPhase> = {
+    input: 'input',
+    output: 'output',
+    tool: 'tool',
+    'pre-request': 'input',
+    'post-response': 'output',
+};
+
+/**
+ * Normalize a legacy or canonical phase into the current canonical phase.
+ */
+export function toCanonicalGuardrailPhase(phase: GuardrailPhase): CanonicalGuardrailPhase {
+    return GUARDRAIL_PHASE_ALIASES[phase];
+}
+
+/**
+ * Check whether a declared phase matches an execution phase.
+ */
+export function guardrailPhaseMatches(
+    declared: GuardrailPhase,
+    current: GuardrailPhase,
+): boolean {
+    return toCanonicalGuardrailPhase(declared) === toCanonicalGuardrailPhase(current);
+}
 
 /**
  * Guardrail action result.
@@ -23,6 +61,8 @@ export type GuardrailAction = 'pass' | 'warn' | 'redact' | 'block';
 export interface GuardrailContext {
     /** Current execution phase */
     phase: GuardrailPhase;
+    /** Canonical phase for new integrations */
+    canonicalPhase?: CanonicalGuardrailPhase;
     /** Content to process (input or output text) */
     content: string;
     /** Agent ID */
