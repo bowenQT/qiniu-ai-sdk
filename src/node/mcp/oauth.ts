@@ -30,6 +30,33 @@ export class OAuthError extends Error {
     }
 }
 
+export interface ProtectedResourceMetadata {
+    resource?: string;
+    authorization_servers?: string[];
+    bearer_methods_supported?: string[];
+    scopes_supported?: string[];
+    [key: string]: unknown;
+}
+
+export interface AuthorizationServerMetadata {
+    issuer?: string;
+    authorization_endpoint?: string;
+    token_endpoint?: string;
+    device_authorization_endpoint?: string;
+    registration_endpoint?: string;
+    scopes_supported?: string[];
+    [key: string]: unknown;
+}
+
+type OAuthDiscoveryHeaders = Record<string, string>;
+
+interface OAuthDiscoveryOptions {
+    headers?: OAuthDiscoveryHeaders;
+    protocolVersion?: string;
+    challengeHeader?: string;
+    fetchImpl?: typeof fetch;
+}
+
 /**
  * Generate PKCE code verifier (43-128 chars).
  */
@@ -50,6 +77,110 @@ export function generateCodeChallenge(verifier: string): string {
  */
 export function generateState(): string {
     return crypto.randomBytes(16).toString('hex');
+}
+
+function resolveFetch(fetchImpl?: typeof fetch): typeof fetch {
+    return fetchImpl ?? fetch;
+}
+
+function normalizeUrlBase(raw: string): URL {
+    const url = new URL(raw);
+    url.pathname = '/';
+    url.search = '';
+    url.hash = '';
+    return url;
+}
+
+function buildProtectedResourceMetadataUrl(resourceUrl: string, challengeHeader?: string): string {
+    const challengeMatch = challengeHeader?.match(/resource_metadata="([^"]+)"/i);
+    if (challengeMatch?.[1]) {
+        return challengeMatch[1];
+    }
+
+    const base = normalizeUrlBase(resourceUrl);
+    return new URL('/.well-known/oauth-protected-resource', base).toString();
+}
+
+function buildAuthorizationServerMetadataUrl(authorizationServerUrl: string): string {
+    const base = normalizeUrlBase(authorizationServerUrl);
+    return new URL('/.well-known/oauth-authorization-server', base).toString();
+}
+
+function buildDiscoveryHeaders(options: OAuthDiscoveryOptions): OAuthDiscoveryHeaders {
+    const headers: Record<string, string> = {
+        Accept: 'application/json',
+        ...(options.headers ?? {}),
+    };
+    if (options.protocolVersion) {
+        headers['MCP-Protocol-Version'] = options.protocolVersion;
+    }
+    return headers;
+}
+
+export async function discoverProtectedResourceMetadata(
+    resourceUrl: string,
+    options: OAuthDiscoveryOptions = {},
+): Promise<ProtectedResourceMetadata> {
+    const response = await resolveFetch(options.fetchImpl)(
+        buildProtectedResourceMetadataUrl(resourceUrl, options.challengeHeader),
+        {
+            method: 'GET',
+            headers: buildDiscoveryHeaders(options),
+        },
+    );
+
+    if (!response.ok) {
+        throw new OAuthError(`Protected resource metadata discovery failed: ${response.status}`);
+    }
+
+    return await response.json() as ProtectedResourceMetadata;
+}
+
+export async function discoverAuthorizationServerMetadata(
+    authorizationServerUrl: string,
+    options: OAuthDiscoveryOptions = {},
+): Promise<AuthorizationServerMetadata> {
+    const response = await resolveFetch(options.fetchImpl)(
+        buildAuthorizationServerMetadataUrl(authorizationServerUrl),
+        {
+            method: 'GET',
+            headers: buildDiscoveryHeaders(options),
+        },
+    );
+
+    if (!response.ok) {
+        throw new OAuthError(`Authorization server metadata discovery failed: ${response.status}`);
+    }
+
+    return await response.json() as AuthorizationServerMetadata;
+}
+
+export async function discoverMcpOAuthMetadata(
+    resourceUrl: string,
+    options: OAuthDiscoveryOptions = {},
+): Promise<{
+    protectedResource: ProtectedResourceMetadata;
+    authorizationServer: AuthorizationServerMetadata | null;
+}> {
+    const protectedResource = await discoverProtectedResourceMetadata(resourceUrl, options);
+    const authorizationServerUrl = protectedResource.authorization_servers?.[0];
+
+    if (!authorizationServerUrl) {
+        return {
+            protectedResource,
+            authorizationServer: null,
+        };
+    }
+
+    const authorizationServer = await discoverAuthorizationServerMetadata(
+        authorizationServerUrl,
+        options,
+    );
+
+    return {
+        protectedResource,
+        authorizationServer,
+    };
 }
 
 /**

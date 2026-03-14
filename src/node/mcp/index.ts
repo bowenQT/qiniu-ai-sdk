@@ -13,8 +13,13 @@ export {
     generateCodeVerifier,
     generateCodeChallenge,
     generateState,
+    discoverProtectedResourceMetadata,
+    discoverAuthorizationServerMetadata,
+    discoverMcpOAuthMetadata,
     refreshAccessToken,
     type OAuthTokens,
+    type ProtectedResourceMetadata,
+    type AuthorizationServerMetadata,
 } from './oauth';
 
 // Token Store (Phase 3)
