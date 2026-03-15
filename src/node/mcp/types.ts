@@ -94,6 +94,21 @@ export interface MCPToolResult {
     isError?: boolean;
 }
 
+export interface MCPResourceDefinition {
+    uri: string;
+    name: string;
+    mimeType?: string;
+}
+
+export interface MCPPromptDefinition {
+    name: string;
+    description?: string;
+    arguments?: Array<{
+        name: string;
+        required?: boolean;
+    }>;
+}
+
 /** Default configuration */
 export const DEFAULT_MCP_CONFIG = {
     connectionTimeout: 30000, // 30s
