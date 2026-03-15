@@ -81,7 +81,7 @@ export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
     { name: 'account', maturity: 'beta', docsUrl: DOCS_ROOT_URL, sourceUpdatedAt: DOCS_SYNC_DATE, validationLevel: 'unit' },
     { name: 'admin', maturity: 'beta', docsUrl: DOCS_ROOT_URL, sourceUpdatedAt: DOCS_SYNC_DATE, validatedAt: VALIDATION_SYNC_DATE, validationLevel: 'unit' },
     { name: 'batch', maturity: 'beta', docsUrl: DOCS_ROOT_URL, sourceUpdatedAt: DOCS_SYNC_DATE, validatedAt: VALIDATION_SYNC_DATE, validationLevel: 'unit', notes: 'Core task lifecycle and handle behavior are covered; live verification remains env-gated.' },
-    { name: 'censor', maturity: 'beta', docsUrl: DOCS_ROOT_URL, sourceUpdatedAt: DOCS_SYNC_DATE, validationLevel: 'static', notes: 'Direct module validation is still being expanded.' },
+    { name: 'censor', maturity: 'beta', docsUrl: DOCS_ROOT_URL, sourceUpdatedAt: DOCS_SYNC_DATE, validatedAt: VALIDATION_SYNC_DATE, validationLevel: 'unit' },
     { name: 'adapter', maturity: 'beta', docsUrl: 'https://ai-sdk.dev/docs', sourceUpdatedAt: DOCS_SYNC_DATE, validationLevel: 'unit' },
     { name: 'memory', maturity: 'beta', docsUrl: 'https://docs.langchain.com/oss/javascript/langgraph/persistence', sourceUpdatedAt: DOCS_SYNC_DATE, validationLevel: 'unit' },
     { name: 'guardrails', maturity: 'beta', docsUrl: 'https://openai.github.io/openai-agents-js/guides/guardrails/', sourceUpdatedAt: DOCS_SYNC_DATE, validationLevel: 'unit' },

@@ -46,7 +46,7 @@ This document is generated from the SDK capability registry and is intended to m
 | admin | beta | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
 | auditLogger | beta | unit |  |  | https://apidocs.qnaigc.com/ |
 | batch | beta | unit | 2026-03-15 | Core task lifecycle and handle behavior are covered; live verification remains env-gated. | https://apidocs.qnaigc.com/ |
-| censor | beta | static |  | Direct module validation is still being expanded. | https://apidocs.qnaigc.com/ |
+| censor | beta | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
 | guardrails | beta | unit |  |  | https://openai.github.io/openai-agents-js/guides/guardrails/ |
 | KodoCheckpointer | beta | unit |  |  | https://apidocs.qnaigc.com/ |
 | memory | beta | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
