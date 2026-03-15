@@ -211,7 +211,12 @@ export type {
     VectorDocument,
     InMemoryVectorStoreConfig,
 } from '../ai/memory';
-export { MemorySessionStore, CheckpointerSessionStore } from '../ai/session-store';
+export {
+    MemorySessionStore,
+    CheckpointerSessionStore,
+    extractSessionMessages,
+    replaySession,
+} from '../ai/session-store';
 export type { SessionStore, SessionRecord, SessionSaveInput } from '../ai/session-store';
 
 // Checkpointer and graph runtime
