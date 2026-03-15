@@ -168,6 +168,38 @@ describe('CLI init and doctor', () => {
         );
     });
 
+    it('doctor reports maturity metadata for sdk client property usage', async () => {
+        const { runCLI } = await import('../../src/cli/skill-cli');
+        const projectDir = path.join(tmpRoot, 'client-property-usage-app');
+        fs.mkdirSync(path.join(projectDir, 'src'), { recursive: true });
+        fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'client-property-usage-app' }), 'utf8');
+        fs.writeFileSync(
+            path.join(projectDir, 'src', 'index.ts'),
+            [
+                "import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';",
+                "const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || 'sk-test' });",
+                'console.log(client.batch, client.admin, client.response);',
+            ].join('\n'),
+            'utf8',
+        );
+
+        await runCLI(
+            ['doctor', '--template', 'chat', '--dir', projectDir],
+            { cwd: tmpRoot, env: { QINIU_API_KEY: 'sk-test' }, nodeVersion: 'v20.0.0' },
+        );
+
+        expect(process.exitCode).toBe(2);
+        expect(consoleLogSpy).toHaveBeenCalledWith(
+            expect.stringContaining('batch imports detected (beta, unit, validated 2026-03-15'),
+        );
+        expect(consoleLogSpy).toHaveBeenCalledWith(
+            expect.stringContaining('admin imports detected (beta, unit, validated 2026-03-15'),
+        );
+        expect(consoleLogSpy).toHaveBeenCalledWith(
+            expect.stringContaining('ResponseAPI imports detected (experimental, unit, validated 2026-03-15'),
+        );
+    });
+
     it('doctor succeeds for a clean node-agent project', async () => {
         const { runCLI } = await import('../../src/cli/skill-cli');
         const projectDir = path.join(tmpRoot, 'clean-node-agent');

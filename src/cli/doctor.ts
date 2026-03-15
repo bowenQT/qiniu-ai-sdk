@@ -49,6 +49,21 @@ const SYMBOL_TO_MODULE = new Map<string, string>([
     ['createA2AResponse', 'A2A'],
     ['QiniuMCPServer', 'QiniuMCPServer'],
 ]);
+const CLIENT_PROPERTY_TO_MODULE = new Map<string, string>([
+    ['chat', 'chat'],
+    ['image', 'image'],
+    ['video', 'video'],
+    ['ocr', 'ocr'],
+    ['asr', 'asr'],
+    ['tts', 'tts'],
+    ['account', 'account'],
+    ['admin', 'admin'],
+    ['censor', 'censor'],
+    ['file', 'file'],
+    ['response', 'ResponseAPI'],
+    ['batch', 'batch'],
+    ['log', 'log'],
+]);
 
 export type WorktreeLane =
     | 'foundation'
@@ -256,6 +271,47 @@ function extractSdkImports(source: string): Array<{ entrypoint: string; symbol: 
     return imported;
 }
 
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractSdkClientVariables(source: string, sdkImports: Array<{ entrypoint: string; symbol: string }>): string[] {
+    const symbols = new Set(sdkImports.map((entry) => entry.symbol));
+    const variables = new Set<string>();
+
+    if (symbols.has('QiniuAI')) {
+        for (const match of source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*new\s+QiniuAI\s*\(/g)) {
+            variables.add(match[1]);
+        }
+    }
+
+    if (symbols.has('createNodeQiniuAI')) {
+        for (const match of source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*createNodeQiniuAI\s*\(/g)) {
+            variables.add(match[1]);
+        }
+    }
+
+    return Array.from(variables);
+}
+
+function extractClientPropertyUsage(source: string, clientVariables: string[]): Array<{ symbol: string; moduleName: string }> {
+    const usage: Array<{ symbol: string; moduleName: string }> = [];
+
+    for (const variableName of clientVariables) {
+        const escaped = escapeRegExp(variableName);
+        for (const [propertyName, moduleName] of CLIENT_PROPERTY_TO_MODULE) {
+            const pattern = new RegExp(`\\b${escaped}\\s*\\.\\s*${propertyName}\\b`);
+            if (!pattern.test(source)) continue;
+            usage.push({
+                symbol: `${variableName}.${propertyName}`,
+                moduleName,
+            });
+        }
+    }
+
+    return usage;
+}
+
 function formatModuleMaturity(entry: ModuleMaturityInfo): string {
     const validatedAt = entry.validatedAt ? `, validated ${entry.validatedAt}` : '';
     const notes = entry.notes ? `, ${entry.notes}` : '';
@@ -338,6 +394,8 @@ export function doctorProject(options: DoctorCommandOptions): DoctorCommandResul
     for (const entry of sources) {
         const rootImports = extractRootImports(entry.source);
         const sdkImports = extractSdkImports(entry.source);
+        const sdkClientVariables = extractSdkClientVariables(entry.source, sdkImports);
+        const clientPropertyUsage = extractClientPropertyUsage(entry.source, sdkClientVariables);
         if (rootImports.length > 0) {
             rootImportFiles.push(`${entry.relativePath}: ${rootImports.join(', ')}`);
         }
@@ -348,6 +406,12 @@ export function doctorProject(options: DoctorCommandOptions): DoctorCommandResul
             usage.files.add(entry.relativePath);
             usage.symbols.add(sdkImport.symbol);
             moduleUsage.set(moduleName, usage);
+        }
+        for (const propertyUsage of clientPropertyUsage) {
+            const usage = moduleUsage.get(propertyUsage.moduleName) ?? { files: new Set<string>(), symbols: new Set<string>() };
+            usage.files.add(entry.relativePath);
+            usage.symbols.add(propertyUsage.symbol);
+            moduleUsage.set(propertyUsage.moduleName, usage);
         }
         if (NODE_IMPORT_RE.test(entry.source)) {
             nodeImportFiles.push(entry.relativePath);
