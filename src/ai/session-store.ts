@@ -22,6 +22,7 @@ export interface SessionSaveInput {
     threadId: string;
     state?: AgentState | SerializedAgentState;
     checkpoint?: Checkpoint;
+    messages?: ChatMessage[];
     checkpointMetadata?: Partial<CheckpointMetadata>;
     summary?: string;
 }
@@ -68,7 +69,14 @@ export function extractSessionMessages(
 ): ChatMessage[] {
     let checkpoint: Checkpoint | null | undefined = null;
     if (source) {
-        checkpoint = isSessionRecord(source) ? source.checkpoint : source;
+        if (isSessionRecord(source)) {
+            if (source.messages) {
+                return [...source.messages];
+            }
+            checkpoint = source.checkpoint;
+        } else {
+            checkpoint = source;
+        }
     }
     const messages = (checkpoint?.state.internalMessages ?? checkpoint?.state.messages ?? []) as ChatMessage[];
     return [...messages];
@@ -108,10 +116,12 @@ export class MemorySessionStore implements SessionStore {
     async save(input: SessionSaveInput): Promise<SessionRecord> {
         const previous = this.sessions.get(input.threadId);
         const checkpoint = buildCheckpoint(input.threadId, input) ?? previous?.checkpoint;
+        const messages = input.messages
+            ?? (checkpoint ? extractSessionMessages(checkpoint) : previous?.messages ?? []);
         const record: SessionRecord = {
             threadId: input.threadId,
             checkpoint,
-            messages: extractSessionMessages(checkpoint),
+            messages,
             summary: input.summary ?? previous?.summary,
             updatedAt: Date.now(),
         };
@@ -208,7 +218,7 @@ export class CheckpointerSessionStore implements SessionStore {
         return {
             threadId: input.threadId,
             checkpoint,
-            messages: extractSessionMessages(checkpoint),
+            messages: input.messages ?? extractSessionMessages(checkpoint),
             summary: this.summaries.get(input.threadId) ?? extractPersistedSummary(checkpoint),
             updatedAt: checkpoint?.metadata.createdAt ?? Date.now(),
         };

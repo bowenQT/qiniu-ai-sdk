@@ -673,10 +673,10 @@ export async function generateTextWithGraph(
     if (threadId && resumeFromCheckpoint) {
         const sessionCheckpoint = loadedSession?.checkpoint ?? null;
         const checkpoint = sessionCheckpoint ?? (checkpointer ? await checkpointer.load(threadId) : null);
-        if (checkpoint) {
-            // Extract historical messages and append new input
-            // v0.32.0+: prefer internalMessages, fallback to legacy messages for migration
-            const historicalMessages = (checkpoint.state.internalMessages ?? checkpoint.state.messages) as ChatMessage[];
+        const historicalMessages = checkpoint
+            ? ((checkpoint.state.internalMessages ?? checkpoint.state.messages) as ChatMessage[])
+            : (loadedSession?.messages ?? null);
+        if (historicalMessages) {
             const prefixMessages = buildResumePrefixMessages(options, historicalMessages);
             const newMessages = normalizeMessagesForResume(options, historicalMessages);
             resumedMessages = [...prefixMessages, ...historicalMessages, ...newMessages];
