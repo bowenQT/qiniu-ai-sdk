@@ -193,6 +193,8 @@ describe('CLI live verification helpers', () => {
                 QINIU_SECRET_KEY: 'secret-test',
                 QINIU_LIVE_VERIFY_MCP_URL: 'https://mcp.example.com/mcp',
                 QINIU_LIVE_VERIFY_MCP_LIST_TOOLS: '1',
+                QINIU_LIVE_VERIFY_MCP_LIST_RESOURCES: '1',
+                QINIU_LIVE_VERIFY_MCP_LIST_PROMPTS: '1',
                 QINIU_LIVE_VERIFY_MCP_TOOL_NAME: 'ping',
                 QINIU_LIVE_VERIFY_MCP_TOOL_ARGS_JSON: '{"echo":"pong"}',
                 QINIU_LIVE_VERIFY_MCP_OAUTH_DISCOVERY: '1',
@@ -208,6 +210,8 @@ describe('CLI live verification helpers', () => {
             createMcpTransport: () => ({
                 connect: async () => undefined,
                 listTools: async () => [{ name: 'ping' }, { name: 'echo' }],
+                listResources: async () => [{ uri: 'file:///readme.md' }],
+                listPrompts: async () => [{ name: 'summarize' }],
                 executeTool: async () => ({
                     content: [{ type: 'text', text: 'pong' }],
                 }),
@@ -227,6 +231,8 @@ describe('CLI live verification helpers', () => {
         expect(result.exitCode).toBe(0);
         expect(result.checks.some((check) => check.message.includes('Node lane chat probe succeeded: node'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP tool listing probe succeeded: 2 tools'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP resource listing probe succeeded: 1 resources'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP prompt listing probe succeeded: 1 prompts'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP tool call probe succeeded: ping -> pong'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP event stream probe succeeded: 200 (text/event-stream)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP OAuth metadata probe succeeded: https://auth.example.com'))).toBe(true);
