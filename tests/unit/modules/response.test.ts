@@ -214,6 +214,125 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         });
     });
 
+    it('should create projected output text directly from Response API', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-text-direct',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Direct text helper' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.createText({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        })).resolves.toBe('Direct text helper');
+    });
+
+    it('should create projected output messages directly from Response API', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-messages-direct',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [
+                            { type: 'output_text', text: 'Look at this file.' },
+                            { type: 'file_url', file_url: { url: 'https://example.com/file.pdf' } },
+                        ],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.createMessages({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        })).resolves.toEqual([
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'text', text: 'Look at this file.' },
+                    { type: 'file_url', file_url: { url: 'https://example.com/file.pdf' } },
+                ],
+            },
+        ]);
+    });
+
+    it('should create projected reasoning summary text directly from Response API', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-reasoning-direct',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'reasoning',
+                        summary: [{ type: 'summary_text', text: 'Reasoning summary' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.createReasoningSummaryText({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        })).resolves.toBe('Reasoning summary');
+    });
+
+    it('should create projected follow-up helpers directly from Response API', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-follow-up-helper',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Follow-up helper answer' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.followUpText({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue',
+        })).resolves.toBe('Follow-up helper answer');
+
+        expect(JSON.parse(String(mockFetch.calls[0].init?.body))).toMatchObject({
+            previous_response_id: 'resp-prev',
+        });
+    });
+
     it('should accept multimodal response input messages', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,
