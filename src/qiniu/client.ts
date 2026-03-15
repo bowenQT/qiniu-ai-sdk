@@ -25,6 +25,7 @@ import { File as QiniuFile } from '../modules/file/index';
 import { Anthropic } from '../modules/anthropic/index';
 import { ResponseAPI } from '../modules/response/index';
 import { Log } from '../modules/log/index';
+import { Batch } from '../modules/batch/index';
 
 export interface QiniuAIOptions {
     apiKey: string; // The Sk-xxxx key
@@ -72,6 +73,7 @@ export class QiniuAI implements IQiniuClient {
     /** @experimental Response API — invite-only, subject to change. */
     public response: ResponseAPI;
     public log: Log;
+    public batch: Batch;
 
     private apiKey: string;
     private baseUrl: string;
@@ -134,6 +136,7 @@ export class QiniuAI implements IQiniuClient {
         this.anthropic = new Anthropic(this);
         this.response = new ResponseAPI(this);
         this.log = new Log(this);
+        this.batch = new Batch(this);
     }
 
     getLogger(): Logger {

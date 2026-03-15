@@ -257,6 +257,19 @@ export type { UsageQuery, UsageResponse, UsageModelStat, UsageItem, UsageCategor
 // Module types - Admin
 export type { CreateKeysRequest, ApiKey } from './modules/admin';
 
+// Module types - Batch
+export { Batch } from './modules/batch';
+export type {
+    BatchCreateRequest,
+    BatchResponse,
+    BatchListResponse,
+    BatchListOptions,
+    BatchWaitOptions,
+    BatchCancelResponse,
+    BatchTaskHandle,
+    BatchStatus,
+} from './modules/batch';
+
 // Module types - File (Phase 2)
 export { File as QiniuFile } from './modules/file';
 export type {
