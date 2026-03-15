@@ -147,6 +147,8 @@ export type {
     ResponseStreamResult,
     ResponseChatCompletionStreamResult,
     ResponseJsonResult,
+    ResponseJsonStreamResult,
+    ResponseDeepPartial,
 } from '../modules/response';
 
 export { Log } from '../modules/log';

@@ -599,6 +599,42 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         expect(result.eventCount).toBe(3);
     });
 
+    it('should stream partial JSON snapshots and return final parsed JSON', async () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async () => createSSEResponse([
+                    { type: 'response.output_text.delta', delta: '{"answer":42' },
+                    { type: 'response.output_text.delta', delta: ',"nested":{"ok":true}}' },
+                    {
+                        type: 'response.completed',
+                        response: {
+                            id: 'resp-json-stream',
+                            status: 'completed',
+                            output_text: '{"answer":42,"nested":{"ok":true}}',
+                        },
+                    },
+                ]),
+            },
+        });
+
+        const { events, result } = await collectStream(client.response.createJsonStream<{
+            answer: number;
+            nested: { ok: boolean };
+        }>({
+            model: 'gpt-5.2',
+            input: 'Return streaming JSON',
+        }));
+
+        expect(events).toEqual([
+            { answer: 42 },
+            { answer: 42, nested: { ok: true } },
+        ]);
+        expect(result.outputText).toBe('{"answer":42,"nested":{"ok":true}}');
+        expect(result.json).toEqual({ answer: 42, nested: { ok: true } });
+        expect(result.response?.id).toBe('resp-json-stream');
+    });
+
     it('should stream follow-up output text deltas directly', async () => {
         const calls: Array<{ init?: RequestInit }> = [];
         const client = new QiniuAI({
@@ -622,6 +658,50 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         expect(events).toEqual(['Follow-up chunk']);
         expect(JSON.parse(String(calls[0]?.init?.body))).toMatchObject({
             previous_response_id: 'resp-prev',
+            stream: true,
+        });
+    });
+
+    it('should stream partial JSON snapshots for follow-up responses', async () => {
+        const calls: Array<{ init?: RequestInit }> = [];
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async (_url, init) => {
+                    calls.push({ init });
+                    return createSSEResponse([
+                        { type: 'response.output_text.delta', delta: '{"continued":' },
+                        { type: 'response.output_text.delta', delta: 'true}' },
+                        {
+                            type: 'response.completed',
+                            response: {
+                                id: 'resp-json-follow-up-stream',
+                                status: 'completed',
+                                output_text: '{"continued":true}',
+                            },
+                        },
+                    ]);
+                },
+            },
+        });
+
+        const { events, result } = await collectStream(client.response.followUpJsonStream<{
+            continued: boolean;
+        }>({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue with streaming JSON',
+        }));
+
+        expect(events).toEqual([{ continued: true }]);
+        expect(result.json).toEqual({ continued: true });
+        expect(JSON.parse(String(calls[0]?.init?.body))).toMatchObject({
+            previous_response_id: 'resp-prev',
+            text: {
+                format: {
+                    type: 'json_object',
+                },
+            },
             stream: true,
         });
     });

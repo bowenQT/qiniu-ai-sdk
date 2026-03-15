@@ -8,6 +8,7 @@ import {
     type ThinkingBlock,
 } from '../../lib/types';
 import { normalizeContentAsync } from '../../lib/content-converter';
+import { PartialJsonParser } from '../../lib/partial-json-parser';
 import { parseSSEStream } from '../../lib/sse';
 
 const RESPONSE_API_VERSION = '2025-04-01-preview';
@@ -169,6 +170,14 @@ export interface ResponseChatCompletionStreamResult extends ResponseStreamResult
 export interface ResponseJsonResult<T = unknown> {
     response: ResponseCreateResponse;
     json: T;
+}
+
+export type ResponseDeepPartial<T> = T extends object
+    ? { [P in keyof T]?: ResponseDeepPartial<T[P]> }
+    : T;
+
+export interface ResponseJsonStreamResult<T = unknown> extends ResponseStreamResult {
+    json?: T;
 }
 
 // ============================================================================
@@ -491,6 +500,58 @@ export class ResponseAPI {
             response,
             json: parseResponseOutputJson<T>(response),
         };
+    }
+
+    /**
+     * Create a streaming response and emit partial JSON snapshots.
+     * Defaults to `text.format.type = json_object` when no explicit format is provided.
+     */
+    async *createJsonStream<T = unknown>(
+        params: Omit<ResponseCreateRequest, 'stream'>,
+        options: ResponseStreamOptions = {},
+    ): AsyncGenerator<ResponseDeepPartial<T>, ResponseJsonStreamResult<T>, unknown> {
+        const parser = new PartialJsonParser();
+        const stream = this.createTextStream(withDefaultJsonFormat(params), options);
+        let finalResult: ResponseStreamResult | undefined;
+
+        while (true) {
+            const next = await stream.next();
+            if (next.done) {
+                finalResult = next.value;
+                break;
+            }
+
+            parser.append(next.value);
+            const partial = parser.parsePartial<T>();
+            if (partial.value !== null) {
+                yield partial.value as ResponseDeepPartial<T>;
+            }
+        }
+
+        const json = parseResponseOutputJson<T>({
+            id: finalResult?.response?.id ?? 'response-stream',
+            output: finalResult?.response?.output,
+            output_text: finalResult?.response?.output_text ?? finalResult?.outputText,
+        });
+
+        return {
+            ...finalResult,
+            json,
+        };
+    }
+
+    /**
+     * Create a streaming follow-up response and emit partial JSON snapshots.
+     */
+    async *followUpJsonStream<T = unknown>(
+        params: ResponseFollowUpRequest,
+        options: ResponseStreamOptions = {},
+    ): AsyncGenerator<ResponseDeepPartial<T>, ResponseJsonStreamResult<T>, unknown> {
+        const { previousResponseId, ...request } = params;
+        return yield* this.createJsonStream<T>({
+            ...request,
+            previous_response_id: previousResponseId,
+        }, options);
     }
 
     /**
