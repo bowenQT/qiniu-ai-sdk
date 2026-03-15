@@ -111,8 +111,10 @@ export function forkSessionSaveInput(
         };
     }
 
+    const syntheticState = buildSyntheticAgentState(messages, null, undefined);
     return {
         threadId,
+        state: syntheticState,
         messages,
         summary: record.summary,
     };

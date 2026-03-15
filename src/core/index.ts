@@ -171,6 +171,7 @@ export type {
     AgentStreamOptions,
     AgentStreamWithThreadOptions,
     AgentForkThreadOptions,
+    AgentRestoreThreadOptions,
     AgentThreadOptions,
 } from '../ai/create-agent';
 

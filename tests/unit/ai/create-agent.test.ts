@@ -299,6 +299,48 @@ describe('createAgent', () => {
             ]);
         });
 
+        it('restores a loaded thread record into a new thread', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            await sessionStore.save({
+                threadId: 'thread-restore-source',
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant.' },
+                    { role: 'user', content: 'Snapshot user turn' },
+                    { role: 'assistant', content: 'Snapshot assistant reply' },
+                ],
+                summary: 'snapshot summary',
+            });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                sessionStore,
+            });
+
+            const record = await agent.loadThread({ threadId: 'thread-restore-source' });
+            expect(record).toBeTruthy();
+
+            await expect(agent.restoreThread({
+                threadId: 'thread-restored',
+                record: record!,
+            })).resolves.toMatchObject({
+                threadId: 'thread-restored',
+                summary: 'snapshot summary',
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant.' },
+                    { role: 'user', content: 'Snapshot user turn' },
+                    { role: 'assistant', content: 'Snapshot assistant reply' },
+                ],
+            });
+
+            await expect(agent.replayThread({ threadId: 'thread-restored' })).resolves.toEqual([
+                { role: 'system', content: 'You are a helpful assistant.' },
+                { role: 'user', content: 'Snapshot user turn' },
+                { role: 'assistant', content: 'Snapshot assistant reply' },
+            ]);
+        });
+
         it('rejects forking into an existing thread unless overwrite is enabled', async () => {
             const client = createMockClient();
             const sessionStore = new MemorySessionStore();
@@ -329,6 +371,46 @@ describe('createAgent', () => {
             })).resolves.toMatchObject({
                 threadId: 'thread-fork-target-existing',
                 messages: [{ role: 'user', content: 'Source' }],
+            });
+        });
+
+        it('rejects restoring into an existing thread unless overwrite is enabled', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            await sessionStore.save({
+                threadId: 'thread-restore-existing',
+                messages: [{ role: 'user', content: 'Existing target' }],
+            });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                sessionStore,
+            });
+
+            await expect(agent.restoreThread({
+                threadId: 'thread-restore-existing',
+                record: {
+                    threadId: 'snapshot-record',
+                    messages: [{ role: 'user', content: 'Restored source' }],
+                    summary: 'restored summary',
+                    updatedAt: Date.now(),
+                },
+            })).rejects.toThrow('restoreThread target already exists');
+
+            await expect(agent.restoreThread({
+                threadId: 'thread-restore-existing',
+                record: {
+                    threadId: 'snapshot-record',
+                    messages: [{ role: 'user', content: 'Restored source' }],
+                    summary: 'restored summary',
+                    updatedAt: Date.now(),
+                },
+                overwrite: true,
+            })).resolves.toMatchObject({
+                threadId: 'thread-restore-existing',
+                messages: [{ role: 'user', content: 'Restored source' }],
+                summary: 'restored summary',
             });
         });
 
@@ -489,6 +571,72 @@ describe('createAgent', () => {
                 expect.objectContaining({
                     stepCount: 2,
                 }),
+            );
+        });
+
+        it('restores thread state through a checkpointer when no sessionStore is configured', async () => {
+            const client = createMockClient();
+            const checkpointer = createMockCheckpointer();
+            (checkpointer.load as ReturnType<typeof vi.fn>)
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce({
+                    metadata: {
+                        id: 'ckpt-restored-target',
+                        threadId: 'thread-checkpoint-restored-target',
+                        createdAt: 2,
+                        stepCount: 2,
+                    },
+                    state: {
+                        internalMessages: [
+                            { role: 'user', content: 'Restored checkpoint user turn' },
+                            { role: 'assistant', content: 'Restored checkpoint assistant reply' },
+                        ],
+                        stepCount: 2,
+                        maxSteps: 4,
+                        done: false,
+                        output: 'Restored checkpoint assistant reply',
+                        reasoning: '',
+                        finishReason: null,
+                    },
+                });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                checkpointer,
+            });
+
+            await expect(agent.restoreThread({
+                threadId: 'thread-checkpoint-restored-target',
+                record: {
+                    threadId: 'snapshot-record',
+                    messages: [
+                        { role: 'user', content: 'Restored checkpoint user turn' },
+                        { role: 'assistant', content: 'Restored checkpoint assistant reply' },
+                    ],
+                    summary: 'restored checkpoint summary',
+                    updatedAt: 1,
+                },
+            })).resolves.toMatchObject({
+                threadId: 'thread-checkpoint-restored-target',
+                messages: [
+                    { role: 'user', content: 'Restored checkpoint user turn' },
+                    { role: 'assistant', content: 'Restored checkpoint assistant reply' },
+                ],
+                summary: 'restored checkpoint summary',
+            });
+
+            expect(checkpointer.save).toHaveBeenCalledWith(
+                'thread-checkpoint-restored-target',
+                expect.objectContaining({
+                    internalMessages: [
+                        { role: 'user', content: 'Restored checkpoint user turn' },
+                        { role: 'assistant', content: 'Restored checkpoint assistant reply' },
+                    ],
+                    stepCount: 0,
+                    maxSteps: 1,
+                }),
+                undefined,
             );
         });
     });
