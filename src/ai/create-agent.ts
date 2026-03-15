@@ -137,6 +137,16 @@ export interface AgentForkThreadOptions {
     overwrite?: boolean;
 }
 
+/** Options for restoring a persisted thread record into a thread id */
+export interface AgentRestoreThreadOptions {
+    /** Target thread ID to restore into */
+    threadId: string;
+    /** Previously exported / loaded thread record */
+    record: SessionRecord;
+    /** Allow overwriting an existing target thread */
+    overwrite?: boolean;
+}
+
 /** Agent instance */
 export interface Agent {
     /** Agent ID for A2A identification */
@@ -157,6 +167,8 @@ export interface Agent {
     replayThread: (options: AgentThreadOptions) => Promise<ChatMessage[]>;
     /** Fork persisted thread state into another thread */
     forkThread: (options: AgentForkThreadOptions) => Promise<SessionRecord>;
+    /** Restore a persisted thread record into a thread */
+    restoreThread: (options: AgentRestoreThreadOptions) => Promise<SessionRecord>;
     /** Clear persisted thread state */
     clearThread: (options: AgentThreadOptions) => Promise<void>;
     /** Connect MCP host (if hostProvider configured) */
@@ -196,6 +208,15 @@ export interface Agent {
  *   fromThreadId: 'user-123',
  *   toThreadId: 'user-123-branch-a',
  * });
+ *
+ * // Restore a previously loaded thread record into a new thread
+ * const snapshot = await assistant.loadThread({ threadId: 'user-123' });
+ * if (snapshot) {
+ *   await assistant.restoreThread({
+ *     threadId: 'user-123-restored',
+ *     record: snapshot,
+ *   });
+ * }
  * ```
  */
 export function createAgent(config: AgentConfig): Agent {
@@ -282,6 +303,53 @@ export function createAgent(config: AgentConfig): Agent {
         if (fromThreadId === toThreadId) {
             throw new Error('forkThread requires fromThreadId and toThreadId to be different');
         }
+    };
+
+    const requireRestoreThreadSupport = (threadId: string): void => {
+        requirePersistentThreadSupport('restoreThread', threadId);
+    };
+
+    const restoreThreadRecord = async (
+        targetThreadId: string,
+        record: SessionRecord,
+        overwrite = false,
+        operation: 'forkThread' | 'restoreThread' = 'restoreThread',
+    ): Promise<SessionRecord> => {
+        requireRestoreThreadSupport(targetThreadId);
+
+        if (!overwrite) {
+            const existing = await loadThreadRecord(targetThreadId);
+            if (existing) {
+                throw new Error(`${operation} target already exists: ${targetThreadId}`);
+            }
+        }
+
+        const saveInput = forkSessionSaveInput(record, targetThreadId);
+
+        if (sessionStore) {
+            return sessionStore.save(saveInput);
+        }
+
+        if (checkpointer) {
+            const saved = await checkpointer.save(
+                targetThreadId,
+                saveInput.state as any,
+                saveInput.checkpointMetadata,
+            );
+            const checkpoint = await checkpointer.load(targetThreadId);
+            return {
+                threadId: targetThreadId,
+                checkpoint: checkpoint ?? {
+                    metadata: saved,
+                    state: saveInput.state as any,
+                },
+                messages: saveInput.messages,
+                summary: saveInput.summary,
+                updatedAt: saved.createdAt ?? Date.now(),
+            };
+        }
+
+        throw new Error('restoreThread requires checkpointer or sessionStore to be configured in createAgent');
     };
 
     const loadThreadRecord = async (threadId: string): Promise<SessionRecord | null> => {
@@ -483,39 +551,12 @@ export function createAgent(config: AgentConfig): Agent {
                 throw new Error(`forkThread could not find source thread: ${fromThreadId}`);
             }
 
-            if (!overwrite) {
-                const existing = await loadThreadRecord(toThreadId);
-                if (existing) {
-                    throw new Error(`forkThread target already exists: ${toThreadId}`);
-                }
-            }
+            return restoreThreadRecord(toThreadId, source, overwrite, 'forkThread');
+        },
 
-            const saveInput = forkSessionSaveInput(source, toThreadId);
-
-            if (sessionStore) {
-                return sessionStore.save(saveInput);
-            }
-
-            if (checkpointer) {
-                const saved = await checkpointer.save(
-                    toThreadId,
-                    saveInput.state as any,
-                    saveInput.checkpointMetadata,
-                );
-                const checkpoint = await checkpointer.load(toThreadId);
-                return {
-                    threadId: toThreadId,
-                    checkpoint: checkpoint ?? {
-                        metadata: saved,
-                        state: saveInput.state as any,
-                    },
-                    messages: saveInput.messages,
-                    summary: saveInput.summary,
-                    updatedAt: saved.createdAt ?? Date.now(),
-                };
-            }
-
-            throw new Error('forkThread requires checkpointer or sessionStore to be configured in createAgent');
+        async restoreThread(options: AgentRestoreThreadOptions): Promise<SessionRecord> {
+            const { threadId, record, overwrite = false } = options;
+            return restoreThreadRecord(threadId, record, overwrite, 'restoreThread');
         },
 
         async clearThread(options: AgentThreadOptions): Promise<void> {
