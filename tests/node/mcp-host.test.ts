@@ -319,4 +319,53 @@ describe('NodeMCPHost', () => {
             eventStream: true,
         });
     });
+
+    it('probeServer() probes one configured HTTP server by name', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+        hostProbeMock.mockResolvedValue({
+            tools: [{ name: 'ping', description: 'Ping', inputSchema: { type: 'object', properties: {} } }],
+        });
+
+        const host = new NodeMCPHost({
+            servers: [
+                { name: 'http-a', transport: 'http', url: 'https://a.example.com/mcp' },
+                { name: 'http-b', transport: 'http', url: 'https://b.example.com/mcp' },
+            ],
+        });
+
+        const result = await host.probeServer('http-b', { listTools: true });
+
+        expect(result).toEqual({
+            serverName: 'http-b',
+            result: {
+                tools: [{ name: 'ping', description: 'Ping', inputSchema: { type: 'object', properties: {} } }],
+            },
+        });
+        expect(hostProbeMock).toHaveBeenCalledTimes(1);
+        expect(hostProbeMock).toHaveBeenCalledWith({ listTools: true });
+    });
+
+    it('probeServer() rejects unknown server names', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+
+        const host = new NodeMCPHost({
+            servers: [{ name: 'http-a', transport: 'http', url: 'https://a.example.com/mcp' }],
+        });
+
+        await expect(host.probeServer('missing')).rejects.toThrow('MCP server "missing" not found');
+        expect(hostProbeMock).not.toHaveBeenCalled();
+    });
+
+    it('probeServer() rejects non-http servers', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+
+        const host = new NodeMCPHost({
+            servers: [{ name: 'stdio-a', transport: 'stdio', command: 'mcp-stdio' }],
+        });
+
+        await expect(host.probeServer('stdio-a')).rejects.toThrow(
+            'MCP server "stdio-a" does not use HTTP transport and cannot be probed',
+        );
+        expect(hostProbeMock).not.toHaveBeenCalled();
+    });
 });
