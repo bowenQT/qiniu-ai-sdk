@@ -187,6 +187,11 @@ export interface ResponseMessagesResult {
     messages: ChatMessage[];
 }
 
+export interface ResponseMessageResult {
+    response: ResponseCreateResponse;
+    message?: ChatMessage;
+}
+
 export interface ResponseReasoningSummaryResult {
     response: ResponseCreateResponse;
     reasoningSummaryText?: string;
@@ -635,6 +640,42 @@ export class ResponseAPI {
     }
 
     /**
+     * Create a response and directly return its primary projected output message.
+     */
+    async createMessage(params: ResponseCreateRequest): Promise<ChatMessage | undefined> {
+        return (await this.createMessageResult(params)).message;
+    }
+
+    /**
+     * Create a follow-up response and directly return its primary projected output message.
+     */
+    async followUpMessage(params: ResponseFollowUpRequest): Promise<ChatMessage | undefined> {
+        return (await this.followUpMessageResult(params)).message;
+    }
+
+    /**
+     * Create a response and return both the raw response and its primary projected output message.
+     */
+    async createMessageResult(params: ResponseCreateRequest): Promise<ResponseMessageResult> {
+        const response = await this.create(params);
+        return {
+            response,
+            message: extractResponseOutputMessage(response),
+        };
+    }
+
+    /**
+     * Create a follow-up response and return both the raw response and its primary projected output message.
+     */
+    async followUpMessageResult(params: ResponseFollowUpRequest): Promise<ResponseMessageResult> {
+        const response = await this.followUp(params);
+        return {
+            response,
+            message: extractResponseOutputMessage(response),
+        };
+    }
+
+    /**
      * Create a response and directly return its projected output messages.
      */
     async createMessages(params: ResponseCreateRequest): Promise<ChatMessage[]> {
@@ -804,11 +845,16 @@ export function extractResponseOutputMessages(
     return messages;
 }
 
+export function extractResponseOutputMessage(
+    response: Pick<ResponseCreateResponse, 'output'>,
+): ChatMessage | undefined {
+    return extractResponseOutputMessages(response).at(-1);
+}
+
 export function toChatCompletionResponse(
     response: ResponseCreateResponse,
 ): ChatCompletionResponse {
-    const outputMessages = extractResponseOutputMessages(response);
-    const primaryMessage = outputMessages.at(-1) ?? {
+    const primaryMessage = extractResponseOutputMessage(response) ?? {
         role: 'assistant' as const,
         content: response.output_text ?? '',
     };

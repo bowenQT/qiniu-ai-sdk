@@ -137,6 +137,7 @@ export {
     extractResponseOutputText,
     extractResponseReasoningSummaryText,
     extractResponseOutputMessages,
+    extractResponseOutputMessage,
     toChatCompletionResponse,
 } from '../modules/response';
 export type {
@@ -152,6 +153,7 @@ export type {
     ResponseChatCompletionResult,
     ResponseJsonResult,
     ResponseTextResult,
+    ResponseMessageResult,
     ResponseMessagesResult,
     ResponseReasoningSummaryResult,
     ResponseJsonStreamResult,
