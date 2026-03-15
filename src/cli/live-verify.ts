@@ -21,7 +21,7 @@ export interface LiveVerifyResult {
 export interface LiveVerifyOptions {
     lane: WorktreeLane;
     env?: NodeJS.ProcessEnv;
-    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file'>;
+    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file' | 'response'>;
     createNodeClient?: (apiKey: string) => ReturnType<typeof createNodeQiniuAI>;
     createMcpTransport?: (config: MCPHttpServerConfig) => LiveVerifyMcpTransport;
 }
@@ -169,6 +169,37 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_FILE_WORKFLOW not set. File/qfile live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_RESPONSE_API === '1') {
+            const responseClient = client.response as {
+                createText?: (params: { model: string; input: string; include?: string[] }) => Promise<string | undefined>;
+                create?: (params: { model: string; input: string; include?: string[] }) => Promise<{ output_text?: string }>;
+            };
+
+            const responseText = responseClient.createText
+                ? await responseClient.createText({
+                    model: env.QINIU_LIVE_VERIFY_RESPONSE_MODEL || 'gpt-5.2',
+                    input: 'Reply with the single word response.',
+                    include: ['reasoning.encrypted_content'],
+                })
+                : (await responseClient.create?.({
+                    model: env.QINIU_LIVE_VERIFY_RESPONSE_MODEL || 'gpt-5.2',
+                    input: 'Reply with the single word response.',
+                    include: ['reasoning.encrypted_content'],
+                }))?.output_text;
+
+            addCheck(
+                checks,
+                'ok',
+                `Response API probe succeeded: ${responseText ?? '[non-text]'}`,
+            );
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_RESPONSE_API not set. Response API live probe was skipped.',
             );
         }
     } else if (options.lane === 'runtime') {
