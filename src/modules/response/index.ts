@@ -402,12 +402,13 @@ export class ResponseAPI {
             if (next.done) {
                 return {
                     ...next.value,
-                    message: next.value.messages[0],
+                    message: next.value.messages.at(-1),
                 };
             }
 
-            if (next.value[0]) {
-                yield next.value[0];
+            const latestMessage = next.value.at(-1);
+            if (latestMessage) {
+                yield latestMessage;
             }
         }
     }
