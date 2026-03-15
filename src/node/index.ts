@@ -30,7 +30,12 @@ export type {
 
 // Re-export NodeMCPHost (MCP Host Layer v2)
 export { NodeMCPHost } from './mcp-host';
-export type { NodeMCPHostConfig, NodeMCPHostProbeResult, MCPServerConfig } from './mcp-host';
+export type {
+    NodeMCPHostConfig,
+    NodeMCPHostProbeResult,
+    NodeMCPHostToolInfo,
+    MCPServerConfig,
+} from './mcp-host';
 
 // Re-export Skill Package v2 modules
 export { SkillValidator, DEFAULT_CONTENT_EXTENSIONS, DEFAULT_ACTION_EXTENSIONS } from './skills';
