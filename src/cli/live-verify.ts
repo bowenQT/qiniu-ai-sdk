@@ -176,6 +176,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
             const responseClient = client.response as {
                 createText?: (params: { model: string; input: string; include?: string[] }) => Promise<string | undefined>;
                 create?: (params: { model: string; input: string; include?: string[] }) => Promise<{ output_text?: string }>;
+                createTextStream?: (params: { model: string; input: string; include?: string[] }) => AsyncGenerator<string, { outputText: string }, unknown>;
             };
 
             const responseText = responseClient.createText
@@ -195,6 +196,39 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 'ok',
                 `Response API probe succeeded: ${responseText ?? '[non-text]'}`,
             );
+
+            if (env.QINIU_LIVE_VERIFY_RESPONSE_STREAM === '1') {
+                if (!responseClient.createTextStream) {
+                    throw new Error('Response API stream probe requires createTextStream() support in the current SDK build');
+                }
+                const stream = responseClient.createTextStream({
+                    model: env.QINIU_LIVE_VERIFY_RESPONSE_MODEL || 'gpt-5.2',
+                    input: 'Reply with the single word stream.',
+                    include: ['reasoning.encrypted_content'],
+                });
+                let streamedText = '';
+
+                while (true) {
+                    const next = await stream.next();
+                    if (next.done) {
+                        streamedText = next.value.outputText || streamedText;
+                        break;
+                    }
+                    streamedText += next.value;
+                }
+
+                addCheck(
+                    checks,
+                    'ok',
+                    `Response API stream probe succeeded: ${streamedText || '[non-text]'}`,
+                );
+            } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+                addCheck(
+                    checks,
+                    'warn',
+                    'QINIU_LIVE_VERIFY_RESPONSE_STREAM not set. Response API stream live probe was skipped.',
+                );
+            }
         } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
             addCheck(
                 checks,
