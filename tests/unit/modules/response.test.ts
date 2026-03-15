@@ -7,6 +7,8 @@ import {
     extractResponseOutputMessage,
     extractResponseOutputMessages,
     extractResponseOutputText,
+    extractResponseReasoningEncryptedContent,
+    extractResponseReasoningOutput,
     extractResponseReasoningSummaryText,
     parseResponseOutputJson,
     toChatCompletionResponse,
@@ -97,6 +99,51 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         });
 
         expect(result.output_text).toBe('Server projection');
+    });
+
+    it('should return structured reasoning payloads via createReasoningResult()', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-reasoning-result',
+                status: 'completed',
+                reasoning: {
+                    encrypted_content: 'enc_top_level',
+                },
+                output: [
+                    {
+                        type: 'reasoning',
+                        summary: [{ type: 'summary_text', text: 'Reasoning summary' }],
+                        encrypted_content: 'enc_from_output',
+                    },
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Final answer' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.createReasoningResult({
+            model: 'openai/gpt-5',
+            input: 'Hi',
+        })).resolves.toEqual({
+            response: expect.objectContaining({
+                id: 'resp-reasoning-result',
+                output_text: 'Final answer',
+            }),
+            reasoning: expect.objectContaining({
+                type: 'reasoning',
+                encrypted_content: 'enc_from_output',
+            }),
+            reasoningSummaryText: 'Reasoning summary',
+            encryptedContent: 'enc_from_output',
+        });
     });
 
     it('should create a follow-up response using previousResponseId convenience input', async () => {
@@ -645,6 +692,45 @@ describe('Phase 3: Response API Module (@experimental)', () => {
                 status: 'completed',
             }),
             reasoningSummaryText: 'Follow-up reasoning summary',
+        });
+    });
+
+    it('should return structured reasoning payloads for follow-up responses', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-follow-up-reasoning-result',
+                status: 'completed',
+                reasoning: {
+                    encrypted_content: 'enc_follow_up_top_level',
+                },
+                output: [
+                    {
+                        type: 'reasoning',
+                        summary: [{ type: 'summary_text', text: 'Follow-up reasoning summary' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.followUpReasoningResult({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue',
+        })).resolves.toEqual({
+            response: expect.objectContaining({
+                id: 'resp-follow-up-reasoning-result',
+                status: 'completed',
+            }),
+            reasoning: expect.objectContaining({
+                type: 'reasoning',
+            }),
+            reasoningSummaryText: 'Follow-up reasoning summary',
+            encryptedContent: 'enc_follow_up_top_level',
         });
     });
 
@@ -1441,6 +1527,53 @@ describe('Phase 3: Response API Module (@experimental)', () => {
             role: 'assistant',
             content: 'Last message',
         });
+    });
+
+    it('should extract reasoning output and encrypted content from response payloads', () => {
+        const response = {
+            output: [
+                {
+                    type: 'reasoning',
+                    summary: [{ type: 'summary_text', text: 'Reasoning summary text' }],
+                    encrypted_content: 'enc_reasoning_output',
+                },
+                {
+                    type: 'message',
+                    role: 'assistant',
+                    content: [{ type: 'output_text', text: 'Final answer' }],
+                },
+            ],
+            reasoning: {
+                encrypted_content: 'enc_reasoning_top_level',
+            },
+        } as any;
+
+        expect(extractResponseReasoningOutput(response)).toEqual(
+            expect.objectContaining({
+                type: 'reasoning',
+                encrypted_content: 'enc_reasoning_output',
+            }),
+        );
+        expect(extractResponseReasoningEncryptedContent(response)).toBe('enc_reasoning_output');
+        expect(extractResponseReasoningSummaryText(response)).toBe('Reasoning summary text');
+    });
+
+    it('should fall back to top-level reasoning encrypted content when output reasoning is absent', () => {
+        const response = {
+            output: [
+                {
+                    type: 'message',
+                    role: 'assistant',
+                    content: [{ type: 'output_text', text: 'Final answer' }],
+                },
+            ],
+            reasoning: {
+                encrypted_content: 'enc_reasoning_top_level',
+            },
+        } as any;
+
+        expect(extractResponseReasoningOutput(response)).toBeUndefined();
+        expect(extractResponseReasoningEncryptedContent(response)).toBe('enc_reasoning_top_level');
     });
 
     it('should project Response API payloads into chat-completion shape', () => {
