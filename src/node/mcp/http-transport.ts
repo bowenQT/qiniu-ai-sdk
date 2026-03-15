@@ -41,6 +41,13 @@ export interface MCPProbeOptions {
     listTools?: boolean;
     listResources?: boolean;
     listPrompts?: boolean;
+    readResource?: {
+        uri: string;
+    };
+    getPrompt?: {
+        name: string;
+        args?: Record<string, string>;
+    };
     executeTool?: {
         name: string;
         args?: Record<string, unknown>;
@@ -58,6 +65,8 @@ export interface MCPProbeResult {
     tools?: MCPToolDefinition[];
     resources?: MCPResourceDefinition[];
     prompts?: MCPPromptDefinition[];
+    resourceText?: string;
+    promptText?: string;
     toolResult?: MCPToolResult;
     eventStream?: {
         status: number;
@@ -300,7 +309,12 @@ export class MCPHttpTransport {
     async probe(options: MCPProbeOptions = {}): Promise<MCPProbeResult> {
         const result: MCPProbeResult = {};
         let terminated = false;
-        const needsClient = options.listTools || options.listResources || options.listPrompts || options.executeTool;
+        const needsClient = options.listTools
+            || options.listResources
+            || options.listPrompts
+            || options.readResource
+            || options.getPrompt
+            || options.executeTool;
 
         try {
             if (needsClient) {
@@ -317,6 +331,17 @@ export class MCPHttpTransport {
 
             if (options.listPrompts) {
                 result.prompts = await this.listPrompts();
+            }
+
+            if (options.readResource) {
+                result.resourceText = await this.readResource(options.readResource.uri);
+            }
+
+            if (options.getPrompt) {
+                result.promptText = await this.getPrompt(
+                    options.getPrompt.name,
+                    options.getPrompt.args,
+                );
             }
 
             if (options.executeTool) {
@@ -404,6 +429,60 @@ export class MCPHttpTransport {
                 required: arg.required,
             })),
         }));
+    }
+
+    /**
+     * Read a specific MCP resource and return its text representation.
+     */
+    async readResource(uri: string): Promise<string> {
+        if (!this.client) {
+            throw new MCPHttpTransportError('Not connected', this.config.name);
+        }
+
+        const result = await this.client.readResource({ uri });
+        const contents = result.contents || [];
+        if (contents.length === 0) {
+            return '';
+        }
+
+        return contents.map((content) => {
+            if (typeof (content as { text?: unknown }).text === 'string') {
+                return (content as { text: string }).text;
+            }
+            return JSON.stringify(content);
+        }).join('\n');
+    }
+
+    /**
+     * Resolve a prompt with optional string arguments and return its text representation.
+     */
+    async getPrompt(
+        promptName: string,
+        args?: Record<string, string>,
+    ): Promise<string> {
+        if (!this.client) {
+            throw new MCPHttpTransportError('Not connected', this.config.name);
+        }
+
+        const result = await this.client.getPrompt({
+            name: promptName,
+            arguments: args,
+        });
+        const messages = result.messages || [];
+        if (messages.length === 0) {
+            return '';
+        }
+
+        return messages.map((message) => {
+            const content = message.content;
+            if (typeof content === 'string') {
+                return content;
+            }
+            if (content && typeof content === 'object' && 'text' in content && typeof content.text === 'string') {
+                return content.text;
+            }
+            return JSON.stringify(content);
+        }).join('\n');
     }
 
     /**
