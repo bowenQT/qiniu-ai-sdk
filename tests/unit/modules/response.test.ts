@@ -423,6 +423,55 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         });
     });
 
+    it('should stream output text deltas directly for text-first consumption', async () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async () => createSSEResponse([
+                    { type: 'response.created' },
+                    { type: 'response.output_text.delta', delta: 'Hello' },
+                    { type: 'response.output_text.delta', delta: ', world' },
+                ]),
+            },
+        });
+
+        const { events, result } = await collectStream(client.response.createTextStream({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        }));
+
+        expect(events).toEqual(['Hello', ', world']);
+        expect(result.outputText).toBe('Hello, world');
+        expect(result.eventCount).toBe(3);
+    });
+
+    it('should stream follow-up output text deltas directly', async () => {
+        const calls: Array<{ init?: RequestInit }> = [];
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async (_url, init) => {
+                    calls.push({ init });
+                    return createSSEResponse([
+                        { type: 'response.output_text.delta', delta: 'Follow-up chunk' },
+                    ]);
+                },
+            },
+        });
+
+        const { events } = await collectStream(client.response.followUpTextStream({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue',
+        }));
+
+        expect(events).toEqual(['Follow-up chunk']);
+        expect(JSON.parse(String(calls[0]?.init?.body))).toMatchObject({
+            previous_response_id: 'resp-prev',
+            stream: true,
+        });
+    });
+
     it('should accept multimodal response input messages', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,

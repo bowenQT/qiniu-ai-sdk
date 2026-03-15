@@ -280,6 +280,40 @@ export class ResponseAPI {
     }
 
     /**
+     * Create a streaming response and emit only output-text deltas.
+     */
+    async *createTextStream(
+        params: Omit<ResponseCreateRequest, 'stream'>,
+        options: ResponseStreamOptions = {},
+    ): AsyncGenerator<string, ResponseStreamResult, unknown> {
+        const stream = this.createStream(params, options);
+
+        while (true) {
+            const next = await stream.next();
+            if (next.done) {
+                return next.value;
+            }
+            if (next.value.type === 'response.output_text.delta' && typeof next.value.delta === 'string') {
+                yield next.value.delta;
+            }
+        }
+    }
+
+    /**
+     * Create a streaming follow-up response and emit only output-text deltas.
+     */
+    async *followUpTextStream(
+        params: ResponseFollowUpRequest,
+        options: ResponseStreamOptions = {},
+    ): AsyncGenerator<string, ResponseStreamResult, unknown> {
+        const { previousResponseId, ...request } = params;
+        return yield* this.createTextStream({
+            ...request,
+            previous_response_id: previousResponseId,
+        }, options);
+    }
+
+    /**
      * Create a response and immediately project it into OpenAI-compatible chat-completion shape.
      * Useful when callers want Response API semantics on the wire but chat-style consumption.
      */
