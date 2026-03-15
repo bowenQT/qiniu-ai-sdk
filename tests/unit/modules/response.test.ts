@@ -287,6 +287,33 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         });
     });
 
+    it('should return both raw response and parsed JSON via createJsonResult()', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-json-result',
+                status: 'completed',
+                output_text: '{"answer":"ok"}',
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.createJsonResult<{ answer: string }>({
+            model: 'gpt-5.2',
+            input: 'Return JSON result',
+        })).resolves.toEqual({
+            response: expect.objectContaining({
+                id: 'resp-json-result',
+                status: 'completed',
+                output_text: '{"answer":"ok"}',
+            }),
+            json: { answer: 'ok' },
+        });
+    });
+
     it('should create projected output messages directly from Response API', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,
@@ -421,6 +448,34 @@ describe('Phase 3: Response API Module (@experimental)', () => {
                     name: 'follow_up_payload',
                 },
             },
+        });
+    });
+
+    it('should return both raw response and parsed JSON via followUpJsonResult()', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-json-follow-up-result',
+                status: 'completed',
+                output_text: '{"continued":true}',
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.followUpJsonResult<{ continued: boolean }>({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue with JSON result',
+        })).resolves.toEqual({
+            response: expect.objectContaining({
+                id: 'resp-json-follow-up-result',
+                status: 'completed',
+                output_text: '{"continued":true}',
+            }),
+            json: { continued: true },
         });
     });
 
