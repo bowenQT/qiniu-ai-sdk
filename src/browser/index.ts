@@ -120,7 +120,15 @@ export type { StreamTextOptions, StreamTextResult } from '../ai/stream-text';
 
 // createAgent
 export { createAgent } from '../ai/create-agent';
-export type { AgentConfig, Agent, AgentRunOptions, AgentRunWithThreadOptions, AgentStreamOptions, AgentStreamWithThreadOptions } from '../ai/create-agent';
+export type {
+    AgentConfig,
+    Agent,
+    AgentRunOptions,
+    AgentRunWithThreadOptions,
+    AgentStreamOptions,
+    AgentStreamWithThreadOptions,
+    AgentThreadOptions,
+} from '../ai/create-agent';
 
 // Tool Approval
 export type { ApprovalConfig, ApprovalHandler, ApprovalContext, ApprovalResult } from '../ai/tool-approval';

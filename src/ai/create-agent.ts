@@ -5,6 +5,7 @@
 
 import type { LanguageModelClient } from '../core/client';
 import type { ResponseFormat } from '../lib/types';
+import type { ChatMessage } from '../lib/types';
 import type { Skill } from '../modules/skills/types';
 import type { Checkpointer } from './graph/checkpointer';
 import type { ApprovalConfig } from './tool-approval';
@@ -12,8 +13,9 @@ import type { MemoryManager } from './memory';
 import type { Guardrail } from './guardrails';
 import type { MCPHostProvider } from '../lib/mcp-host-types';
 import type { RegisteredTool } from '../lib/tool-registry';
-import type { SessionStore } from './session-store';
+import type { SessionStore, SessionRecord } from './session-store';
 import { ToolRegistry } from '../lib/tool-registry';
+import { extractSessionMessages } from './session-store';
 import {
     generateTextWithGraph,
     type GenerateTextWithGraphResult,
@@ -119,6 +121,12 @@ export interface AgentStreamWithThreadOptions extends AgentStreamOptions {
     resumeFromCheckpoint?: boolean;
 }
 
+/** Options for thread lifecycle helpers */
+export interface AgentThreadOptions {
+    /** Thread ID for persistence lookup/cleanup */
+    threadId: string;
+}
+
 /** Agent instance */
 export interface Agent {
     /** Agent ID for A2A identification */
@@ -133,6 +141,12 @@ export interface Agent {
     stream: (options: AgentStreamOptions) => Promise<StreamTextResult>;
     /** Stream agent output with thread (persistent conversation) */
     streamWithThread: (options: AgentStreamWithThreadOptions) => Promise<StreamTextResult>;
+    /** Load the persisted thread record, if any */
+    loadThread: (options: AgentThreadOptions) => Promise<SessionRecord | null>;
+    /** Replay persisted thread messages without exposing checkpoint internals */
+    replayThread: (options: AgentThreadOptions) => Promise<ChatMessage[]>;
+    /** Clear persisted thread state */
+    clearThread: (options: AgentThreadOptions) => Promise<void>;
     /** Connect MCP host (if hostProvider configured) */
     connectHost?: () => Promise<void>;
     /** Disconnect and clean up MCP host */
@@ -233,6 +247,38 @@ export function createAgent(config: AgentConfig): Agent {
     // Initialize with user tools
     syncMcpTools([]);
 
+    const requirePersistentThreadSupport = (operation: string, threadId: string): void => {
+        if (!checkpointer && !sessionStore) {
+            throw new Error(`${operation} requires checkpointer or sessionStore to be configured in createAgent`);
+        }
+        if (!threadId) {
+            throw new Error(`threadId is required for ${operation}`);
+        }
+    };
+
+    const loadThreadRecord = async (threadId: string): Promise<SessionRecord | null> => {
+        const sessionRecord = sessionStore ? await sessionStore.load(threadId) : null;
+        if (sessionRecord) {
+            return sessionRecord;
+        }
+
+        if (!checkpointer) {
+            return null;
+        }
+
+        const checkpoint = await checkpointer.load(threadId);
+        if (!checkpoint) {
+            return null;
+        }
+
+        return {
+            threadId,
+            checkpoint,
+            messages: extractSessionMessages(checkpoint),
+            updatedAt: checkpoint.metadata.createdAt,
+        };
+    };
+
     // Helper to build common options
     const buildOptions = (
         prompt: string,
@@ -332,13 +378,7 @@ export function createAgent(config: AgentConfig): Agent {
         async runWithThread(options: AgentRunWithThreadOptions): Promise<GenerateTextWithGraphResult> {
             const { prompt, threadId, resumeFromCheckpoint = true, onStepFinish, onNodeEnter, onNodeExit } = options;
 
-            if (!checkpointer && !sessionStore) {
-                throw new Error('runWithThread requires checkpointer or sessionStore to be configured in createAgent');
-            }
-
-            if (!threadId) {
-                throw new Error('threadId is required for runWithThread');
-            }
+            requirePersistentThreadSupport('runWithThread', threadId);
 
             // Lazy connect MCP host on first run
             if (hostProvider && !hostConnected) {
@@ -377,13 +417,7 @@ export function createAgent(config: AgentConfig): Agent {
         async streamWithThread(options: AgentStreamWithThreadOptions): Promise<StreamTextResult> {
             const { prompt, threadId, resumeFromCheckpoint = true, onStepFinish, onNodeEnter, onNodeExit, abortSignal: streamAbortSignal } = options;
 
-            if (!checkpointer && !sessionStore) {
-                throw new Error('streamWithThread requires checkpointer or sessionStore to be configured in createAgent');
-            }
-
-            if (!threadId) {
-                throw new Error('threadId is required for streamWithThread');
-            }
+            requirePersistentThreadSupport('streamWithThread', threadId);
 
             // Lazy connect MCP host on first stream
             if (hostProvider && !hostConnected) {
@@ -398,6 +432,36 @@ export function createAgent(config: AgentConfig): Agent {
                 resumeFromCheckpoint,
                 abortSignal: streamAbortSignal ?? abortSignal,
             });
+        },
+
+        async loadThread(options: AgentThreadOptions): Promise<SessionRecord | null> {
+            const { threadId } = options;
+            requirePersistentThreadSupport('loadThread', threadId);
+            return loadThreadRecord(threadId);
+        },
+
+        async replayThread(options: AgentThreadOptions): Promise<ChatMessage[]> {
+            const { threadId } = options;
+            requirePersistentThreadSupport('replayThread', threadId);
+            return extractSessionMessages(await loadThreadRecord(threadId));
+        },
+
+        async clearThread(options: AgentThreadOptions): Promise<void> {
+            const { threadId } = options;
+            requirePersistentThreadSupport('clearThread', threadId);
+
+            if (sessionStore) {
+                await sessionStore.clear(threadId);
+            }
+
+            if (checkpointer && !sessionStore) {
+                await checkpointer.clear(threadId);
+            } else if (checkpointer && sessionStore) {
+                const sessionCheckpointer = (sessionStore as unknown as { checkpointer?: Checkpointer }).checkpointer;
+                if (sessionCheckpointer !== checkpointer) {
+                    await checkpointer.clear(threadId);
+                }
+            }
         },
 
         /** Connect MCP host provider (lazy connection) */

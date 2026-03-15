@@ -224,6 +224,109 @@ describe('createAgent', () => {
                 { role: 'user', content: 'Continue' },
             ]);
         });
+
+        it('loads and replays persisted thread messages through the agent surface', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            await sessionStore.save({
+                threadId: 'thread-replay-agent',
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant.' },
+                    { role: 'user', content: 'Earlier user turn' },
+                    { role: 'assistant', content: 'Earlier assistant reply' },
+                ],
+                summary: 'Earlier summary',
+            });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                sessionStore,
+            });
+
+            await expect(agent.loadThread({ threadId: 'thread-replay-agent' })).resolves.toMatchObject({
+                threadId: 'thread-replay-agent',
+                summary: 'Earlier summary',
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant.' },
+                    { role: 'user', content: 'Earlier user turn' },
+                    { role: 'assistant', content: 'Earlier assistant reply' },
+                ],
+            });
+            await expect(agent.replayThread({ threadId: 'thread-replay-agent' })).resolves.toEqual([
+                { role: 'system', content: 'You are a helpful assistant.' },
+                { role: 'user', content: 'Earlier user turn' },
+                { role: 'assistant', content: 'Earlier assistant reply' },
+            ]);
+        });
+
+        it('clears persisted thread state through the agent surface', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            const checkpointer = createMockCheckpointer();
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                sessionStore,
+                checkpointer,
+            });
+
+            await sessionStore.save({
+                threadId: 'thread-clear-agent',
+                messages: [
+                    { role: 'user', content: 'Clear me' },
+                ],
+                summary: 'clear summary',
+            });
+
+            await agent.clearThread({ threadId: 'thread-clear-agent' });
+
+            await expect(agent.loadThread({ threadId: 'thread-clear-agent' })).resolves.toBeNull();
+            expect(checkpointer.clear).toHaveBeenCalledWith('thread-clear-agent');
+        });
+
+        it('loads and replays thread state from a checkpointer when no sessionStore is configured', async () => {
+            const client = createMockClient();
+            const checkpointer = createMockCheckpointer();
+            (checkpointer.load as ReturnType<typeof vi.fn>).mockResolvedValue({
+                metadata: {
+                    id: 'ckpt-only',
+                    threadId: 'thread-checkpoint-only',
+                    createdAt: 1,
+                    stepCount: 1,
+                },
+                state: {
+                    internalMessages: [
+                        { role: 'user', content: 'Checkpoint user turn' },
+                        { role: 'assistant', content: 'Checkpoint assistant reply' },
+                    ],
+                    stepCount: 1,
+                    maxSteps: 4,
+                    done: false,
+                    output: 'Checkpoint assistant reply',
+                    reasoning: '',
+                    finishReason: null,
+                },
+            });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                checkpointer,
+            });
+
+            await expect(agent.loadThread({ threadId: 'thread-checkpoint-only' })).resolves.toMatchObject({
+                threadId: 'thread-checkpoint-only',
+                messages: [
+                    { role: 'user', content: 'Checkpoint user turn' },
+                    { role: 'assistant', content: 'Checkpoint assistant reply' },
+                ],
+            });
+            await expect(agent.replayThread({ threadId: 'thread-checkpoint-only' })).resolves.toEqual([
+                { role: 'user', content: 'Checkpoint user turn' },
+                { role: 'assistant', content: 'Checkpoint assistant reply' },
+            ]);
+        });
     });
 
     describe('approval config passthrough', () => {
