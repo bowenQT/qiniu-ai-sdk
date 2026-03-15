@@ -29,6 +29,9 @@ export interface LiveVerifyOptions {
 interface LiveVerifyMcpTransport {
     connect?(): Promise<void>;
     listTools?(): Promise<Array<{ name: string }>>;
+    executeTool?(toolName: string, args: Record<string, unknown>): Promise<{
+        content?: Array<{ type: string; text?: string }>;
+    }>;
     openEventStream(lastEventId?: string): Promise<Pick<Response, 'status' | 'headers'>>;
     discoverOAuthMetadata(challengeHeader?: string): Promise<{
         protectedResource: {
@@ -56,6 +59,15 @@ function parseOptionalTimeout(value: string | undefined): number | undefined {
     if (!value) return undefined;
     const parsed = Number.parseInt(value, 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parseOptionalJsonObject(value: string | undefined): Record<string, unknown> | undefined {
+    if (!value) return undefined;
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('QINIU_LIVE_VERIFY_MCP_TOOL_ARGS_JSON must be a JSON object');
+    }
+    return parsed as Record<string, unknown>;
 }
 
 const LANE_MODULES: Record<Exclude<WorktreeLane, 'integration'>, string[]> = {
@@ -206,6 +218,24 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     await transport.connect();
                     const tools = await transport.listTools();
                     addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${tools.length} tools`);
+                }
+
+                const toolName = env.QINIU_LIVE_VERIFY_MCP_TOOL_NAME?.trim();
+                if (toolName) {
+                    if (!transport.connect || !transport.executeTool) {
+                        throw new Error('MCP tool execution probe requires connect() and executeTool() support');
+                    }
+                    await transport.connect();
+                    const toolArgs = parseOptionalJsonObject(env.QINIU_LIVE_VERIFY_MCP_TOOL_ARGS_JSON) ?? {};
+                    const toolResult = await transport.executeTool(toolName, toolArgs);
+                    const firstText = toolResult.content?.find(
+                        (item: { type: string; text?: string }) => item.type === 'text',
+                    )?.text;
+                    addCheck(
+                        checks,
+                        'ok',
+                        `MCP tool call probe succeeded: ${toolName}${firstText ? ` -> ${firstText}` : ''}`,
+                    );
                 }
 
                 const stream = await transport.openEventStream();
