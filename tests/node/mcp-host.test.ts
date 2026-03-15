@@ -255,6 +255,24 @@ describe('NodeMCPHost', () => {
         expect(resources[0].serverName).toBe('fs');
     });
 
+    it('listServerResources() returns resources for one connected server', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+
+        const host = new NodeMCPHost({
+            servers: [{ name: 'fs', transport: 'stdio', command: 'mcp-fs' }],
+        });
+
+        await host.connect();
+        await expect(host.listServerResources('fs')).resolves.toEqual([
+            {
+                serverName: 'fs',
+                uri: 'file:///readme.md',
+                name: 'readme',
+                mimeType: undefined,
+            },
+        ]);
+    });
+
     it('readResource() delegates to correct server client', async () => {
         const { NodeMCPHost } = await import('../../src/node/mcp-host');
 
@@ -281,6 +299,24 @@ describe('NodeMCPHost', () => {
         expect(prompts).toHaveLength(1);
         expect(prompts[0].name).toBe('summarize');
         expect(prompts[0].serverName).toBe('prompt-srv');
+    });
+
+    it('listServerPrompts() returns prompts for one connected server', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+
+        const host = new NodeMCPHost({
+            servers: [{ name: 'prompt-srv', transport: 'stdio', command: 'mcp-prompts' }],
+        });
+
+        await host.connect();
+        await expect(host.listServerPrompts('prompt-srv')).resolves.toEqual([
+            {
+                serverName: 'prompt-srv',
+                name: 'summarize',
+                description: 'Summarize text',
+                arguments: undefined,
+            },
+        ]);
     });
 
     it('getPrompt() delegates to correct server client', async () => {
@@ -421,5 +457,18 @@ describe('NodeMCPHost', () => {
 
         await expect(host.listServerTools('missing')).rejects.toThrow('MCP server "missing" not found');
         await expect(host.executeServerTool('missing', 'search')).rejects.toThrow('MCP server "missing" not found');
+    });
+
+    it('listServerResources() and listServerPrompts() reject unknown server names', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+
+        const host = new NodeMCPHost({
+            servers: [{ name: 'web', transport: 'stdio', command: 'mcp-web' }],
+        });
+
+        await host.connect();
+
+        await expect(host.listServerResources('missing')).rejects.toThrow('MCP server "missing" not found');
+        await expect(host.listServerPrompts('missing')).rejects.toThrow('MCP server "missing" not found');
     });
 });

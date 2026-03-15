@@ -33,6 +33,8 @@ export { NodeMCPHost } from './mcp-host';
 export type {
     NodeMCPHostConfig,
     NodeMCPHostProbeResult,
+    NodeMCPHostResourceInfo,
+    NodeMCPHostPromptInfo,
     NodeMCPHostToolInfo,
     MCPServerConfig,
 } from './mcp-host';

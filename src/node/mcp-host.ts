@@ -55,6 +55,23 @@ export interface NodeMCPHostToolInfo {
     inputSchema?: Record<string, unknown>;
 }
 
+export interface NodeMCPHostResourceInfo {
+    serverName: string;
+    uri: string;
+    name: string;
+    mimeType?: string;
+}
+
+export interface NodeMCPHostPromptInfo {
+    serverName: string;
+    name: string;
+    description?: string;
+    arguments?: Array<{
+        name: string;
+        required?: boolean;
+    }>;
+}
+
 // ============================================================================
 // NodeMCPHost
 // ============================================================================
@@ -144,6 +161,21 @@ export class NodeMCPHost implements MCPHostProvider {
         return allResources;
     }
 
+    async listServerResources(serverName: string): Promise<NodeMCPHostResourceInfo[]> {
+        const client = this.clients.get(serverName);
+        if (!client) {
+            throw new Error(`MCP server "${serverName}" not found`);
+        }
+
+        const result = await client.listResources();
+        return result.resources.map((resource) => ({
+            serverName,
+            uri: resource.uri,
+            name: resource.name ?? resource.uri,
+            mimeType: (resource as any).mimeType,
+        }));
+    }
+
     async readResource(serverName: string, uri: string): Promise<string> {
         const client = this.clients.get(serverName);
         if (!client) {
@@ -181,6 +213,24 @@ export class NodeMCPHost implements MCPHostProvider {
         }
 
         return allPrompts;
+    }
+
+    async listServerPrompts(serverName: string): Promise<NodeMCPHostPromptInfo[]> {
+        const client = this.clients.get(serverName);
+        if (!client) {
+            throw new Error(`MCP server "${serverName}" not found`);
+        }
+
+        const result = await client.listPrompts();
+        return result.prompts.map((prompt) => ({
+            serverName,
+            name: prompt.name,
+            description: prompt.description,
+            arguments: prompt.arguments?.map((arg) => ({
+                name: arg.name,
+                required: arg.required,
+            })),
+        }));
     }
 
     async getPrompt(
