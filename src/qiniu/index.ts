@@ -126,7 +126,12 @@ export type {
     AnthropicContentBlock,
 } from '../modules/anthropic';
 
-export { ResponseAPI, extractResponseOutputText } from '../modules/response';
+export {
+    ResponseAPI,
+    extractResponseOutputText,
+    extractResponseReasoningSummaryText,
+    extractResponseOutputMessages,
+} from '../modules/response';
 export type {
     ResponseCreateRequest,
     ResponseCreateResponse,
