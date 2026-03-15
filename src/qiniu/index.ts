@@ -130,6 +130,7 @@ export type {
 
 export {
     ResponseAPI,
+    parseResponseOutputJson,
     extractResponseOutputText,
     extractResponseReasoningSummaryText,
     extractResponseOutputMessages,
@@ -145,6 +146,7 @@ export type {
     ResponseStreamOptions,
     ResponseStreamResult,
     ResponseChatCompletionStreamResult,
+    ResponseJsonResult,
 } from '../modules/response';
 
 export { Log } from '../modules/log';
