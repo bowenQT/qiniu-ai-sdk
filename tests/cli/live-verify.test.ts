@@ -42,6 +42,9 @@ describe('CLI live verification helpers', () => {
                         file: { file_id: 'unused', format: 'text/plain' },
                     }),
                 },
+                response: {
+                    createText: async () => 'response',
+                },
             }) as any,
         });
 
@@ -50,6 +53,7 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('file: GA'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Chat probe succeeded'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('File/qfile live probe was skipped'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Response API live probe was skipped'))).toBe(true);
     });
 
     it('runs the optional file workflow probe when explicitly enabled', async () => {
@@ -73,11 +77,47 @@ describe('CLI live verification helpers', () => {
                         file: { file_id: 'qfile-123', format: 'text/plain' },
                     }),
                 },
+                response: {
+                    createText: async () => 'response',
+                },
             }) as any,
         });
 
-        expect(result.exitCode).toBe(0);
+        expect(result.exitCode).toBe(2);
         expect(result.checks.some((check) => check.message.includes('File workflow probe succeeded: qfile-123 (text/plain)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Response API live probe was skipped'))).toBe(true);
+    });
+
+    it('runs the optional Response API probe when explicitly enabled', async () => {
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_RESPONSE_API: '1',
+                QINIU_LIVE_VERIFY_RESPONSE_MODEL: 'gpt-5.2',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                file: {
+                    create: async () => ({ id: 'unused', status: 'ready' }),
+                    waitForReady: async () => ({ id: 'unused', status: 'ready' }),
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'unused', format: 'text/plain' },
+                    }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(result.checks.some((check) => check.message.includes('Response API probe succeeded: response'))).toBe(true);
     });
 
     it('warns when node-integrations lane skips MCP live probing', async () => {
