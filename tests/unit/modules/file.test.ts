@@ -222,6 +222,30 @@ describe('Phase 2: File Module', () => {
         });
     });
 
+    it('should build a qfile response input message from an uploaded file reference', () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: createStaticMockFetch({ status: 200, body: {} }).adapter,
+        });
+
+        expect(client.file.toResponseInputMessage('总结这个文档', {
+            id: 'qfile-doc',
+            file_name: 'brief.pdf',
+        })).toEqual({
+            role: 'user',
+            content: [
+                { type: 'text', text: '总结这个文档' },
+                {
+                    type: 'file',
+                    file: {
+                        file_id: 'qfile-doc',
+                        format: 'application/pdf',
+                    },
+                },
+            ],
+        });
+    });
+
     it('should wait until a file becomes ready', async () => {
         const mockFetch = createMockFetch([
             {
@@ -502,6 +526,123 @@ describe('Phase 2: File Module', () => {
                         file: {
                             file_id: 'qfile-user-message-result',
                             format: 'video/mp4',
+                        },
+                    },
+                ],
+            },
+        });
+    });
+
+    it('should upload, wait, and build a qfile response input message in one step', async () => {
+        const mockFetch = createMockFetch([
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-response-message',
+                    object: 'file',
+                    status: 'uploading',
+                    created_at: 1,
+                    file_name: 'brief.pdf',
+                },
+            },
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-response-message',
+                    object: 'file',
+                    status: 'ready',
+                    created_at: 1,
+                    synced_at: 2,
+                    expires_at: 3,
+                    file_name: 'brief.pdf',
+                    content_type: 'application/pdf',
+                },
+            },
+        ]);
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const message = await client.file.createResponseInputMessage('总结这个文档', {
+            file: 'SGVsbG8=',
+            filename: 'brief.pdf',
+            purpose: 'assistants',
+        }, {
+            intervalMs: 1,
+            timeoutMs: 100,
+        });
+
+        expect(message).toEqual({
+            role: 'user',
+            content: [
+                { type: 'text', text: '总结这个文档' },
+                {
+                    type: 'file',
+                    file: {
+                        file_id: 'qfile-response-message',
+                        format: 'application/pdf',
+                    },
+                },
+            ],
+        });
+    });
+
+    it('should return both ready file and qfile response input message via createResponseInputMessageResult', async () => {
+        const mockFetch = createMockFetch([
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-response-message-result',
+                    object: 'file',
+                    status: 'uploading',
+                    created_at: 1,
+                    file_name: 'brief.pdf',
+                },
+            },
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-response-message-result',
+                    object: 'file',
+                    status: 'ready',
+                    created_at: 1,
+                    synced_at: 2,
+                    expires_at: 3,
+                    file_name: 'brief.pdf',
+                    content_type: 'application/pdf',
+                },
+            },
+        ]);
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const result = await client.file.createResponseInputMessageResult('总结这个文档', {
+            file: 'SGVsbG8=',
+            filename: 'brief.pdf',
+            purpose: 'assistants',
+        }, {
+            intervalMs: 1,
+            timeoutMs: 100,
+        });
+
+        expect(result).toEqual({
+            file: expect.objectContaining({
+                id: 'qfile-response-message-result',
+                status: 'ready',
+                content_type: 'application/pdf',
+            }),
+            message: {
+                role: 'user',
+                content: [
+                    { type: 'text', text: '总结这个文档' },
+                    {
+                        type: 'file',
+                        file: {
+                            file_id: 'qfile-response-message-result',
+                            format: 'application/pdf',
                         },
                     },
                 ],
