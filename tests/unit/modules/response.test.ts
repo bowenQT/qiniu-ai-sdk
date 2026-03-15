@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { QiniuAI } from '../../../src/client';
 import {
+    extractResponseOutputMessage,
     extractResponseOutputMessages,
     extractResponseOutputText,
     extractResponseReasoningSummaryText,
@@ -485,6 +486,35 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         ]);
     });
 
+    it('should create the primary projected output message directly from Response API', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-message-direct',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Primary helper message' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.createMessage({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        })).resolves.toEqual({
+            role: 'assistant',
+            content: 'Primary helper message',
+        });
+    });
+
     it('should return both raw response and projected output messages via followUpMessagesResult()', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,
@@ -521,6 +551,43 @@ describe('Phase 3: Response API Module (@experimental)', () => {
                     content: 'Follow-up message helper',
                 },
             ],
+        });
+    });
+
+    it('should return both raw response and the primary projected output message via followUpMessageResult()', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-message-result',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Follow-up primary message' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.followUpMessageResult({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue',
+        })).resolves.toEqual({
+            response: expect.objectContaining({
+                id: 'resp-message-result',
+                status: 'completed',
+                output_text: 'Follow-up primary message',
+            }),
+            message: {
+                role: 'assistant',
+                content: 'Follow-up primary message',
+            },
         });
     });
 
@@ -1354,6 +1421,26 @@ describe('Phase 3: Response API Module (@experimental)', () => {
                 content: 'Hello, world',
             },
         ]);
+    });
+
+    it('should extract the primary chat-style message from response outputs', () => {
+        expect(extractResponseOutputMessage({
+            output: [
+                {
+                    type: 'message',
+                    role: 'assistant',
+                    content: [{ type: 'output_text', text: 'First message' }],
+                },
+                {
+                    type: 'message',
+                    role: 'assistant',
+                    content: [{ type: 'output_text', text: 'Last message' }],
+                },
+            ],
+        } as any)).toEqual({
+            role: 'assistant',
+            content: 'Last message',
+        });
     });
 
     it('should project Response API payloads into chat-completion shape', () => {
