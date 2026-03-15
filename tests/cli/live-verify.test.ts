@@ -215,7 +215,9 @@ describe('CLI live verification helpers', () => {
                 listTools: async () => [{ name: 'ping' }, { name: 'echo' }],
                 listResources: async () => [{ uri: 'file:///readme.md' }],
                 listPrompts: async () => [{ name: 'summarize' }],
+                readResourceContents: async () => [{ text: '# Hello', mimeType: 'text/markdown' }],
                 readResource: async () => '# Hello',
+                getPromptMessages: async () => [{ role: 'user', content: { type: 'text', text: 'Please summarize hello' } }],
                 getPrompt: async () => 'Please summarize hello',
                 executeTool: async () => ({
                     content: [{ type: 'text', text: 'pong' }],
@@ -239,7 +241,9 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('MCP resource listing probe succeeded: 1 resources'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP prompt listing probe succeeded: 1 prompts'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP resource read probe succeeded: # Hello'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP structured resource read probe succeeded: 1 contents'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP prompt get probe succeeded: Please summarize hello'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP structured prompt get probe succeeded: 1 messages'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP tool call probe succeeded: ping -> pong'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP event stream probe succeeded: 200 (text/event-stream)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP OAuth metadata probe succeeded: https://auth.example.com'))).toBe(true);
@@ -277,7 +281,9 @@ describe('CLI live verification helpers', () => {
                     tools: [{ name: 'ping' }, { name: 'echo' }],
                     resources: [{ uri: 'file:///readme.md' }],
                     prompts: [{ name: 'summarize' }],
+                    resourceContents: [{ text: '# Hello', mimeType: 'text/markdown' }],
                     resourceText: '# Hello',
+                    promptMessages: [{ role: 'user', content: { type: 'text', text: 'Please summarize hello' } }],
                     promptText: 'Please summarize hello',
                     toolResult: {
                         content: [{ type: 'text', text: 'pong' }],
@@ -309,7 +315,9 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('MCP resource listing probe succeeded: 1 resources'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP prompt listing probe succeeded: 1 prompts'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP resource read probe succeeded: # Hello'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP structured resource read probe succeeded: 1 contents'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP prompt get probe succeeded: Please summarize hello'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP structured prompt get probe succeeded: 1 messages'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP tool call probe succeeded: ping -> pong'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP event stream probe succeeded: 200 (text/event-stream)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP OAuth metadata probe succeeded: https://auth.example.com'))).toBe(true);
