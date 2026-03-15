@@ -15,7 +15,7 @@ import type { MCPHostProvider } from '../lib/mcp-host-types';
 import type { RegisteredTool } from '../lib/tool-registry';
 import type { SessionStore, SessionRecord } from './session-store';
 import { ToolRegistry } from '../lib/tool-registry';
-import { extractSessionMessages } from './session-store';
+import { extractSessionMessages, forkSessionSaveInput } from './session-store';
 import {
     generateTextWithGraph,
     type GenerateTextWithGraphResult,
@@ -127,6 +127,16 @@ export interface AgentThreadOptions {
     threadId: string;
 }
 
+/** Options for thread forking helpers */
+export interface AgentForkThreadOptions {
+    /** Source thread ID to clone from */
+    fromThreadId: string;
+    /** Target thread ID to clone into */
+    toThreadId: string;
+    /** Allow overwriting an existing target thread */
+    overwrite?: boolean;
+}
+
 /** Agent instance */
 export interface Agent {
     /** Agent ID for A2A identification */
@@ -145,6 +155,8 @@ export interface Agent {
     loadThread: (options: AgentThreadOptions) => Promise<SessionRecord | null>;
     /** Replay persisted thread messages without exposing checkpoint internals */
     replayThread: (options: AgentThreadOptions) => Promise<ChatMessage[]>;
+    /** Fork persisted thread state into another thread */
+    forkThread: (options: AgentForkThreadOptions) => Promise<SessionRecord>;
     /** Clear persisted thread state */
     clearThread: (options: AgentThreadOptions) => Promise<void>;
     /** Connect MCP host (if hostProvider configured) */
@@ -177,6 +189,12 @@ export interface Agent {
  * const result = await assistant.runWithThread({
  *   threadId: 'user-123',
  *   prompt: 'Continue our chat...',
+ * });
+ *
+ * // Fork a persisted thread into a new branch
+ * await assistant.forkThread({
+ *   fromThreadId: 'user-123',
+ *   toThreadId: 'user-123-branch-a',
  * });
  * ```
  */
@@ -253,6 +271,16 @@ export function createAgent(config: AgentConfig): Agent {
         }
         if (!threadId) {
             throw new Error(`threadId is required for ${operation}`);
+        }
+    };
+
+    const requireForkThreadSupport = (fromThreadId: string, toThreadId: string): void => {
+        requirePersistentThreadSupport('forkThread', fromThreadId);
+        if (!toThreadId) {
+            throw new Error('toThreadId is required for forkThread');
+        }
+        if (fromThreadId === toThreadId) {
+            throw new Error('forkThread requires fromThreadId and toThreadId to be different');
         }
     };
 
@@ -444,6 +472,50 @@ export function createAgent(config: AgentConfig): Agent {
             const { threadId } = options;
             requirePersistentThreadSupport('replayThread', threadId);
             return extractSessionMessages(await loadThreadRecord(threadId));
+        },
+
+        async forkThread(options: AgentForkThreadOptions): Promise<SessionRecord> {
+            const { fromThreadId, toThreadId, overwrite = false } = options;
+            requireForkThreadSupport(fromThreadId, toThreadId);
+
+            const source = await loadThreadRecord(fromThreadId);
+            if (!source) {
+                throw new Error(`forkThread could not find source thread: ${fromThreadId}`);
+            }
+
+            if (!overwrite) {
+                const existing = await loadThreadRecord(toThreadId);
+                if (existing) {
+                    throw new Error(`forkThread target already exists: ${toThreadId}`);
+                }
+            }
+
+            const saveInput = forkSessionSaveInput(source, toThreadId);
+
+            if (sessionStore) {
+                return sessionStore.save(saveInput);
+            }
+
+            if (checkpointer) {
+                const saved = await checkpointer.save(
+                    toThreadId,
+                    saveInput.state as any,
+                    saveInput.checkpointMetadata,
+                );
+                const checkpoint = await checkpointer.load(toThreadId);
+                return {
+                    threadId: toThreadId,
+                    checkpoint: checkpoint ?? {
+                        metadata: saved,
+                        state: saveInput.state as any,
+                    },
+                    messages: saveInput.messages,
+                    summary: saveInput.summary,
+                    updatedAt: saved.createdAt ?? Date.now(),
+                };
+            }
+
+            throw new Error('forkThread requires checkpointer or sessionStore to be configured in createAgent');
         },
 
         async clearThread(options: AgentThreadOptions): Promise<void> {

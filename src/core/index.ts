@@ -170,6 +170,7 @@ export type {
     AgentRunWithThreadOptions,
     AgentStreamOptions,
     AgentStreamWithThreadOptions,
+    AgentForkThreadOptions,
     AgentThreadOptions,
 } from '../ai/create-agent';
 
