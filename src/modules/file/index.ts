@@ -1,4 +1,4 @@
-import { IQiniuClient } from '../../lib/types';
+import { IQiniuClient, type FileContentPart } from '../../lib/types';
 
 // ============================================================================
 // Type Definitions
@@ -51,6 +51,13 @@ export interface FileListOptions {
     limit?: number;
 }
 
+export type FileReferenceInput = string | Pick<FileResponse, 'id' | 'filename'>;
+
+export interface FileContentPartOptions {
+    /** Explicit MIME type / format override for the referenced file */
+    format?: string;
+}
+
 // ============================================================================
 // File Class
 // ============================================================================
@@ -89,6 +96,23 @@ export class File {
         if (options?.limit) params.limit = String(options.limit);
 
         return this.client.get<FileListResponse>('/files', Object.keys(params).length > 0 ? params : undefined);
+    }
+
+    /**
+     * Build a chat/response content part referencing an uploaded file.
+     * Useful for Gemini qfile and other file-aware multimodal calls.
+     */
+    toContentPart(file: FileReferenceInput, options: FileContentPartOptions = {}): FileContentPart {
+        const reference = typeof file === 'string' ? { id: file } : file;
+        const format = options.format ?? inferFileFormat(reference.filename);
+
+        return {
+            type: 'file',
+            file: {
+                file_id: reference.id,
+                ...(format ? { format } : {}),
+            },
+        };
     }
 }
 
@@ -141,4 +165,33 @@ async function normalizeFileSource(source: FileSource): Promise<string> {
     }
 
     throw new Error('Unsupported file source');
+}
+
+function inferFileFormat(filename?: string): string | undefined {
+    if (!filename) {
+        return undefined;
+    }
+
+    const lower = filename.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.mp4')) return 'video/mp4';
+    if (lower.endsWith('.mov')) return 'video/quicktime';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.ogg')) return 'audio/ogg';
+    if (lower.endsWith('.txt')) return 'text/plain';
+    if (lower.endsWith('.md')) return 'text/markdown';
+    if (lower.endsWith('.csv')) return 'text/csv';
+    if (lower.endsWith('.json')) return 'application/json';
+    if (lower.endsWith('.docx')) {
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+    if (lower.endsWith('.xlsx')) {
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+    if (lower.endsWith('.pptx')) {
+        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    }
+
+    return undefined;
 }
