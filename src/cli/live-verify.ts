@@ -21,7 +21,7 @@ export interface LiveVerifyResult {
 export interface LiveVerifyOptions {
     lane: WorktreeLane;
     env?: NodeJS.ProcessEnv;
-    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file' | 'response' | 'batch' | 'censor' | 'account' | 'admin' | 'log' | 'ocr' | 'asr' | 'tts'>;
+    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'image' | 'video' | 'file' | 'response' | 'batch' | 'censor' | 'account' | 'admin' | 'log' | 'ocr' | 'asr' | 'tts'>;
     createNodeClient?: (apiKey: string) => ReturnType<typeof createNodeQiniuAI>;
     createMcpTransport?: (config: MCPHttpServerConfig) => LiveVerifyMcpTransport;
 }
@@ -115,7 +115,7 @@ function parseOptionalJsonStringRecord(value: string | undefined, envName: strin
 
 const LANE_MODULES: Record<Exclude<WorktreeLane, 'integration'>, string[]> = {
     foundation: ['chat'],
-    'cloud-surface': ['chat', 'file', 'ocr', 'asr', 'tts', 'batch', 'admin', 'censor', 'account', 'log', 'ResponseAPI'],
+    'cloud-surface': ['chat', 'image', 'video', 'file', 'ocr', 'asr', 'tts', 'batch', 'admin', 'censor', 'account', 'log', 'ResponseAPI'],
     runtime: ['generateText', 'createAgent', 'memory', 'guardrails'],
     'node-integrations': ['NodeMCPHost', 'sandbox', 'skills', 'auditLogger'],
     'dx-validation': ['chat', 'file', 'generateText'],
@@ -259,6 +259,148 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_FILE_WORKFLOW not set. File/qfile live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_IMAGE === '1') {
+            const imageClient = client.image as {
+                generate?: (params: {
+                    model: string;
+                    prompt: string;
+                    aspect_ratio?: string;
+                    n?: number;
+                }) => Promise<{
+                    isSync: boolean;
+                    task_id?: string;
+                    status?: string;
+                    data?: Array<{ url?: string; b64_json?: string }>;
+                    wait?: (options?: { timeoutMs?: number; intervalMs?: number }) => Promise<{
+                        status?: string;
+                        data?: Array<{ url?: string; b64_json?: string }>;
+                    }>;
+                }>;
+            };
+            if (!imageClient.generate) {
+                throw new Error('Image live probe requires image.generate() support in the current SDK build');
+            }
+
+            const imageResult = await imageClient.generate({
+                model: env.QINIU_LIVE_VERIFY_IMAGE_MODEL?.trim() || 'gemini-2.5-flash-image',
+                prompt: env.QINIU_LIVE_VERIFY_IMAGE_PROMPT?.trim() || 'A minimal blue square on a white background.',
+                aspect_ratio: env.QINIU_LIVE_VERIFY_IMAGE_ASPECT_RATIO?.trim() || undefined,
+                n: 1,
+            });
+
+            if (imageResult.isSync) {
+                addCheck(
+                    checks,
+                    'ok',
+                    `Image probe succeeded: sync${imageResult.data?.length ? ` (${imageResult.data.length} image${imageResult.data.length === 1 ? '' : 's'})` : ''}`,
+                );
+            } else {
+                addCheck(
+                    checks,
+                    'ok',
+                    `Image create probe succeeded: ${imageResult.task_id ?? '[unknown-task]'}${imageResult.status ? ` (${imageResult.status})` : ''}`,
+                );
+
+                if (env.QINIU_LIVE_VERIFY_IMAGE_WAIT === '1') {
+                    if (!imageResult.wait) {
+                        throw new Error('Image wait live probe requires ImageTaskHandle.wait() support in the current SDK build');
+                    }
+                    const waited = await imageResult.wait({
+                        timeoutMs: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_IMAGE_TIMEOUT_MS) ?? 120_000,
+                        intervalMs: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_IMAGE_INTERVAL_MS) ?? 2_000,
+                    });
+                    addCheck(
+                        checks,
+                        'ok',
+                        `Image wait probe succeeded: ${imageResult.task_id ?? '[unknown-task]'}${waited.status ? ` -> ${waited.status}` : ''}${
+                            waited.data?.length ? ` (${waited.data.length} image${waited.data.length === 1 ? '' : 's'})` : ''
+                        }`,
+                    );
+                } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+                    addCheck(
+                        checks,
+                        'warn',
+                        'QINIU_LIVE_VERIFY_IMAGE_WAIT not set. Image wait live probe was skipped.',
+                    );
+                }
+            }
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_IMAGE not set. Image live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_VIDEO === '1') {
+            const videoClient = client.video as {
+                create?: (params: {
+                    model: string;
+                    prompt: string;
+                    image_url?: string;
+                }) => Promise<{
+                    id: string;
+                    wait?: (options?: { timeoutMs?: number; intervalMs?: number }) => Promise<{
+                        id?: string;
+                        status?: string;
+                        task_result?: { videos?: Array<{ url: string }> };
+                    }>;
+                }>;
+            };
+            if (!videoClient.create) {
+                throw new Error('Video live probe requires video.create() support in the current SDK build');
+            }
+
+            const videoParams: {
+                model: string;
+                prompt: string;
+                image_url?: string;
+            } = {
+                model: env.QINIU_LIVE_VERIFY_VIDEO_MODEL?.trim() || 'kling-v2',
+                prompt: env.QINIU_LIVE_VERIFY_VIDEO_PROMPT?.trim() || 'A calm camera pan across a blue square.',
+            };
+            const videoImageUrl = env.QINIU_LIVE_VERIFY_VIDEO_IMAGE_URL?.trim();
+            if (videoImageUrl) {
+                videoParams.image_url = videoImageUrl;
+            }
+
+            const videoHandle = await videoClient.create(videoParams);
+            addCheck(
+                checks,
+                'ok',
+                `Video create probe succeeded: ${videoHandle.id}`,
+            );
+
+            if (env.QINIU_LIVE_VERIFY_VIDEO_WAIT === '1') {
+                if (!videoHandle.wait) {
+                    throw new Error('Video wait live probe requires VideoTaskHandle.wait() support in the current SDK build');
+                }
+                const waited = await videoHandle.wait({
+                    timeoutMs: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_VIDEO_TIMEOUT_MS) ?? 300_000,
+                    intervalMs: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_VIDEO_INTERVAL_MS) ?? 3_000,
+                });
+                addCheck(
+                    checks,
+                    'ok',
+                    `Video wait probe succeeded: ${waited.id ?? videoHandle.id}${waited.status ? ` -> ${waited.status}` : ''}${
+                        waited.task_result?.videos?.length ? ` (${waited.task_result.videos.length} video${waited.task_result.videos.length === 1 ? '' : 's'})` : ''
+                    }`,
+                );
+            } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+                addCheck(
+                    checks,
+                    'warn',
+                    'QINIU_LIVE_VERIFY_VIDEO_WAIT not set. Video wait live probe was skipped.',
+                );
+            }
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_VIDEO not set. Video live probe was skipped.',
             );
         }
 

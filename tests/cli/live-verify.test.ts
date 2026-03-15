@@ -59,6 +59,8 @@ describe('CLI live verification helpers', () => {
 
         expect(result.exitCode).toBe(2);
         expect(result.checks.some((check) => check.message.includes('chat: GA'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('image: GA (unit, validated 2026-03-14)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('video: GA (unit, validated 2026-03-14)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('file: GA'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('batch: BETA (unit, validated 2026-03-15)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('admin: BETA (unit, validated 2026-03-15)'))).toBe(true);
@@ -71,6 +73,8 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('ResponseAPI: EXPERIMENTAL (unit, validated 2026-03-15)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Chat probe succeeded'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('File/qfile live probe was skipped'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Image live probe was skipped'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Video live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Batch live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Censor live probe was skipped'))).toBe(true);
@@ -82,6 +86,81 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('ASR live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('TTS live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API stream live probe was skipped'))).toBe(false);
+    });
+
+    it('runs the optional image/video live probes when explicitly enabled', async () => {
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_IMAGE: '1',
+                QINIU_LIVE_VERIFY_IMAGE_MODEL: 'gemini-2.5-flash-image',
+                QINIU_LIVE_VERIFY_IMAGE_WAIT: '1',
+                QINIU_LIVE_VERIFY_IMAGE_TIMEOUT_MS: '100',
+                QINIU_LIVE_VERIFY_IMAGE_INTERVAL_MS: '1',
+                QINIU_LIVE_VERIFY_VIDEO: '1',
+                QINIU_LIVE_VERIFY_VIDEO_MODEL: 'kling-v2',
+                QINIU_LIVE_VERIFY_VIDEO_WAIT: '1',
+                QINIU_LIVE_VERIFY_VIDEO_TIMEOUT_MS: '100',
+                QINIU_LIVE_VERIFY_VIDEO_INTERVAL_MS: '1',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                image: {
+                    generate: async () => ({
+                        isSync: false,
+                        task_id: 'img-task-1',
+                        status: 'processing',
+                        wait: async () => ({
+                            status: 'succeed',
+                            data: [{ url: 'https://example.com/image.png' }],
+                        }),
+                    }),
+                },
+                video: {
+                    create: async () => ({
+                        id: 'video-task-1',
+                        wait: async () => ({
+                            id: 'video-task-1',
+                            status: 'completed',
+                            task_result: {
+                                videos: [{ url: 'https://example.com/video.mp4' }],
+                            },
+                        }),
+                    }),
+                },
+                file: {
+                    create: async () => ({ id: 'unused', status: 'ready' }),
+                    waitForReady: async () => ({ id: 'unused', status: 'ready' }),
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'unused', format: 'text/plain' },
+                    }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(result.checks.some((check) => check.message.includes('Image create probe succeeded: img-task-1 (processing)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Image wait probe succeeded: img-task-1 -> succeed (1 image)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Video create probe succeeded: video-task-1'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Video wait probe succeeded: video-task-1 -> completed (1 video)'))).toBe(true);
     });
 
     it('runs the optional file workflow probe when explicitly enabled', async () => {
