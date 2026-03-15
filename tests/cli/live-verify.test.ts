@@ -69,6 +69,7 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('Response API live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Batch live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Censor live probe was skipped'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Censor video live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API stream live probe was skipped'))).toBe(false);
     });
 
@@ -330,6 +331,63 @@ describe('CLI live verification helpers', () => {
 
         expect(result.exitCode).toBe(2);
         expect(result.checks.some((check) => check.message.includes('Censor probe succeeded: review (pulp:review, terror:pass)'))).toBe(true);
+    });
+
+    it('runs the optional censor video live probe when explicitly enabled', async () => {
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_CENSOR_VIDEO: '1',
+                QINIU_LIVE_VERIFY_CENSOR_VIDEO_URI: 'https://example.com/censor.mp4',
+                QINIU_LIVE_VERIFY_CENSOR_VIDEO_SCENES: 'terror',
+                QINIU_LIVE_VERIFY_CENSOR_VIDEO_TIMEOUT_MS: '100',
+                QINIU_LIVE_VERIFY_CENSOR_VIDEO_INTERVAL_MS: '1',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                file: {
+                    create: async () => ({ id: 'unused', status: 'ready' }),
+                    waitForReady: async () => ({ id: 'unused', status: 'ready' }),
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'unused', format: 'text/plain' },
+                    }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
+                },
+                censor: {
+                    video: async () => ({
+                        id: 'job-789',
+                        jobId: 'job-789',
+                        wait: async () => ({
+                            jobId: 'job-789',
+                            status: 'DONE',
+                            suggestion: 'review',
+                            scenes: [{ scene: 'terror', suggestion: 'review' }],
+                        }),
+                    }),
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(result.checks.some((check) => check.message.includes('Censor video create probe succeeded: job-789'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Censor video wait probe succeeded: job-789 -> DONE (review) [terror:review]'))).toBe(true);
     });
 
     it('warns when node-integrations lane skips MCP live probing', async () => {
