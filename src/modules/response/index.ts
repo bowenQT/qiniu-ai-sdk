@@ -192,6 +192,10 @@ export interface ResponseMessageResult {
     message?: ChatMessage;
 }
 
+export interface ResponseMessageStreamResult extends ResponseStreamResult {
+    message?: ChatMessage;
+}
+
 export interface ResponseReasoningSummaryResult {
     response: ResponseCreateResponse;
     reasoningSummaryText?: string;
@@ -200,6 +204,10 @@ export interface ResponseReasoningSummaryResult {
 export interface ResponseReasoningResult extends ResponseReasoningSummaryResult {
     reasoning?: ResponseOutput;
     encryptedContent?: string;
+}
+
+export interface ResponseMessagesStreamResult extends ResponseStreamResult {
+    messages: ChatMessage[];
 }
 
 export type ResponseDeepPartial<T> = T extends object
@@ -357,6 +365,123 @@ export class ResponseAPI {
     ): AsyncGenerator<string, ResponseStreamResult, unknown> {
         const { previousResponseId, ...request } = params;
         return yield* this.createTextStream({
+            ...request,
+            previous_response_id: previousResponseId,
+        }, options);
+    }
+
+    /**
+     * Create a streaming response and emit progressive assistant-message snapshots.
+     */
+    async *createMessageStream(
+        params: Omit<ResponseCreateRequest, 'stream'>,
+        options: ResponseStreamOptions = {},
+    ): AsyncGenerator<ChatMessage, ResponseMessageStreamResult, unknown> {
+        const stream = this.createMessagesStream(params, options);
+
+        while (true) {
+            const next = await stream.next();
+            if (next.done) {
+                return {
+                    ...next.value,
+                    message: next.value.messages[0],
+                };
+            }
+
+            if (next.value[0]) {
+                yield next.value[0];
+            }
+        }
+    }
+
+    /**
+     * Create a streaming follow-up response and emit progressive assistant-message snapshots.
+     */
+    async *followUpMessageStream(
+        params: ResponseFollowUpRequest,
+        options: ResponseStreamOptions = {},
+    ): AsyncGenerator<ChatMessage, ResponseMessageStreamResult, unknown> {
+        const { previousResponseId, ...request } = params;
+        return yield* this.createMessageStream({
+            ...request,
+            previous_response_id: previousResponseId,
+        }, options);
+    }
+
+    /**
+     * Create a streaming response and emit projected output-message snapshots.
+     */
+    async *createMessagesStream(
+        params: Omit<ResponseCreateRequest, 'stream'>,
+        options: ResponseStreamOptions = {},
+    ): AsyncGenerator<ChatMessage[], ResponseMessagesStreamResult, unknown> {
+        const stream = this.createStream(params, options);
+        let streamedText = '';
+        let latestMessages: ChatMessage[] = [];
+        let finalResult: ResponseStreamResult | undefined;
+        let lastSignature: string | undefined;
+
+        const emitSnapshot = function* (messages: ChatMessage[]): Generator<ChatMessage[]> {
+            const signature = JSON.stringify(messages);
+            if (signature !== lastSignature) {
+                lastSignature = signature;
+                yield messages;
+            }
+        };
+
+        while (true) {
+            const next = await stream.next();
+            if (next.done) {
+                finalResult = next.value;
+                break;
+            }
+
+            if (next.value.type === 'response.output_text.delta' && typeof next.value.delta === 'string') {
+                streamedText += next.value.delta;
+                latestMessages = [{
+                    role: 'assistant',
+                    content: streamedText,
+                }];
+                yield* emitSnapshot(latestMessages);
+                continue;
+            }
+
+            if (next.value.type === 'response.completed') {
+                const completed = extractCompletedResponse(next.value);
+                if (!completed) {
+                    continue;
+                }
+                const normalized = normalizeResponseCreateResponse(completed);
+                latestMessages = extractResponseOutputMessages(normalized);
+                if (latestMessages.length === 0 && streamedText.length > 0) {
+                    latestMessages = [{
+                        role: 'assistant',
+                        content: streamedText,
+                    }];
+                }
+                yield* emitSnapshot(latestMessages);
+            }
+        }
+
+        const finalMessages = finalResult?.response
+            ? extractResponseOutputMessages(finalResult.response)
+            : latestMessages;
+
+        return {
+            ...finalResult,
+            messages: finalMessages.length > 0 ? finalMessages : latestMessages,
+        };
+    }
+
+    /**
+     * Create a streaming follow-up response and emit projected output-message snapshots.
+     */
+    async *followUpMessagesStream(
+        params: ResponseFollowUpRequest,
+        options: ResponseStreamOptions = {},
+    ): AsyncGenerator<ChatMessage[], ResponseMessagesStreamResult, unknown> {
+        const { previousResponseId, ...request } = params;
+        return yield* this.createMessagesStream({
             ...request,
             previous_response_id: previousResponseId,
         }, options);

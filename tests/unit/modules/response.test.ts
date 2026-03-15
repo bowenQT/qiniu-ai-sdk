@@ -957,6 +957,91 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         expect(result.eventCount).toBe(3);
     });
 
+    it('should stream assistant message snapshots directly', async () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async () => createSSEResponse([
+                    { type: 'response.output_text.delta', delta: 'Hello' },
+                    { type: 'response.output_text.delta', delta: ', world' },
+                    {
+                        type: 'response.completed',
+                        response: {
+                            id: 'resp-message-stream',
+                            status: 'completed',
+                            output: [
+                                {
+                                    type: 'message',
+                                    role: 'assistant',
+                                    content: [{ type: 'output_text', text: 'Hello, world' }],
+                                },
+                            ],
+                        },
+                    },
+                ]),
+            },
+        });
+
+        const { events, result } = await collectStream(client.response.createMessageStream({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        }));
+
+        expect(events).toEqual([
+            { role: 'assistant', content: 'Hello' },
+            { role: 'assistant', content: 'Hello, world' },
+        ]);
+        expect(result.message).toEqual({ role: 'assistant', content: 'Hello, world' });
+        expect(result.outputText).toBe('Hello, world');
+    });
+
+    it('should stream output message snapshots and expose final projected messages', async () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async () => createSSEResponse([
+                    { type: 'response.output_text.delta', delta: 'Draft' },
+                    {
+                        type: 'response.completed',
+                        response: {
+                            id: 'resp-messages-stream',
+                            status: 'completed',
+                            output: [
+                                {
+                                    type: 'message',
+                                    role: 'assistant',
+                                    content: [{ type: 'output_text', text: 'Draft' }],
+                                },
+                                {
+                                    type: 'message',
+                                    role: 'assistant',
+                                    content: [{ type: 'output_text', text: 'Final second message' }],
+                                },
+                            ],
+                        },
+                    },
+                ]),
+            },
+        });
+
+        const { events, result } = await collectStream(client.response.createMessagesStream({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        }));
+
+        expect(events).toEqual([
+            [{ role: 'assistant', content: 'Draft' }],
+            [
+                { role: 'assistant', content: 'Draft' },
+                { role: 'assistant', content: 'Final second message' },
+            ],
+        ]);
+        expect(result.messages).toEqual([
+            { role: 'assistant', content: 'Draft' },
+            { role: 'assistant', content: 'Final second message' },
+        ]);
+    });
+
     it('should stream partial JSON snapshots and return final parsed JSON', async () => {
         const client = new QiniuAI({
             apiKey: 'sk-test',
@@ -1014,6 +1099,36 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         }));
 
         expect(events).toEqual(['Follow-up chunk']);
+        expect(JSON.parse(String(calls[0]?.init?.body))).toMatchObject({
+            previous_response_id: 'resp-prev',
+            stream: true,
+        });
+    });
+
+    it('should stream follow-up message snapshots directly', async () => {
+        const calls: Array<{ init?: RequestInit }> = [];
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async (_url, init) => {
+                    calls.push({ init });
+                    return createSSEResponse([
+                        { type: 'response.output_text.delta', delta: 'Follow-up chunk' },
+                    ]);
+                },
+            },
+        });
+
+        const { events, result } = await collectStream(client.response.followUpMessageStream({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue',
+        }));
+
+        expect(events).toEqual([
+            { role: 'assistant', content: 'Follow-up chunk' },
+        ]);
+        expect(result.message).toEqual({ role: 'assistant', content: 'Follow-up chunk' });
         expect(JSON.parse(String(calls[0]?.init?.body))).toMatchObject({
             previous_response_id: 'resp-prev',
             stream: true,
