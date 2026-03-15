@@ -109,6 +109,18 @@ export interface MCPPromptDefinition {
     }>;
 }
 
+export interface MCPResourceContent {
+    text?: string;
+    mimeType?: string;
+    [key: string]: unknown;
+}
+
+export interface MCPPromptMessage {
+    role?: string;
+    content: unknown;
+    [key: string]: unknown;
+}
+
 /** Default configuration */
 export const DEFAULT_MCP_CONFIG = {
     connectionTimeout: 30000, // 30s
