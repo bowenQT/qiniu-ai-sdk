@@ -148,6 +148,7 @@ export type {
     ResponseStreamOptions,
     ResponseStreamResult,
     ResponseChatCompletionStreamResult,
+    ResponseChatCompletionResult,
     ResponseJsonResult,
     ResponseTextResult,
     ResponseMessagesResult,

@@ -190,6 +190,56 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         });
     });
 
+    it('should return both raw response and projected chat completion via createChatCompletionResult()', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-chat-result',
+                created_at: 1770773313,
+                model: 'gpt-5.2',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Projected result answer' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.createChatCompletionResult({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        })).resolves.toEqual({
+            response: expect.objectContaining({
+                id: 'resp-chat-result',
+                status: 'completed',
+                output_text: 'Projected result answer',
+            }),
+            completion: {
+                id: 'resp-chat-result',
+                object: 'chat.completion',
+                created: 1770773313,
+                model: 'gpt-5.2',
+                choices: [
+                    {
+                        index: 0,
+                        message: {
+                            role: 'assistant',
+                            content: 'Projected result answer',
+                        },
+                        finish_reason: 'stop',
+                    },
+                ],
+            },
+        });
+    });
+
     it('should create a projected follow-up chat completion directly from Response API', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,
@@ -224,6 +274,57 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         });
         expect(JSON.parse(String(mockFetch.calls[0].init?.body))).toMatchObject({
             previous_response_id: 'resp-prev',
+        });
+    });
+
+    it('should return both raw response and projected follow-up chat completion', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-chat-follow-up-result',
+                created_at: 1770773314,
+                model: 'gpt-5.2',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Follow-up projected result' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.followUpChatCompletionResult({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue',
+        })).resolves.toEqual({
+            response: expect.objectContaining({
+                id: 'resp-chat-follow-up-result',
+                status: 'completed',
+                output_text: 'Follow-up projected result',
+            }),
+            completion: {
+                id: 'resp-chat-follow-up-result',
+                object: 'chat.completion',
+                created: 1770773314,
+                model: 'gpt-5.2',
+                choices: [
+                    {
+                        index: 0,
+                        message: {
+                            role: 'assistant',
+                            content: 'Follow-up projected result',
+                        },
+                        finish_reason: 'stop',
+                    },
+                ],
+            },
         });
     });
 
