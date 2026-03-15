@@ -116,6 +116,8 @@ export type {
     FileResponse,
     FileListResponse,
     FileListOptions,
+    FileUserMessageOptions,
+    FileReferenceUserMessageOptions,
 } from '../modules/file';
 
 export { Anthropic } from '../modules/anthropic';
