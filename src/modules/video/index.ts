@@ -633,8 +633,8 @@ function transformToKlingPayload(params: VideoGenerationRequest): Record<string,
         prompt: params.prompt,
     };
 
-    // Handle frames -> image_list conversion for kling-video-o1
-    if (params.frames && !params.image_list) {
+    // kling-video-o1 uses image_list; other Kling variants have dedicated frame fields.
+    if (params.model === 'kling-video-o1' && params.frames && !params.image_list) {
         const imageList: KlingImageListItem[] = [];
         if (params.frames.first) {
             const imageUrl = params.frames.first.url || params.frames.first.base64 || '';
