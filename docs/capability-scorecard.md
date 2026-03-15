@@ -36,12 +36,12 @@ This document is generated from the SDK capability registry and is intended to m
 | generateObject | ga | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | generateText | ga | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | image | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| log | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| log | ga | unit | 2026-03-15 | Absolute export contract is covered by unit tests; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
 | ocr | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | streamText | ga | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | tts | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | video | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| account | beta | unit |  |  | https://apidocs.qnaigc.com/ |
+| account | beta | unit | 2026-03-15 | Usage auth signing and response handling are covered by unit tests; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
 | adapter | beta | unit |  |  | https://ai-sdk.dev/docs |
 | admin | beta | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
 | auditLogger | beta | unit |  |  | https://apidocs.qnaigc.com/ |
