@@ -458,7 +458,7 @@ export class ResponseAPI {
      * Defaults to `text.format.type = json_object` when no explicit format is provided.
      */
     async createJson<T = unknown>(params: ResponseCreateRequest): Promise<T> {
-        return parseResponseOutputJson(await this.create(withDefaultJsonFormat(params)));
+        return (await this.createJsonResult<T>(params)).json;
     }
 
     /**
@@ -466,7 +466,31 @@ export class ResponseAPI {
      * Defaults to `text.format.type = json_object` when no explicit format is provided.
      */
     async followUpJson<T = unknown>(params: ResponseFollowUpRequest): Promise<T> {
-        return parseResponseOutputJson(await this.followUp(withDefaultJsonFormat(params)));
+        return (await this.followUpJsonResult<T>(params)).json;
+    }
+
+    /**
+     * Create a response and return both the raw response and parsed JSON payload.
+     * Defaults to `text.format.type = json_object` when no explicit format is provided.
+     */
+    async createJsonResult<T = unknown>(params: ResponseCreateRequest): Promise<ResponseJsonResult<T>> {
+        const response = await this.create(withDefaultJsonFormat(params));
+        return {
+            response,
+            json: parseResponseOutputJson<T>(response),
+        };
+    }
+
+    /**
+     * Create a follow-up response and return both the raw response and parsed JSON payload.
+     * Defaults to `text.format.type = json_object` when no explicit format is provided.
+     */
+    async followUpJsonResult<T = unknown>(params: ResponseFollowUpRequest): Promise<ResponseJsonResult<T>> {
+        const response = await this.followUp(withDefaultJsonFormat(params));
+        return {
+            response,
+            json: parseResponseOutputJson<T>(response),
+        };
     }
 
     /**
