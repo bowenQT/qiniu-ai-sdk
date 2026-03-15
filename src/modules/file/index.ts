@@ -78,6 +78,8 @@ export interface FileWaitOptions {
     onPoll?: PollerOptions<FileResponse>['onPoll'];
 }
 
+export interface FileReferenceCreateOptions extends FileWaitOptions, FileContentPartOptions {}
+
 // ============================================================================
 // File Class
 // ============================================================================
@@ -158,6 +160,21 @@ export class File {
                 ...(format ? { format } : {}),
             },
         };
+    }
+
+    /**
+     * Upload a file, wait until it is ready for inference, then return a chat/response content part.
+     * Useful for the full qfile workflow in one step.
+     */
+    async createContentPart(
+        params: FileCreateRequest,
+        options: FileReferenceCreateOptions = {},
+    ): Promise<FileContentPart> {
+        const created = await this.create(params);
+        const ready = created.status === 'ready'
+            ? created
+            : await this.waitForReady(created, options);
+        return this.toContentPart(ready, { format: options.format });
     }
 }
 
