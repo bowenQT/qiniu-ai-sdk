@@ -21,7 +21,7 @@ export interface LiveVerifyResult {
 export interface LiveVerifyOptions {
     lane: WorktreeLane;
     env?: NodeJS.ProcessEnv;
-    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file' | 'response' | 'batch' | 'censor' | 'account' | 'log'>;
+    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file' | 'response' | 'batch' | 'censor' | 'account' | 'admin' | 'log'>;
     createNodeClient?: (apiKey: string) => ReturnType<typeof createNodeQiniuAI>;
     createMcpTransport?: (config: MCPHttpServerConfig) => LiveVerifyMcpTransport;
 }
@@ -599,6 +599,48 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_ACCOUNT_USAGE not set. Account usage live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_ADMIN_LIST_KEYS === '1') {
+            const adminClient = client.admin as {
+                listKeys?: () => Promise<Array<{ key: string; name: string; status?: string }>>;
+                getKey?: (key: string) => Promise<{ key: string; name: string; status?: string } | null>;
+            };
+            if (!adminClient.listKeys) {
+                throw new Error('Admin live probe requires admin.listKeys() support in the current SDK build');
+            }
+
+            const keys = await adminClient.listKeys();
+            addCheck(
+                checks,
+                'ok',
+                `Admin listKeys probe succeeded: ${keys.length} keys${keys[0]?.name ? ` (${keys[0].name})` : ''}`,
+            );
+
+            const targetKey = env.QINIU_LIVE_VERIFY_ADMIN_GET_KEY?.trim();
+            if (targetKey) {
+                if (!adminClient.getKey) {
+                    throw new Error('Admin getKey live probe requires admin.getKey() support in the current SDK build');
+                }
+                const keyInfo = await adminClient.getKey(targetKey);
+                addCheck(
+                    checks,
+                    'ok',
+                    `Admin getKey probe succeeded: ${keyInfo?.name ?? targetKey}${keyInfo?.status ? ` (${keyInfo.status})` : ''}`,
+                );
+            } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+                addCheck(
+                    checks,
+                    'warn',
+                    'QINIU_LIVE_VERIFY_ADMIN_GET_KEY not set. Admin getKey live probe was skipped.',
+                );
+            }
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_ADMIN_LIST_KEYS not set. Admin live probe was skipped.',
             );
         }
 
