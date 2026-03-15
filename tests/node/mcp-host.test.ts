@@ -286,6 +286,27 @@ describe('NodeMCPHost', () => {
         expect(content).toBe('# Hello');
     });
 
+    it('readResourceContents() returns structured resource contents', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+
+        mockClientInstance.readResource.mockResolvedValueOnce({
+            contents: [
+                { text: '# Hello', mimeType: 'text/markdown' },
+                { blob: 'aGVsbG8=', mimeType: 'application/octet-stream' },
+            ],
+        });
+
+        const host = new NodeMCPHost({
+            servers: [{ name: 'fs', transport: 'stdio', command: 'mcp-fs' }],
+        });
+
+        await host.connect();
+        await expect(host.readResourceContents('fs', 'file:///readme.md')).resolves.toEqual([
+            { text: '# Hello', mimeType: 'text/markdown' },
+            { blob: 'aGVsbG8=', mimeType: 'application/octet-stream' },
+        ]);
+    });
+
     it('listPrompts() returns prompts from all servers', async () => {
         const { NodeMCPHost } = await import('../../src/node/mcp-host');
 
@@ -330,6 +351,27 @@ describe('NodeMCPHost', () => {
         const prompt = await host.getPrompt!('prompt-srv', 'summarize', { text: 'hello' });
 
         expect(prompt).toContain('hello');
+    });
+
+    it('getPromptMessages() returns structured prompt messages', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+
+        mockClientInstance.getPrompt.mockResolvedValueOnce({
+            messages: [
+                { role: 'user', content: { type: 'text', text: 'Please summarize: hello' } },
+                { role: 'assistant', content: { type: 'text', text: 'Summary: hello' } },
+            ],
+        });
+
+        const host = new NodeMCPHost({
+            servers: [{ name: 'prompt-srv', transport: 'stdio', command: 'mcp-prompts' }],
+        });
+
+        await host.connect();
+        await expect(host.getPromptMessages('prompt-srv', 'summarize', { text: 'hello' })).resolves.toEqual([
+            { role: 'user', content: { type: 'text', text: 'Please summarize: hello' } },
+            { role: 'assistant', content: { type: 'text', text: 'Summary: hello' } },
+        ]);
     });
 
     it('dispose() closes all SDK clients', async () => {
@@ -459,7 +501,7 @@ describe('NodeMCPHost', () => {
         await expect(host.executeServerTool('missing', 'search')).rejects.toThrow('MCP server "missing" not found');
     });
 
-    it('listServerResources() and listServerPrompts() reject unknown server names', async () => {
+    it('resource and prompt host helpers reject unknown server names', async () => {
         const { NodeMCPHost } = await import('../../src/node/mcp-host');
 
         const host = new NodeMCPHost({
@@ -469,6 +511,8 @@ describe('NodeMCPHost', () => {
         await host.connect();
 
         await expect(host.listServerResources('missing')).rejects.toThrow('MCP server "missing" not found');
+        await expect(host.readResourceContents('missing', 'file:///readme.md')).rejects.toThrow('MCP server "missing" not found');
         await expect(host.listServerPrompts('missing')).rejects.toThrow('MCP server "missing" not found');
+        await expect(host.getPromptMessages('missing', 'summarize')).rejects.toThrow('MCP server "missing" not found');
     });
 });

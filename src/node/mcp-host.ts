@@ -72,6 +72,17 @@ export interface NodeMCPHostPromptInfo {
     }>;
 }
 
+export interface NodeMCPHostResourceContent {
+    text?: string;
+    mimeType?: string;
+    [key: string]: unknown;
+}
+
+export interface NodeMCPHostPromptMessage {
+    role?: string;
+    content: unknown;
+}
+
 // ============================================================================
 // NodeMCPHost
 // ============================================================================
@@ -177,17 +188,25 @@ export class NodeMCPHost implements MCPHostProvider {
     }
 
     async readResource(serverName: string, uri: string): Promise<string> {
+        const contents = await this.readResourceContents(serverName, uri);
+        if (contents.length === 0) {
+            return '';
+        }
+        return contents.map((content) =>
+            typeof content.text === 'string' ? content.text : JSON.stringify(content),
+        ).join('\n');
+    }
+
+    async readResourceContents(serverName: string, uri: string): Promise<NodeMCPHostResourceContent[]> {
         const client = this.clients.get(serverName);
         if (!client) {
             throw new Error(`MCP server "${serverName}" not found`);
         }
 
         const result = await client.readResource({ uri });
-        const contents = result.contents;
-        if (contents.length === 0) {
-            return '';
-        }
-        return (contents[0] as any).text ?? JSON.stringify(contents[0]);
+        return (result.contents ?? []).map((content) => ({
+            ...(content as Record<string, unknown>),
+        }));
     }
 
     async listPrompts(): Promise<MCPPrompt[]> {
@@ -238,25 +257,36 @@ export class NodeMCPHost implements MCPHostProvider {
         name: string,
         args?: Record<string, string>,
     ): Promise<string> {
-        const client = this.clients.get(serverName);
-        if (!client) {
-            throw new Error(`MCP server "${serverName}" not found`);
-        }
-
-        const result = await client.getPrompt({ name, arguments: args });
-        const messages = result.messages;
+        const messages = await this.getPromptMessages(serverName, name, args);
         if (messages.length === 0) {
             return '';
         }
 
-        return messages.map(m => {
-            const content = m.content;
+        return messages.map((message) => {
+            const content = message.content;
             if (typeof content === 'string') return content;
             if (content && typeof content === 'object' && 'text' in content) {
                 return (content as any).text;
             }
             return JSON.stringify(content);
         }).join('\n');
+    }
+
+    async getPromptMessages(
+        serverName: string,
+        name: string,
+        args?: Record<string, string>,
+    ): Promise<NodeMCPHostPromptMessage[]> {
+        const client = this.clients.get(serverName);
+        if (!client) {
+            throw new Error(`MCP server "${serverName}" not found`);
+        }
+
+        const result = await client.getPrompt({ name, arguments: args });
+        return (result.messages ?? []).map((message) => ({
+            role: message.role,
+            content: message.content,
+        }));
     }
 
     async listServerTools(serverName: string): Promise<NodeMCPHostToolInfo[]> {
