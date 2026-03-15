@@ -16,6 +16,7 @@ import type { RegisteredTool } from '../lib/tool-registry';
 import type { SessionStore, SessionRecord } from './session-store';
 import { ToolRegistry } from '../lib/tool-registry';
 import { extractSessionMessages, forkSessionSaveInput } from './session-store';
+import { AgentGraph, type ResumableResult } from './agent-graph';
 import {
     generateTextWithGraph,
     type GenerateTextWithGraphResult,
@@ -121,6 +122,35 @@ export interface AgentStreamWithThreadOptions extends AgentStreamOptions {
     resumeFromCheckpoint?: boolean;
 }
 
+/** Options for resumable threaded runs with approval interruption support */
+export interface AgentRunResumableWithThreadOptions extends AgentRunOptions {
+    /** Thread ID for checkpoint isolation and resume */
+    threadId: string;
+    /** Resume from persisted thread history before appending this prompt (default: true) */
+    resumeFromCheckpoint?: boolean;
+}
+
+/** Options for resuming a previously interrupted or active thread */
+export interface AgentResumeThreadOptions extends AgentThreadOptions {
+    /**
+     * Approval decision for pending approvals.
+     * Required when resuming a pending_approval thread.
+     */
+    approvalDecision?: boolean;
+    /**
+     * Optional override for tool execution during approval resume.
+     * Defaults to the agent's current tool registry.
+     */
+    toolExecutor?: (
+        toolName: string,
+        args: Record<string, unknown>,
+        abortSignal?: AbortSignal
+    ) => Promise<unknown>;
+}
+
+/** Result from resumable agent thread execution */
+export type AgentResumableThreadResult = ResumableResult;
+
 /** Options for thread lifecycle helpers */
 export interface AgentThreadOptions {
     /** Thread ID for persistence lookup/cleanup */
@@ -171,6 +201,10 @@ export interface Agent {
     stream: (options: AgentStreamOptions) => Promise<StreamTextResult>;
     /** Stream agent output with thread (persistent conversation) */
     streamWithThread: (options: AgentStreamWithThreadOptions) => Promise<StreamTextResult>;
+    /** Run agent with approval interruption / resume support */
+    runResumableWithThread: (options: AgentRunResumableWithThreadOptions) => Promise<AgentResumableThreadResult>;
+    /** Resume an interrupted or active thread */
+    resumeThread: (options: AgentResumeThreadOptions) => Promise<AgentResumableThreadResult>;
     /** Load the persisted thread record, if any */
     loadThread: (options: AgentThreadOptions) => Promise<SessionRecord | null>;
     /** Replay persisted thread messages without exposing checkpoint internals */
@@ -301,6 +335,15 @@ export function createAgent(config: AgentConfig): Agent {
         return result;
     }
 
+    /** Get registered tools with full runtime metadata */
+    function currentRegisteredTools(): Record<string, RegisteredTool> {
+        const result: Record<string, RegisteredTool> = {};
+        for (const t of toolRegistry.getAll()) {
+            result[t.name] = t;
+        }
+        return result;
+    }
+
     // Initialize with user tools
     syncMcpTools([]);
 
@@ -335,6 +378,17 @@ export function createAgent(config: AgentConfig): Agent {
         if (fromThreadId === toThreadId) {
             throw new Error('moveThread requires fromThreadId and toThreadId to be different');
         }
+    };
+
+    const resolveResumableCheckpointer = (operation: string): Checkpointer => {
+        if (checkpointer) {
+            return checkpointer;
+        }
+        const sessionCheckpointer = (sessionStore as unknown as { checkpointer?: Checkpointer } | undefined)?.checkpointer;
+        if (sessionCheckpointer) {
+            return sessionCheckpointer;
+        }
+        throw new Error(`${operation} requires a checkpointer or checkpointer-backed sessionStore`);
     };
 
     const restoreThreadRecord = async (
@@ -400,6 +454,115 @@ export function createAgent(config: AgentConfig): Agent {
             checkpoint,
             messages: extractSessionMessages(checkpoint),
             updatedAt: checkpoint.metadata.createdAt,
+        };
+    };
+
+    const restoreThreadSummary = async (threadId: string): Promise<SessionRecord | null> => {
+        const loaded = sessionStore ? await sessionStore.load(threadId) : null;
+        if (threadId && memory && loaded?.summary) {
+            memory.setSummary(threadId, loaded.summary);
+        }
+        return loaded;
+    };
+
+    const buildThreadMessages = async (
+        prompt: string,
+        threadId: string,
+        resumeFromCheckpoint = true,
+        resumableCheckpointer?: Checkpointer,
+    ): Promise<ChatMessage[]> => {
+        const loadedSession = await restoreThreadSummary(threadId);
+        if (resumeFromCheckpoint) {
+            const checkpoint = loadedSession?.checkpoint
+                ?? (resumableCheckpointer ? await resumableCheckpointer.load(threadId) : null);
+            const historicalMessages = checkpoint
+                ? extractSessionMessages(checkpoint)
+                : (loadedSession?.messages ?? null);
+            if (historicalMessages) {
+                const hasHistoricalSystem = historicalMessages.some(message => message.role === 'system');
+                const prefixMessages = (!hasHistoricalSystem && system)
+                    ? [{ role: 'system' as const, content: system }]
+                    : [];
+                return [...prefixMessages, ...historicalMessages, { role: 'user', content: prompt }];
+            }
+        }
+
+        const freshMessages: ChatMessage[] = [];
+        if (system) {
+            freshMessages.push({ role: 'system', content: system });
+        }
+        freshMessages.push({ role: 'user', content: prompt });
+        return freshMessages;
+    };
+
+    const createRuntimeGraph = (
+        threadId: string,
+        onStepFinish?: (step: StepResult) => void,
+        onNodeEnter?: (nodeName: string) => void,
+        onNodeExit?: (nodeName: string) => void,
+        signal?: AbortSignal,
+    ): AgentGraph => new AgentGraph({
+        client,
+        model,
+        tools: currentRegisteredTools(),
+        skills,
+        maxSteps,
+        maxContextTokens,
+        temperature,
+        topP,
+        maxTokens,
+        responseFormat,
+        toolChoice,
+        abortSignal: signal ?? abortSignal,
+        approvalConfig,
+        memory,
+        threadId,
+        guardrails,
+        agentId,
+        skillReferenceMode: config.skillInjection?.referenceMode,
+        events: {
+            onStepFinish,
+            onNodeEnter,
+            onNodeExit,
+        },
+    });
+
+    const syncResumableSessionState = async (
+        threadId: string,
+        result: AgentResumableThreadResult,
+        resumableCheckpointer: Checkpointer,
+    ): Promise<void> => {
+        if (!sessionStore) {
+            return;
+        }
+
+        const checkpoint = await resumableCheckpointer.load(threadId);
+        await sessionStore.save({
+            threadId,
+            state: checkpoint?.state ?? result.state,
+            checkpointMetadata: checkpoint?.metadata,
+            summary: memory?.getSummary(threadId),
+        });
+    };
+
+    const createDefaultToolExecutor = async (
+        threadId: string,
+    ): Promise<(
+        toolName: string,
+        args: Record<string, unknown>,
+        abortSignal?: AbortSignal
+    ) => Promise<unknown>> => {
+        const messages = extractSessionMessages(await loadThreadRecord(threadId));
+        return async (toolName, args, resumeAbortSignal) => {
+            const tool = currentTools()[toolName];
+            if (!tool?.execute) {
+                throw new Error(`Tool '${toolName}' is not implemented.`);
+            }
+            return tool.execute(args, {
+                toolCallId: '',
+                messages,
+                abortSignal: resumeAbortSignal,
+            });
         };
     };
 
@@ -556,6 +719,69 @@ export function createAgent(config: AgentConfig): Agent {
                 resumeFromCheckpoint,
                 abortSignal: streamAbortSignal ?? abortSignal,
             });
+        },
+
+        async runResumableWithThread(options: AgentRunResumableWithThreadOptions): Promise<AgentResumableThreadResult> {
+            const {
+                prompt,
+                threadId,
+                resumeFromCheckpoint = true,
+                onStepFinish,
+                onNodeEnter,
+                onNodeExit,
+                abortSignal: runAbortSignal,
+            } = options;
+
+            requirePersistentThreadSupport('runResumableWithThread', threadId);
+            const resumableCheckpointer = resolveResumableCheckpointer('runResumableWithThread');
+
+            if (hostProvider && !hostConnected) {
+                await agent.connectHost!();
+            }
+
+            const graph = createRuntimeGraph(
+                threadId,
+                onStepFinish,
+                onNodeEnter,
+                onNodeExit,
+                runAbortSignal,
+            );
+            const messages = await buildThreadMessages(
+                prompt,
+                threadId,
+                resumeFromCheckpoint,
+                resumableCheckpointer,
+            );
+            const result = await graph.invokeResumable(messages as any, {
+                threadId,
+                checkpointer: resumableCheckpointer,
+            });
+            await syncResumableSessionState(threadId, result, resumableCheckpointer);
+            return result;
+        },
+
+        async resumeThread(options: AgentResumeThreadOptions): Promise<AgentResumableThreadResult> {
+            const { threadId, approvalDecision } = options;
+
+            requirePersistentThreadSupport('resumeThread', threadId);
+            const resumableCheckpointer = resolveResumableCheckpointer('resumeThread');
+            await restoreThreadSummary(threadId);
+
+            if (hostProvider && !hostConnected) {
+                await agent.connectHost!();
+            }
+
+            const graph = createRuntimeGraph(threadId, undefined, undefined, undefined, abortSignal);
+            const result = await graph.invokeResumable([], {
+                threadId,
+                checkpointer: resumableCheckpointer,
+                resume: true,
+                approvalDecision,
+                toolExecutor: options.toolExecutor
+                    ?? (approvalDecision ? await createDefaultToolExecutor(threadId) : undefined),
+            });
+            await syncResumableSessionState(threadId, result, resumableCheckpointer);
+            return result;
         },
 
         async loadThread(options: AgentThreadOptions): Promise<SessionRecord | null> {

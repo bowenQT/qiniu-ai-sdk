@@ -4,9 +4,10 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { createAgent } from '../../../src/ai/create-agent';
-import { MemorySessionStore } from '../../../src/ai/session-store';
+import { CheckpointerSessionStore, MemorySessionStore } from '../../../src/ai/session-store';
 import type { QiniuAI } from '../../../src/client';
 import type { Checkpointer } from '../../../src/ai/graph/checkpointer';
+import { MemoryCheckpointer } from '../../../src/ai/graph';
 
 // Mock client
 const createMockClient = (): QiniuAI & { requests: any[] } => {
@@ -26,6 +27,38 @@ const createMockClient = (): QiniuAI & { requests: any[] } => {
                     reasoningContent: '',
                     toolCalls: [],
                     finishReason: 'stop',
+                    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+                };
+            }),
+        },
+        getBaseUrl: () => 'https://api.qnaigc.com/v1',
+        post: vi.fn(),
+        get: vi.fn(),
+    } as unknown as QiniuAI & { requests: any[] };
+};
+
+const createSequentialStreamClient = (
+    responses: Array<{
+        content?: string;
+        tool_calls?: any[];
+        finishReason?: string;
+    }>,
+): QiniuAI & { requests: any[] } => {
+    const requests: any[] = [];
+    let callIndex = 0;
+
+    return {
+        requests,
+        chat: {
+            create: vi.fn(),
+            createStream: vi.fn(async function* (request: any) {
+                requests.push(request);
+                const response = responses[callIndex++] ?? responses[responses.length - 1];
+                return {
+                    content: response.content ?? '',
+                    reasoningContent: '',
+                    toolCalls: response.tool_calls ?? [],
+                    finishReason: response.finishReason ?? 'stop',
                     usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
                 };
             }),
@@ -58,6 +91,8 @@ describe('createAgent', () => {
             expect(agent).toBeDefined();
             expect(agent.run).toBeInstanceOf(Function);
             expect(agent.runWithThread).toBeInstanceOf(Function);
+            expect(agent.runResumableWithThread).toBeInstanceOf(Function);
+            expect(agent.resumeThread).toBeInstanceOf(Function);
         });
 
         it('should create an agent with full config', () => {
@@ -782,6 +817,135 @@ describe('createAgent', () => {
             });
 
             expect(agent).toBeDefined();
+        });
+    });
+
+    describe('resumable thread execution', () => {
+        it('interrupts on deferred approval and resumes with the agent tool executor', async () => {
+            const client = createSequentialStreamClient([
+                {
+                    tool_calls: [
+                        {
+                            id: 'call_deferred',
+                            type: 'function',
+                            function: { name: 'dangerousTool', arguments: '{"target":"prod"}' },
+                        },
+                    ],
+                    finishReason: 'tool_calls',
+                },
+                {
+                    content: 'All done after approval',
+                    finishReason: 'stop',
+                },
+            ]);
+            const checkpointer = new MemoryCheckpointer();
+            let toolExecuted = false;
+
+            const agent = createAgent({
+                client,
+                model: 'test-model',
+                checkpointer,
+                tools: {
+                    dangerousTool: {
+                        parameters: { target: { type: 'string' } },
+                        requiresApproval: true,
+                        approvalHandler: async () => ({ approved: false, deferred: true }),
+                        execute: async (args: any) => {
+                            toolExecuted = true;
+                            return `executed:${args.target}`;
+                        },
+                    },
+                },
+            });
+
+            const interrupted = await agent.runResumableWithThread({
+                threadId: 'thread-deferred',
+                prompt: 'Do the dangerous thing',
+            });
+
+            expect(interrupted.interrupted).toBe(true);
+            expect(interrupted.pendingApproval?.toolCalls).toHaveLength(1);
+            expect(toolExecuted).toBe(false);
+
+            const resumed = await agent.resumeThread({
+                threadId: 'thread-deferred',
+                approvalDecision: true,
+            });
+
+            expect(resumed.interrupted).toBe(false);
+            expect(resumed.text).toBe('All done after approval');
+            expect(toolExecuted).toBe(true);
+
+            const replayed = await agent.replayThread({ threadId: 'thread-deferred' });
+            expect(replayed.some(message =>
+                message.role === 'tool' && String(message.content).includes('executed:prod')
+            )).toBe(true);
+        });
+
+        it('supports resumable runs with a checkpointer-backed sessionStore', async () => {
+            const client = createSequentialStreamClient([
+                {
+                    tool_calls: [
+                        {
+                            id: 'call_deferred_session',
+                            type: 'function',
+                            function: { name: 'needsApproval', arguments: '{}' },
+                        },
+                    ],
+                    finishReason: 'tool_calls',
+                },
+                {
+                    content: 'Completed from backed session store',
+                    finishReason: 'stop',
+                },
+            ]);
+            const sessionStore = new CheckpointerSessionStore(new MemoryCheckpointer());
+
+            const agent = createAgent({
+                client,
+                model: 'test-model',
+                sessionStore,
+                tools: {
+                    needsApproval: {
+                        requiresApproval: true,
+                        approvalHandler: async () => ({ approved: false, deferred: true }),
+                        execute: async () => 'ok',
+                    },
+                },
+            });
+
+            const interrupted = await agent.runResumableWithThread({
+                threadId: 'thread-backed-store',
+                prompt: 'Need approval',
+            });
+
+            expect(interrupted.interrupted).toBe(true);
+
+            const loaded = await agent.loadThread({ threadId: 'thread-backed-store' });
+            expect(loaded?.checkpoint?.metadata.status).toBe('pending_approval');
+
+            const resumed = await agent.resumeThread({
+                threadId: 'thread-backed-store',
+                approvalDecision: true,
+            });
+
+            expect(resumed.interrupted).toBe(false);
+            expect((await agent.loadThread({ threadId: 'thread-backed-store' }))?.checkpoint?.metadata.status).toBe('completed');
+        });
+
+        it('rejects resumable runs for non-checkpointer session stores', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            const agent = createAgent({
+                client,
+                model: 'test-model',
+                sessionStore,
+            });
+
+            await expect(agent.runResumableWithThread({
+                threadId: 'thread-memory-store',
+                prompt: 'Hello',
+            })).rejects.toThrow('runResumableWithThread requires a checkpointer or checkpointer-backed sessionStore');
         });
     });
 });

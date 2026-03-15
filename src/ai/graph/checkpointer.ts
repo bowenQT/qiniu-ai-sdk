@@ -209,6 +209,7 @@ export interface Checkpointer {
 export class MemoryCheckpointer implements Checkpointer {
     private readonly checkpoints = new Map<string, Checkpoint>();
     private readonly maxItems: number;
+    private lastCreatedAt = 0;
 
     constructor(options?: { maxItems?: number }) {
         this.maxItems = options?.maxItems ?? 100;
@@ -250,10 +251,14 @@ export class MemoryCheckpointer implements Checkpointer {
             }
         }
 
+        const now = Date.now();
+        const createdAt = now <= this.lastCreatedAt ? this.lastCreatedAt + 1 : now;
+        this.lastCreatedAt = createdAt;
+
         const metadata: CheckpointMetadata = {
             id,
             threadId,
-            createdAt: Date.now(),
+            createdAt,
             stepCount: state.stepCount,
             status,
             pendingApproval,
