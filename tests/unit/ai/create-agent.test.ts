@@ -260,6 +260,93 @@ describe('createAgent', () => {
             ]);
         });
 
+        it('forks persisted thread state through the agent surface', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            await sessionStore.save({
+                threadId: 'thread-fork-source',
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant.' },
+                    { role: 'user', content: 'Original user turn' },
+                    { role: 'assistant', content: 'Original assistant reply' },
+                ],
+                summary: 'fork summary',
+            });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                sessionStore,
+            });
+
+            await expect(agent.forkThread({
+                fromThreadId: 'thread-fork-source',
+                toThreadId: 'thread-fork-target',
+            })).resolves.toMatchObject({
+                threadId: 'thread-fork-target',
+                summary: 'fork summary',
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant.' },
+                    { role: 'user', content: 'Original user turn' },
+                    { role: 'assistant', content: 'Original assistant reply' },
+                ],
+            });
+
+            await expect(agent.replayThread({ threadId: 'thread-fork-target' })).resolves.toEqual([
+                { role: 'system', content: 'You are a helpful assistant.' },
+                { role: 'user', content: 'Original user turn' },
+                { role: 'assistant', content: 'Original assistant reply' },
+            ]);
+        });
+
+        it('rejects forking into an existing thread unless overwrite is enabled', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            await sessionStore.save({
+                threadId: 'thread-fork-source-existing',
+                messages: [{ role: 'user', content: 'Source' }],
+            });
+            await sessionStore.save({
+                threadId: 'thread-fork-target-existing',
+                messages: [{ role: 'user', content: 'Target' }],
+            });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                sessionStore,
+            });
+
+            await expect(agent.forkThread({
+                fromThreadId: 'thread-fork-source-existing',
+                toThreadId: 'thread-fork-target-existing',
+            })).rejects.toThrow('forkThread target already exists');
+
+            await expect(agent.forkThread({
+                fromThreadId: 'thread-fork-source-existing',
+                toThreadId: 'thread-fork-target-existing',
+                overwrite: true,
+            })).resolves.toMatchObject({
+                threadId: 'thread-fork-target-existing',
+                messages: [{ role: 'user', content: 'Source' }],
+            });
+        });
+
+        it('rejects forking a thread onto itself', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                sessionStore,
+            });
+
+            await expect(agent.forkThread({
+                fromThreadId: 'thread-same',
+                toThreadId: 'thread-same',
+            })).rejects.toThrow('fromThreadId and toThreadId to be different');
+        });
+
         it('clears persisted thread state through the agent surface', async () => {
             const client = createMockClient();
             const sessionStore = new MemorySessionStore();
@@ -326,6 +413,83 @@ describe('createAgent', () => {
                 { role: 'user', content: 'Checkpoint user turn' },
                 { role: 'assistant', content: 'Checkpoint assistant reply' },
             ]);
+        });
+
+        it('forks thread state from a checkpointer when no sessionStore is configured', async () => {
+            const client = createMockClient();
+            const checkpointer = createMockCheckpointer();
+            (checkpointer.load as ReturnType<typeof vi.fn>)
+                .mockResolvedValueOnce({
+                    metadata: {
+                        id: 'ckpt-fork-source',
+                        threadId: 'thread-checkpoint-fork-source',
+                        createdAt: 1,
+                        stepCount: 2,
+                    },
+                    state: {
+                        internalMessages: [
+                            { role: 'user', content: 'Checkpoint source user turn' },
+                            { role: 'assistant', content: 'Checkpoint source assistant reply' },
+                        ],
+                        stepCount: 2,
+                        maxSteps: 4,
+                        done: false,
+                        output: 'Checkpoint source assistant reply',
+                        reasoning: '',
+                        finishReason: null,
+                    },
+                })
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce({
+                    metadata: {
+                        id: 'ckpt-fork-target',
+                        threadId: 'thread-checkpoint-fork-target',
+                        createdAt: 2,
+                        stepCount: 2,
+                    },
+                    state: {
+                        internalMessages: [
+                            { role: 'user', content: 'Checkpoint source user turn' },
+                            { role: 'assistant', content: 'Checkpoint source assistant reply' },
+                        ],
+                        stepCount: 2,
+                        maxSteps: 4,
+                        done: false,
+                        output: 'Checkpoint source assistant reply',
+                        reasoning: '',
+                        finishReason: null,
+                    },
+                });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                checkpointer,
+            });
+
+            await expect(agent.forkThread({
+                fromThreadId: 'thread-checkpoint-fork-source',
+                toThreadId: 'thread-checkpoint-fork-target',
+            })).resolves.toMatchObject({
+                threadId: 'thread-checkpoint-fork-target',
+                messages: [
+                    { role: 'user', content: 'Checkpoint source user turn' },
+                    { role: 'assistant', content: 'Checkpoint source assistant reply' },
+                ],
+            });
+
+            expect(checkpointer.save).toHaveBeenCalledWith(
+                'thread-checkpoint-fork-target',
+                expect.objectContaining({
+                    internalMessages: [
+                        { role: 'user', content: 'Checkpoint source user turn' },
+                        { role: 'assistant', content: 'Checkpoint source assistant reply' },
+                    ],
+                }),
+                expect.objectContaining({
+                    stepCount: 2,
+                }),
+            );
         });
     });
 

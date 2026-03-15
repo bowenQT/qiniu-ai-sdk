@@ -89,6 +89,35 @@ export async function replaySession(
     return extractSessionMessages(await store.load(threadId));
 }
 
+export function forkSessionSaveInput(
+    record: SessionRecord,
+    threadId: string,
+): SessionSaveInput {
+    const messages = record.messages ?? extractSessionMessages(record);
+
+    if (record.checkpoint) {
+        const checkpoint = record.checkpoint;
+        return {
+            threadId,
+            state: checkpoint.state,
+            messages,
+            summary: record.summary,
+            checkpointMetadata: {
+                stepCount: checkpoint.metadata.stepCount,
+                status: checkpoint.metadata.status,
+                pendingApproval: checkpoint.metadata.pendingApproval,
+                custom: checkpoint.metadata.custom,
+            },
+        };
+    }
+
+    return {
+        threadId,
+        messages,
+        summary: record.summary,
+    };
+}
+
 function mergeCheckpointCustom(
     existing: Record<string, unknown> | undefined,
     next: Record<string, unknown> | undefined,
