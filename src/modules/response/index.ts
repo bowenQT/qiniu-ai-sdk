@@ -1,4 +1,5 @@
 import {
+    type ChatCompletionChunk,
     type ChatCompletionResponse,
     IQiniuClient,
     type ChatMessage,
@@ -161,6 +162,10 @@ export interface ResponseStreamResult {
     eventCount: number;
 }
 
+export interface ResponseChatCompletionStreamResult extends ResponseStreamResult {
+    completion?: ChatCompletionResponse;
+}
+
 // ============================================================================
 // ResponseAPI Class
 // ============================================================================
@@ -308,6 +313,121 @@ export class ResponseAPI {
     ): AsyncGenerator<string, ResponseStreamResult, unknown> {
         const { previousResponseId, ...request } = params;
         return yield* this.createTextStream({
+            ...request,
+            previous_response_id: previousResponseId,
+        }, options);
+    }
+
+    /**
+     * Create a streaming response and project it into chat-completion chunk shape.
+     * Useful for callers that want Response API semantics on the wire with chat-style streaming consumption.
+     */
+    async *createChatCompletionStream(
+        params: Omit<ResponseCreateRequest, 'stream'>,
+        options: ResponseStreamOptions = {},
+    ): AsyncGenerator<ChatCompletionChunk, ResponseChatCompletionStreamResult, unknown> {
+        const stream = this.createStream(params, options);
+        const startedAt = Math.floor(Date.now() / 1000);
+        let responseId = 'response-stream';
+        let createdAt = startedAt;
+        let model = params.model;
+        let roleEmitted = false;
+        let completion: ChatCompletionResponse | undefined;
+
+        while (true) {
+            const next = await stream.next();
+            if (next.done) {
+                return {
+                    ...next.value,
+                    completion,
+                };
+            }
+
+            syncStreamMetadata(next.value);
+
+            if (next.value.type === 'response.output_text.delta' && typeof next.value.delta === 'string') {
+                if (!roleEmitted) {
+                    roleEmitted = true;
+                    yield buildChatCompletionChunk({
+                        id: responseId,
+                        created: createdAt,
+                        model,
+                        delta: { role: 'assistant' },
+                    });
+                }
+
+                yield buildChatCompletionChunk({
+                    id: responseId,
+                    created: createdAt,
+                    model,
+                    delta: { content: next.value.delta },
+                });
+                continue;
+            }
+
+            if (next.value.type === 'response.completed') {
+                const completed = extractCompletedResponse(next.value);
+                if (!completed) {
+                    continue;
+                }
+
+                const normalized = normalizeResponseCreateResponse(completed);
+                responseId = normalized.id;
+                createdAt = normalized.created_at ?? createdAt;
+                model = normalized.model ?? model;
+                completion = toChatCompletionResponse(normalized);
+
+                if (!roleEmitted && typeof normalized.output_text === 'string' && normalized.output_text.length > 0) {
+                    roleEmitted = true;
+                    yield buildChatCompletionChunk({
+                        id: responseId,
+                        created: createdAt,
+                        model,
+                        delta: { role: 'assistant' },
+                    });
+                    yield buildChatCompletionChunk({
+                        id: responseId,
+                        created: createdAt,
+                        model,
+                        delta: { content: normalized.output_text },
+                    });
+                }
+
+                yield buildChatCompletionChunk({
+                    id: responseId,
+                    created: createdAt,
+                    model,
+                    delta: {},
+                    finishReason: mapResponseFinishReason(normalized.status),
+                    usage: completion.usage,
+                });
+            }
+        }
+
+        function syncStreamMetadata(event: ResponseStreamEvent): void {
+            const envelope = extractResponseEnvelope(event);
+            if (!envelope) return;
+            if (typeof envelope.id === 'string' && envelope.id.length > 0) {
+                responseId = envelope.id;
+            }
+            if (typeof envelope.created_at === 'number') {
+                createdAt = envelope.created_at;
+            }
+            if (typeof envelope.model === 'string' && envelope.model.length > 0) {
+                model = envelope.model;
+            }
+        }
+    }
+
+    /**
+     * Create a streaming follow-up response and project it into chat-completion chunk shape.
+     */
+    async *followUpChatCompletionStream(
+        params: ResponseFollowUpRequest,
+        options: ResponseStreamOptions = {},
+    ): AsyncGenerator<ChatCompletionChunk, ResponseChatCompletionStreamResult, unknown> {
+        const { previousResponseId, ...request } = params;
+        return yield* this.createChatCompletionStream({
             ...request,
             previous_response_id: previousResponseId,
         }, options);
@@ -468,6 +588,30 @@ function mapResponseFinishReason(status: string | undefined): ChatCompletionResp
     return null;
 }
 
+function buildChatCompletionChunk(params: {
+    id: string;
+    created: number;
+    model: string;
+    delta: ChatCompletionChunk['choices'][number]['delta'];
+    finishReason?: ChatCompletionChunk['choices'][number]['finish_reason'];
+    usage?: ChatCompletionChunk['usage'];
+}): ChatCompletionChunk {
+    return {
+        id: params.id,
+        object: 'chat.completion.chunk',
+        created: params.created,
+        model: params.model,
+        choices: [
+            {
+                index: 0,
+                delta: params.delta,
+                finish_reason: params.finishReason ?? null,
+            },
+        ],
+        usage: params.usage,
+    };
+}
+
 function normalizeResponseRole(role?: string): ChatMessage['role'] {
     if (role === 'system' || role === 'user' || role === 'assistant' || role === 'tool' || role === 'function') {
         return role;
@@ -522,13 +666,24 @@ async function normalizeResponseRequest(params: ResponseCreateRequest): Promise<
 }
 
 function extractCompletedResponse(event: ResponseStreamEvent): ResponseCreateResponse | undefined {
-    if (!isRecord(event.response)) {
+    const response = extractResponseEnvelope(event);
+    if (!response) {
         return undefined;
     }
-    if (typeof event.response.id !== 'string' || typeof event.response.status !== 'string') {
+    if (typeof response.id !== 'string' || typeof response.status !== 'string') {
         return undefined;
     }
-    return event.response as unknown as ResponseCreateResponse;
+    return response as unknown as ResponseCreateResponse;
+}
+
+function extractResponseEnvelope(event: ResponseStreamEvent): Record<string, unknown> | undefined {
+    if (isRecord(event.response)) {
+        return event.response;
+    }
+    if (isRecord(event.data) && isRecord(event.data.response)) {
+        return event.data.response;
+    }
+    return undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
