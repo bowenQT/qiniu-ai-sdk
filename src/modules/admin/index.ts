@@ -10,7 +10,13 @@ export interface CreateKeysRequest {
      */
     count: number;
     /**
+     * Explicit key names. Preferred by the current API contract.
+     * When provided, must match `count`.
+     */
+    names?: string[];
+    /**
      * Prefix for key names (e.g., 'dev-', 'prod-')
+     * Legacy fallback for older API variants.
      */
     name_prefix?: string;
     /**
@@ -40,17 +46,27 @@ export interface ApiKey {
      */
     created_at: string;
     /**
+     * Current API variants may return camelCase timestamps.
+     */
+    createdAt?: string;
+    /**
      * Expiration timestamp (ISO 8601), if set
      */
     expires_at?: string;
+    expiresAt?: string;
     /**
      * Key status
      */
     status?: 'active' | 'revoked' | 'expired';
     /**
+     * Current API variants may expose enabled directly.
+     */
+    enabled?: boolean;
+    /**
      * Last used timestamp (ISO 8601)
      */
     last_used_at?: string;
+    lastUsedAt?: string;
     /**
      * Description or metadata
      */
@@ -61,15 +77,48 @@ export interface ApiKey {
  * Raw API response formats
  */
 interface CreateKeysApiResponse {
+    status?: boolean;
+    data?: ApiKey[] | { keys?: ApiKey[] };
     keys?: ApiKey[];
-    data?: ApiKey[];
     result?: ApiKey[];
 }
 
 interface ListKeysApiResponse {
+    status?: boolean;
+    data?: ApiKey[] | { keys?: ApiKey[] };
     keys?: ApiKey[];
-    data?: ApiKey[];
     result?: ApiKey[];
+}
+
+function normalizeApiKey(key: ApiKey): ApiKey {
+    const created_at = key.created_at ?? key.createdAt ?? '';
+    const expires_at = key.expires_at ?? key.expiresAt;
+    const last_used_at = key.last_used_at ?? key.lastUsedAt;
+    const status = key.status
+        ?? (key.enabled === true ? 'active' : key.enabled === false ? 'revoked' : undefined);
+
+    return {
+        ...key,
+        created_at,
+        ...(expires_at ? { expires_at } : {}),
+        ...(last_used_at ? { last_used_at } : {}),
+        ...(status ? { status } : {}),
+    };
+}
+
+function extractKeys(response: CreateKeysApiResponse | ListKeysApiResponse): ApiKey[] {
+    const nestedData = response.data && !Array.isArray(response.data) ? response.data.keys : undefined;
+    const keys = response.keys
+        || nestedData
+        || (Array.isArray(response.data) ? response.data : undefined)
+        || response.result
+        || [];
+
+    return Array.isArray(keys) ? keys.map(normalizeApiKey) : [];
+}
+
+function hasKeyPayload(response: CreateKeysApiResponse | ListKeysApiResponse): boolean {
+    return 'keys' in response || 'data' in response || 'result' in response;
 }
 
 export class Admin {
@@ -86,7 +135,7 @@ export class Admin {
      * ```typescript
      * const keys = await client.admin.createKeys({
      *   count: 5,
-     *   name_prefix: 'dev-',
+     *   names: ['prod-key-1', 'prod-key-2'],
      *   expires_at: '2025-12-31T23:59:59Z',
      * });
      *
@@ -105,6 +154,14 @@ export class Admin {
         if (params.count > 100) {
             throw new Error('count cannot exceed 100');
         }
+        if (params.names) {
+            if (params.names.length !== params.count) {
+                throw new Error('names length must match count');
+            }
+            if (params.names.some((name) => !name || !name.trim())) {
+                throw new Error('names must contain non-empty strings');
+            }
+        }
 
         // Validate expiration date if provided
         if (params.expires_at) {
@@ -119,23 +176,33 @@ export class Admin {
 
         const requestBody = {
             count: params.count,
+            ...(params.names ? { names: params.names } : {}),
             ...(params.name_prefix ? { name_prefix: params.name_prefix } : {}),
             ...(params.expires_at ? { expires_at: params.expires_at } : {}),
             ...(params.description ? { description: params.description } : {}),
         };
 
-        logger.debug('Creating API keys', { count: params.count, name_prefix: params.name_prefix });
+        logger.debug('Creating API keys', {
+            count: params.count,
+            names: params.names,
+            name_prefix: params.name_prefix,
+        });
 
-        const response = await this.client.post<CreateKeysApiResponse>('/admin/keys', requestBody);
-
-        // Normalize response
-        const keys = response.keys || response.data || response.result || [];
-
-        if (!Array.isArray(keys)) {
-            logger.warn('Unexpected createKeys response format', { response });
-            return [];
+        let response: CreateKeysApiResponse;
+        try {
+            response = await this.client.post<CreateKeysApiResponse>('/apikeys', requestBody);
+        } catch (error) {
+            if (!(error instanceof APIError) || error.status !== 404) {
+                throw error;
+            }
+            logger.warn('Falling back to legacy admin key creation endpoint', { status: error.status });
+            response = await this.client.post<CreateKeysApiResponse>('/admin/keys', requestBody);
         }
 
+        const keys = extractKeys(response);
+        if (!keys.length && hasKeyPayload(response) === false) {
+            logger.warn('Unexpected createKeys response format', { response });
+        }
         return keys;
     }
 
@@ -159,9 +226,8 @@ export class Admin {
         const response = await this.client.get<ListKeysApiResponse>('/admin/keys');
 
         // Normalize response
-        const keys = response.keys || response.data || response.result || [];
-
-        if (!Array.isArray(keys)) {
+        const keys = extractKeys(response);
+        if (!keys.length && hasKeyPayload(response) === false) {
             logger.warn('Unexpected listKeys response format', { response });
             return [];
         }
@@ -216,9 +282,9 @@ export class Admin {
 
             // Normalize response
             if ('data' in response && response.data) {
-                return response.data;
+                return normalizeApiKey(response.data);
             }
-            return response as ApiKey;
+            return normalizeApiKey(response as ApiKey);
         } catch (error) {
             // Only treat 404 as "not found", re-throw other errors
             if (error instanceof APIError && error.status === 404) {
