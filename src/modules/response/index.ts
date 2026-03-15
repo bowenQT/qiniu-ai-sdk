@@ -1,4 +1,5 @@
 import {
+    type ChatCompletionResponse,
     IQiniuClient,
     type ChatMessage,
     type ContentPartWithCacheControl,
@@ -250,6 +251,42 @@ export function extractResponseOutputMessages(
     }
 
     return messages;
+}
+
+export function toChatCompletionResponse(
+    response: ResponseCreateResponse,
+): ChatCompletionResponse {
+    const outputMessages = extractResponseOutputMessages(response);
+    const primaryMessage = outputMessages.at(-1) ?? {
+        role: 'assistant' as const,
+        content: response.output_text ?? '',
+    };
+
+    return {
+        id: response.id,
+        object: 'chat.completion',
+        created: response.created_at ?? 0,
+        model: response.model ?? '',
+        choices: [
+            {
+                index: 0,
+                message: primaryMessage,
+                finish_reason: mapResponseFinishReason(response.status),
+            },
+        ],
+        usage: response.usage
+            ? {
+                prompt_tokens: response.usage.input_tokens,
+                completion_tokens: response.usage.output_tokens,
+                total_tokens: response.usage.total_tokens,
+            }
+            : undefined,
+    };
+}
+
+function mapResponseFinishReason(status: string | undefined): ChatCompletionResponse['choices'][number]['finish_reason'] {
+    if (status === 'completed') return 'stop';
+    return null;
 }
 
 function normalizeResponseRole(role?: string): ChatMessage['role'] {

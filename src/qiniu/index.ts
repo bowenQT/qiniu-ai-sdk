@@ -131,6 +131,7 @@ export {
     extractResponseOutputText,
     extractResponseReasoningSummaryText,
     extractResponseOutputMessages,
+    toChatCompletionResponse,
 } from '../modules/response';
 export type {
     ResponseCreateRequest,
