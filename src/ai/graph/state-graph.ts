@@ -22,6 +22,21 @@ export class MaxGraphStepsError extends Error {
     }
 }
 
+function syncMessageAliases<S extends object>(current: S, update: Partial<S>): S {
+    const merged = { ...current, ...update } as S & {
+        internalMessages?: unknown;
+        messages?: unknown;
+    };
+
+    if ('internalMessages' in (update as object) && Array.isArray(merged.internalMessages)) {
+        merged.messages = merged.internalMessages;
+    } else if ('messages' in (update as object) && Array.isArray(merged.messages)) {
+        merged.internalMessages = merged.messages;
+    }
+
+    return merged as S;
+}
+
 /**
  * StateGraph builder for agent workflows.
  */
@@ -89,7 +104,7 @@ export class StateGraph<S extends object> {
         return {
             invoke: async (initialState: S, options?: InvokeOptions): Promise<S> => {
                 const maxSteps = options?.maxSteps ?? 100;
-                let state = { ...initialState };
+                let state = syncMessageAliases({ ...initialState } as S, {});
                 let currentNode = entryPoint;
                 let steps = 0;
 
@@ -101,7 +116,7 @@ export class StateGraph<S extends object> {
 
                     // Execute node
                     const update = await node.fn(state);
-                    state = { ...state, ...update };
+                    state = syncMessageAliases(state, update);
                     steps++;
 
                     // Find next node
@@ -130,7 +145,7 @@ export class StateGraph<S extends object> {
 
             stream: async function* (initialState: S, options?: InvokeOptions) {
                 const maxSteps = options?.maxSteps ?? 100;
-                let state = { ...initialState };
+                let state = syncMessageAliases({ ...initialState } as S, {});
                 let currentNode = entryPoint;
                 let steps = 0;
 
@@ -142,7 +157,7 @@ export class StateGraph<S extends object> {
 
                     // Execute node
                     const update = await node.fn(state);
-                    state = { ...state, ...update };
+                    state = syncMessageAliases(state, update);
                     steps++;
 
                     // Yield current state

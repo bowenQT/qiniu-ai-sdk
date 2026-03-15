@@ -225,6 +225,78 @@ describe('createAgent', () => {
             ]);
         });
 
+        it('streams a thread from session-store messages without duplicating the configured system prompt', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            await sessionStore.save({
+                threadId: 'thread-stream-message-only',
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant.' },
+                    { role: 'user', content: 'Earlier user turn' },
+                    { role: 'assistant', content: 'Earlier assistant reply' },
+                ],
+                summary: 'Earlier summary',
+            });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                system: 'You are a helpful assistant.',
+                sessionStore,
+            });
+
+            const result = await agent.streamWithThread({
+                threadId: 'thread-stream-message-only',
+                prompt: 'Continue in stream',
+            });
+
+            await expect(result.text).resolves.toBe('Hello!');
+
+            const request = client.requests[0];
+            expect(request.messages.filter((message: { role: string }) => message.role === 'system')).toHaveLength(1);
+            expect(request.messages).toEqual([
+                { role: 'system', content: 'You are a helpful assistant.' },
+                { role: 'user', content: 'Earlier user turn' },
+                { role: 'assistant', content: 'Earlier assistant reply' },
+                { role: 'user', content: 'Continue in stream' },
+            ]);
+        });
+
+        it('persists streamed thread turns so replayThread includes the streamed assistant reply', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            await sessionStore.save({
+                threadId: 'thread-stream-replay',
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant.' },
+                    { role: 'user', content: 'Earlier user turn' },
+                    { role: 'assistant', content: 'Earlier assistant reply' },
+                ],
+                summary: 'Earlier summary',
+            });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                system: 'You are a helpful assistant.',
+                sessionStore,
+            });
+
+            const result = await agent.streamWithThread({
+                threadId: 'thread-stream-replay',
+                prompt: 'Stream a follow up',
+            });
+
+            await expect(result.text).resolves.toBe('Hello!');
+            await expect(agent.replayThread({ threadId: 'thread-stream-replay' })).resolves.toEqual([
+                { role: 'system', content: 'You are a helpful assistant.' },
+                { role: 'user', content: 'Earlier user turn' },
+                { role: 'assistant', content: 'Earlier assistant reply' },
+                { role: 'user', content: 'Stream a follow up' },
+                { role: 'assistant', content: 'Hello!' },
+            ]);
+        });
+
         it('loads and replays persisted thread messages through the agent surface', async () => {
             const client = createMockClient();
             const sessionStore = new MemorySessionStore();
