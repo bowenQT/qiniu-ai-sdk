@@ -192,6 +192,38 @@ describe('createAgent', () => {
                 content: 'Continue',
             });
         });
+
+        it('resumes a thread from session-store messages even without a checkpoint', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            await sessionStore.save({
+                threadId: 'thread-message-only',
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant.' },
+                    { role: 'user', content: 'Earlier user turn' },
+                    { role: 'assistant', content: 'Earlier assistant reply' },
+                ],
+                summary: 'Earlier summary',
+            });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                system: 'You are a helpful assistant.',
+                sessionStore,
+            });
+
+            await agent.runWithThread({ threadId: 'thread-message-only', prompt: 'Continue' });
+
+            const request = client.requests[0];
+            expect(request.messages.filter((message: { role: string }) => message.role === 'system')).toHaveLength(1);
+            expect(request.messages).toEqual([
+                { role: 'system', content: 'You are a helpful assistant.' },
+                { role: 'user', content: 'Earlier user turn' },
+                { role: 'assistant', content: 'Earlier assistant reply' },
+                { role: 'user', content: 'Continue' },
+            ]);
+        });
     });
 
     describe('approval config passthrough', () => {

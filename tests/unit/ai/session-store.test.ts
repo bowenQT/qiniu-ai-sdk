@@ -232,6 +232,32 @@ describe('session store', () => {
         ]);
     });
 
+    it('persists and replays message-only sessions without a checkpoint', async () => {
+        const store = new MemorySessionStore();
+        await store.save({
+            threadId: 'thread-message-only',
+            messages: [
+                { role: 'system', content: 'You are helpful.' },
+                { role: 'user', content: 'Hello from message-only session' },
+            ],
+            summary: 'message-only summary',
+        });
+
+        const record = await store.load('thread-message-only');
+        const messages = await replaySession(store, 'thread-message-only');
+
+        expect(record?.checkpoint).toBeUndefined();
+        expect(record?.summary).toBe('message-only summary');
+        expect(record?.messages).toEqual([
+            { role: 'system', content: 'You are helpful.' },
+            { role: 'user', content: 'Hello from message-only session' },
+        ]);
+        expect(messages).toEqual([
+            { role: 'system', content: 'You are helpful.' },
+            { role: 'user', content: 'Hello from message-only session' },
+        ]);
+    });
+
     it('extracts session messages from both records and checkpoints', async () => {
         const store = new MemorySessionStore();
         const record = await store.save({
@@ -249,5 +275,30 @@ describe('session store', () => {
 
         expect(extractSessionMessages(record)).toEqual([{ role: 'user', content: 'Hello' }]);
         expect(extractSessionMessages(record.checkpoint)).toEqual([{ role: 'user', content: 'Hello' }]);
+    });
+
+    it('prefers explicit record messages over checkpoint internals', () => {
+        expect(extractSessionMessages({
+            threadId: 'thread-record',
+            messages: [{ role: 'assistant', content: 'From record messages' }],
+            checkpoint: {
+                metadata: {
+                    id: 'ckpt-record',
+                    threadId: 'thread-record',
+                    createdAt: 1,
+                    stepCount: 1,
+                },
+                state: {
+                    internalMessages: [{ role: 'assistant', content: 'From checkpoint' }],
+                    stepCount: 1,
+                    maxSteps: 1,
+                    done: false,
+                    output: '',
+                    reasoning: '',
+                    finishReason: null,
+                },
+            },
+            updatedAt: 1,
+        } as any)).toEqual([{ role: 'assistant', content: 'From record messages' }]);
     });
 });
