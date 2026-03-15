@@ -136,6 +136,8 @@ export {
     parseResponseOutputJson,
     extractResponseOutputText,
     extractResponseReasoningSummaryText,
+    extractResponseReasoningOutput,
+    extractResponseReasoningEncryptedContent,
     extractResponseOutputMessages,
     extractResponseOutputMessage,
     toChatCompletionResponse,
@@ -156,6 +158,7 @@ export type {
     ResponseMessageResult,
     ResponseMessagesResult,
     ResponseReasoningSummaryResult,
+    ResponseReasoningResult,
     ResponseJsonStreamResult,
     ResponseDeepPartial,
 } from '../modules/response';

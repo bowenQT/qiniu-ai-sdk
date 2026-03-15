@@ -197,6 +197,11 @@ export interface ResponseReasoningSummaryResult {
     reasoningSummaryText?: string;
 }
 
+export interface ResponseReasoningResult extends ResponseReasoningSummaryResult {
+    reasoning?: ResponseOutput;
+    encryptedContent?: string;
+}
+
 export type ResponseDeepPartial<T> = T extends object
     ? { [P in keyof T]?: ResponseDeepPartial<T[P]> }
     : T;
@@ -726,6 +731,36 @@ export class ResponseAPI {
     }
 
     /**
+     * Create a response and return its projected reasoning payload.
+     */
+    async createReasoningResult(
+        params: ResponseCreateRequest,
+    ): Promise<ResponseReasoningResult> {
+        const response = await this.create(params);
+        return {
+            response,
+            reasoning: extractResponseReasoningOutput(response),
+            reasoningSummaryText: extractResponseReasoningSummaryText(response),
+            encryptedContent: extractResponseReasoningEncryptedContent(response),
+        };
+    }
+
+    /**
+     * Create a follow-up response and return its projected reasoning payload.
+     */
+    async followUpReasoningResult(
+        params: ResponseFollowUpRequest,
+    ): Promise<ResponseReasoningResult> {
+        const response = await this.followUp(params);
+        return {
+            response,
+            reasoning: extractResponseReasoningOutput(response),
+            reasoningSummaryText: extractResponseReasoningSummaryText(response),
+            encryptedContent: extractResponseReasoningEncryptedContent(response),
+        };
+    }
+
+    /**
      * Create a response and return both the raw response and projected reasoning summary text.
      */
     async createReasoningSummaryTextResult(
@@ -819,6 +854,24 @@ export function extractResponseReasoningSummaryText(
     }
 
     return parts.length > 0 ? parts.join('\n\n') : undefined;
+}
+
+export function extractResponseReasoningOutput(
+    response: Pick<ResponseCreateResponse, 'output'>,
+): ResponseOutput | undefined {
+    const reasoningOutputs = (response.output ?? []).filter((item) => item.type === 'reasoning');
+    return reasoningOutputs.at(-1);
+}
+
+export function extractResponseReasoningEncryptedContent(
+    response: Pick<ResponseCreateResponse, 'output' | 'reasoning'>,
+): string | undefined {
+    const reasoningOutput = extractResponseReasoningOutput(response);
+    if (typeof reasoningOutput?.encrypted_content === 'string' && reasoningOutput.encrypted_content.length > 0) {
+        return reasoningOutput.encrypted_content;
+    }
+    const fallback = response.reasoning?.encrypted_content;
+    return typeof fallback === 'string' && fallback.length > 0 ? fallback : undefined;
 }
 
 export function extractResponseOutputMessages(
