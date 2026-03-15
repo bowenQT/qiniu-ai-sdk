@@ -60,6 +60,9 @@ describe('CLI live verification helpers', () => {
         expect(result.exitCode).toBe(2);
         expect(result.checks.some((check) => check.message.includes('chat: GA'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('file: GA'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('batch: BETA (unit, validated 2026-03-15)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('admin: BETA (unit, validated 2026-03-15)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('ResponseAPI: EXPERIMENTAL (unit, validated 2026-03-15)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Chat probe succeeded'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('File/qfile live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API live probe was skipped'))).toBe(true);

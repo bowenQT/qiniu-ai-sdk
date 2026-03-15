@@ -115,7 +115,7 @@ function parseOptionalJsonStringRecord(value: string | undefined, envName: strin
 
 const LANE_MODULES: Record<Exclude<WorktreeLane, 'integration'>, string[]> = {
     foundation: ['chat'],
-    'cloud-surface': ['chat', 'file', 'ResponseAPI'],
+    'cloud-surface': ['chat', 'file', 'batch', 'admin', 'ResponseAPI'],
     runtime: ['generateText', 'createAgent', 'memory', 'guardrails'],
     'node-integrations': ['NodeMCPHost', 'sandbox', 'skills', 'auditLogger'],
     'dx-validation': ['chat', 'file', 'generateText'],
