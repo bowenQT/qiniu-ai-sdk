@@ -168,7 +168,14 @@ function printWorktreeUsage(): void {
 
 function printVerifyUsage(): void {
     console.log('Usage: qiniu-ai verify live --lane <name>');
-    console.log('       qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict]');
+    console.log('       qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict] [--json] [--out <path>]');
+}
+
+function writeVerifyOutput(result: unknown, outputPath: string, cwd: string): string {
+    const resolved = path.resolve(cwd, outputPath);
+    fs.mkdirSync(path.dirname(resolved), { recursive: true });
+    fs.writeFileSync(resolved, JSON.stringify(result, null, 2) + '\n', 'utf8');
+    return resolved;
 }
 
 export function commandList(skillsDir: string): string[] {
@@ -520,6 +527,10 @@ async function runWorktreeCommand(args: string[], options: RunCLIOptions): Promi
 
 async function runVerifyCommand(args: string[], options: RunCLIOptions): Promise<void> {
     const subcommand = args[1];
+    const cwd = options.cwd ?? process.cwd();
+    const outputPath = getArgValue(args, '--out');
+    const jsonMode = args.includes('--json');
+    if (process.exitCode === 1) return;
 
     let result;
     if (subcommand === 'live') {
@@ -548,8 +559,19 @@ async function runVerifyCommand(args: string[], options: RunCLIOptions): Promise
         return;
     }
 
-    for (const check of result.checks) {
-        console.log(`[${check.level}] ${check.message}`);
+    if (jsonMode) {
+        console.log(JSON.stringify(result, null, 2));
+    } else {
+        for (const check of result.checks) {
+            console.log(`[${check.level}] ${check.message}`);
+        }
+    }
+
+    if (outputPath) {
+        const written = writeVerifyOutput(result, outputPath, cwd);
+        if (!jsonMode) {
+            console.log(`Wrote live verification result to ${written}`);
+        }
     }
     process.exitCode = result.exitCode;
 }
