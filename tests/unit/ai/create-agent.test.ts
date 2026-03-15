@@ -414,6 +414,61 @@ describe('createAgent', () => {
             });
         });
 
+        it('moves a persisted thread into a new thread and clears the source', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            await sessionStore.save({
+                threadId: 'thread-move-source',
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant.' },
+                    { role: 'user', content: 'Move me' },
+                    { role: 'assistant', content: 'Moved' },
+                ],
+                summary: 'move summary',
+            });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                sessionStore,
+            });
+
+            await expect(agent.moveThread({
+                fromThreadId: 'thread-move-source',
+                toThreadId: 'thread-move-target',
+            })).resolves.toMatchObject({
+                threadId: 'thread-move-target',
+                summary: 'move summary',
+                messages: [
+                    { role: 'system', content: 'You are a helpful assistant.' },
+                    { role: 'user', content: 'Move me' },
+                    { role: 'assistant', content: 'Moved' },
+                ],
+            });
+
+            await expect(agent.loadThread({ threadId: 'thread-move-source' })).resolves.toBeNull();
+            await expect(agent.replayThread({ threadId: 'thread-move-target' })).resolves.toEqual([
+                { role: 'system', content: 'You are a helpful assistant.' },
+                { role: 'user', content: 'Move me' },
+                { role: 'assistant', content: 'Moved' },
+            ]);
+        });
+
+        it('rejects moving a thread onto itself', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                sessionStore,
+            });
+
+            await expect(agent.moveThread({
+                fromThreadId: 'thread-same',
+                toThreadId: 'thread-same',
+            })).rejects.toThrow('moveThread requires fromThreadId and toThreadId to be different');
+        });
+
         it('rejects forking a thread onto itself', async () => {
             const client = createMockClient();
             const sessionStore = new MemorySessionStore();
