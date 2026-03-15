@@ -365,4 +365,52 @@ describe('MCPHttpTransport', () => {
         await expect(transport.readResource('file:///guide.md')).resolves.toBe('# Guide');
         await expect(transport.getPrompt('rewrite', { text: 'hello' })).resolves.toBe('Rewrite: hello');
     });
+
+    it('readResourceContents() returns structured resource contents', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+
+        mockClientInstance.readResource.mockResolvedValueOnce({
+            contents: [
+                { text: '# Guide', mimeType: 'text/markdown' },
+                { uri: 'file:///guide.md', mimeType: 'text/markdown' },
+            ],
+        });
+
+        const transport = new MCPHttpTransport({
+            name: 'server-resource-contents',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+        });
+
+        await transport.connect();
+
+        await expect(transport.readResourceContents('file:///guide.md')).resolves.toEqual([
+            { text: '# Guide', mimeType: 'text/markdown' },
+            { uri: 'file:///guide.md', mimeType: 'text/markdown' },
+        ]);
+    });
+
+    it('getPromptMessages() returns structured prompt messages', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+
+        mockClientInstance.getPrompt.mockResolvedValueOnce({
+            messages: [
+                { role: 'user', content: { type: 'text', text: 'Rewrite hello' } },
+                { role: 'assistant', content: 'Sure' },
+            ],
+        });
+
+        const transport = new MCPHttpTransport({
+            name: 'server-prompt-messages',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+        });
+
+        await transport.connect();
+
+        await expect(transport.getPromptMessages('rewrite', { text: 'hello' })).resolves.toEqual([
+            { role: 'user', content: { type: 'text', text: 'Rewrite hello' } },
+            { role: 'assistant', content: 'Sure' },
+        ]);
+    });
 });

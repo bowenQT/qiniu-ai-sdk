@@ -43,8 +43,10 @@ export type {
     MCPStdioServerConfig,
     MCPHttpServerConfig,
     MCPOAuthConfig,
+    MCPPromptMessage,
     MCPToolDefinition,
     MCPToolResult,
+    MCPResourceContent,
     MCPTransport,
 } from './types';
 export { DEFAULT_MCP_CONFIG } from './types';

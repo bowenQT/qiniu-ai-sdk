@@ -79,6 +79,8 @@ export type {
     MCPStdioServerConfig,
     MCPHttpServerConfig,
     MCPOAuthConfig,
+    MCPResourceContent,
+    MCPPromptMessage,
     MCPToolDefinition,
     MCPToolResult,
     MCPTransport,

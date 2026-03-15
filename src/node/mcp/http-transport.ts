@@ -9,7 +9,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type {
     MCPHttpServerConfig,
+    MCPPromptMessage,
     MCPPromptDefinition,
+    MCPResourceContent,
     MCPResourceDefinition,
     MCPToolDefinition,
     MCPToolResult,
@@ -435,22 +437,33 @@ export class MCPHttpTransport {
      * Read a specific MCP resource and return its text representation.
      */
     async readResource(uri: string): Promise<string> {
+        const contents = await this.readResourceContents(uri);
+        if (contents.length === 0) {
+            return '';
+        }
+
+        return contents
+            .map((content) => {
+                if (typeof content.text === 'string') {
+                    return content.text;
+                }
+                return JSON.stringify(content);
+            })
+            .join('\n');
+    }
+
+    /**
+     * Read a specific MCP resource and return its structured contents.
+     */
+    async readResourceContents(uri: string): Promise<MCPResourceContent[]> {
         if (!this.client) {
             throw new MCPHttpTransportError('Not connected', this.config.name);
         }
 
         const result = await this.client.readResource({ uri });
-        const contents = result.contents || [];
-        if (contents.length === 0) {
-            return '';
-        }
-
-        return contents.map((content) => {
-            if (typeof (content as { text?: unknown }).text === 'string') {
-                return (content as { text: string }).text;
-            }
-            return JSON.stringify(content);
-        }).join('\n');
+        return (result.contents || []).map((content) => ({
+            ...(content as Record<string, unknown>),
+        }));
     }
 
     /**
@@ -460,15 +473,7 @@ export class MCPHttpTransport {
         promptName: string,
         args?: Record<string, string>,
     ): Promise<string> {
-        if (!this.client) {
-            throw new MCPHttpTransportError('Not connected', this.config.name);
-        }
-
-        const result = await this.client.getPrompt({
-            name: promptName,
-            arguments: args,
-        });
-        const messages = result.messages || [];
+        const messages = await this.getPromptMessages(promptName, args);
         if (messages.length === 0) {
             return '';
         }
@@ -483,6 +488,28 @@ export class MCPHttpTransport {
             }
             return JSON.stringify(content);
         }).join('\n');
+    }
+
+    /**
+     * Resolve a prompt with optional string arguments and return structured messages.
+     */
+    async getPromptMessages(
+        promptName: string,
+        args?: Record<string, string>,
+    ): Promise<MCPPromptMessage[]> {
+        if (!this.client) {
+            throw new MCPHttpTransportError('Not connected', this.config.name);
+        }
+
+        const result = await this.client.getPrompt({
+            name: promptName,
+            arguments: args,
+        });
+
+        return (result.messages || []).map((message) => ({
+            ...(message as Record<string, unknown>),
+            content: message.content,
+        })) as MCPPromptMessage[];
     }
 
     /**
