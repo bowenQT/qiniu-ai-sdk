@@ -1,5 +1,6 @@
 import { generateText } from '../core';
 import { createNodeQiniuAI } from '../node';
+import type { MCPHttpServerConfig } from '../node';
 import { QiniuAI } from '../qiniu';
 import type { WorktreeLane } from './doctor';
 import { getModuleMaturity } from '../lib/capability-registry';
@@ -22,6 +23,21 @@ export interface LiveVerifyOptions {
     env?: NodeJS.ProcessEnv;
     createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file'>;
     createNodeClient?: (apiKey: string) => ReturnType<typeof createNodeQiniuAI>;
+    createMcpTransport?: (config: MCPHttpServerConfig) => LiveVerifyMcpTransport;
+}
+
+interface LiveVerifyMcpTransport {
+    openEventStream(lastEventId?: string): Promise<Pick<Response, 'status' | 'headers'>>;
+    discoverOAuthMetadata(challengeHeader?: string): Promise<{
+        protectedResource: {
+            authorization_servers?: string[];
+        };
+        authorizationServer: {
+            issuer?: string;
+        } | null;
+    }>;
+    terminateSession(): Promise<boolean>;
+    disconnect?(): Promise<void>;
 }
 
 function addCheck(checks: LiveVerifyCheck[], level: LiveVerifyStatus, message: string): void {
@@ -32,6 +48,12 @@ function summarize(checks: LiveVerifyCheck[]): LiveVerifyStatus {
     if (checks.some((check) => check.level === 'fail')) return 'fail';
     if (checks.some((check) => check.level === 'warn')) return 'warn';
     return 'ok';
+}
+
+function parseOptionalTimeout(value: string | undefined): number | undefined {
+    if (!value) return undefined;
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 const LANE_MODULES: Record<Exclude<WorktreeLane, 'integration'>, string[]> = {
@@ -63,6 +85,10 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
     const apiKey = env.QINIU_API_KEY;
     const createQiniuClient = options.createQiniuClient ?? ((nextApiKey: string) => new QiniuAI({ apiKey: nextApiKey }));
     const createNodeClient = options.createNodeClient ?? ((nextApiKey: string) => createNodeQiniuAI({ apiKey: nextApiKey }));
+    const createMcpTransport = options.createMcpTransport ?? ((config: MCPHttpServerConfig) => {
+        const { MCPHttpTransport } = require('../node');
+        return new MCPHttpTransport(config);
+    });
 
     if (options.lane === 'foundation') {
         addCheck(
@@ -155,6 +181,60 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
             temperature: 0,
         });
         addCheck(checks, 'ok', `Node lane chat probe succeeded: ${result.choices[0]?.message?.content ?? ''}`);
+        const mcpUrl = env.QINIU_LIVE_VERIFY_MCP_URL?.trim();
+        if (mcpUrl) {
+            const transport = createMcpTransport({
+                name: 'live-verify-mcp',
+                transport: 'http',
+                url: mcpUrl,
+                token: env.QINIU_LIVE_VERIFY_MCP_TOKEN,
+                protocolVersion: env.QINIU_LIVE_VERIFY_MCP_PROTOCOL_VERSION,
+                sessionId: env.QINIU_LIVE_VERIFY_MCP_SESSION_ID,
+                lastEventId: env.QINIU_LIVE_VERIFY_MCP_LAST_EVENT_ID,
+                origin: env.QINIU_LIVE_VERIFY_MCP_ORIGIN,
+                timeout: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_MCP_TIMEOUT_MS),
+            });
+            let terminated = false;
+
+            try {
+                const stream = await transport.openEventStream();
+                const contentType = stream.headers.get('content-type');
+                addCheck(
+                    checks,
+                    'ok',
+                    `MCP event stream probe succeeded: ${stream.status}${contentType ? ` (${contentType})` : ''}`,
+                );
+
+                if (env.QINIU_LIVE_VERIFY_MCP_OAUTH_DISCOVERY === '1') {
+                    const metadata = await transport.discoverOAuthMetadata(env.QINIU_LIVE_VERIFY_MCP_CHALLENGE);
+                    const issuer = metadata.authorizationServer?.issuer
+                        ?? metadata.protectedResource.authorization_servers?.[0]
+                        ?? 'unadvertised';
+                    addCheck(checks, 'ok', `MCP OAuth metadata probe succeeded: ${issuer}`);
+                }
+
+                if (env.QINIU_LIVE_VERIFY_MCP_TERMINATE === '1') {
+                    terminated = await transport.terminateSession();
+                    addCheck(
+                        checks,
+                        terminated ? 'ok' : 'warn',
+                        terminated
+                            ? 'MCP DELETE terminate probe succeeded.'
+                            : 'MCP DELETE terminate probe is not supported by the server.',
+                    );
+                }
+            } finally {
+                if (!terminated) {
+                    await transport.disconnect?.();
+                }
+            }
+        } else {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_MCP_URL not set. MCP live probe was skipped.',
+            );
+        }
         if (!env.QINIU_ACCESS_KEY || !env.QINIU_SECRET_KEY) {
             addCheck(
                 checks,
