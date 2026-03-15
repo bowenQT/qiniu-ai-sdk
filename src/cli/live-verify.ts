@@ -29,6 +29,8 @@ export interface LiveVerifyOptions {
 interface LiveVerifyMcpTransport {
     connect?(): Promise<void>;
     listTools?(): Promise<Array<{ name: string }>>;
+    listResources?(): Promise<Array<{ uri: string }>>;
+    listPrompts?(): Promise<Array<{ name: string }>>;
     executeTool?(toolName: string, args: Record<string, unknown>): Promise<{
         content?: Array<{ type: string; text?: string }>;
     }>;
@@ -309,6 +311,14 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${probeResult.tools.length} tools`);
                 }
 
+                if (probeResult.resources) {
+                    addCheck(checks, 'ok', `MCP resource listing probe succeeded: ${probeResult.resources.length} resources`);
+                }
+
+                if (probeResult.prompts) {
+                    addCheck(checks, 'ok', `MCP prompt listing probe succeeded: ${probeResult.prompts.length} prompts`);
+                }
+
                 if (toolName && probeResult.toolResult) {
                     const firstText = probeResult.toolResult.content?.find(
                         (item: { type: string; text?: string }) => item.type === 'text',
@@ -353,8 +363,26 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                             throw new Error('MCP tool listing probe requires connect() and listTools() support');
                         }
                         await transport.connect();
-                        const tools = await transport.listTools();
-                        addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${tools.length} tools`);
+                    const tools = await transport.listTools();
+                    addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${tools.length} tools`);
+                }
+
+                    if (env.QINIU_LIVE_VERIFY_MCP_LIST_RESOURCES === '1') {
+                        if (!transport.connect || !transport.listResources) {
+                            throw new Error('MCP resource listing probe requires connect() and listResources() support');
+                        }
+                        await transport.connect();
+                        const resources = await transport.listResources();
+                        addCheck(checks, 'ok', `MCP resource listing probe succeeded: ${resources.length} resources`);
+                    }
+
+                    if (env.QINIU_LIVE_VERIFY_MCP_LIST_PROMPTS === '1') {
+                        if (!transport.connect || !transport.listPrompts) {
+                            throw new Error('MCP prompt listing probe requires connect() and listPrompts() support');
+                        }
+                        await transport.connect();
+                        const prompts = await transport.listPrompts();
+                        addCheck(checks, 'ok', `MCP prompt listing probe succeeded: ${prompts.length} prompts`);
                     }
 
                     if (toolName) {
