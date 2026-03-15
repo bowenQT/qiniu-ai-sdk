@@ -183,6 +183,80 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         });
     });
 
+    it('should accept chat-style message arrays as Response API input', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-chat-messages',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Accepted.' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await client.response.create({
+            model: 'gpt-5.2',
+            input: [
+                { role: 'system', content: 'Be concise.' },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'Describe this image.' },
+                        {
+                            type: 'image',
+                            image: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9pGm8AAAAASUVORK5CYII=',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        expect(JSON.parse(String(mockFetch.calls[0].init?.body))).toMatchObject({
+            input: [
+                { role: 'system', content: 'Be concise.' },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'Describe this image.' },
+                        {
+                            type: 'image_url',
+                            image_url: {
+                                url: expect.stringContaining('data:image/png;base64,'),
+                            },
+                        },
+                    ],
+                },
+            ],
+        });
+    });
+
+    it('should reject unsupported tool/function role messages in Response API input arrays', async () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: createStaticMockFetch({ status: 200, body: {} }).adapter,
+        });
+
+        await expect(client.response.create({
+            model: 'gpt-5.2',
+            input: [
+                {
+                    role: 'tool',
+                    content: 'pong',
+                    tool_call_id: 'call_1',
+                },
+            ],
+        })).rejects.toThrow('Response API array input only supports role/content message fields');
+    });
+
     it('should create a projected chat completion directly from Response API', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,
