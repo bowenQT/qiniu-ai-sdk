@@ -3,7 +3,13 @@
  */
 
 // HTTP Transport (Phase 3)
-export { MCPHttpTransport, MCPHttpTransportError, type TokenProvider } from './http-transport';
+export {
+    MCPHttpTransport,
+    MCPHttpTransportError,
+    type TokenProvider,
+    type MCPProbeOptions,
+    type MCPProbeResult,
+} from './http-transport';
 
 // OAuth (Phase 3)
 export {

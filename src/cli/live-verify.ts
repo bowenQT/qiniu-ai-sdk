@@ -32,6 +32,22 @@ interface LiveVerifyMcpTransport {
     executeTool?(toolName: string, args: Record<string, unknown>): Promise<{
         content?: Array<{ type: string; text?: string }>;
     }>;
+    probe?(options: {
+        listTools?: boolean;
+        executeTool?: { name: string; args?: Record<string, unknown> };
+        eventStream?: boolean;
+        oauthMetadata?: { challengeHeader?: string } | boolean;
+        terminateSession?: boolean;
+    }): Promise<{
+        tools?: Array<{ name: string }>;
+        toolResult?: { content?: Array<{ type: string; text?: string }> };
+        eventStream?: { status: number; contentType: string | null };
+        oauthMetadata?: {
+            protectedResource: { authorization_servers?: string[] };
+            authorizationServer: { issuer?: string } | null;
+        };
+        terminated?: boolean;
+    }>;
     openEventStream(lastEventId?: string): Promise<Pick<Response, 'status' | 'headers'>>;
     discoverOAuthMetadata(challengeHeader?: string): Promise<{
         protectedResource: {
@@ -273,27 +289,28 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 origin: env.QINIU_LIVE_VERIFY_MCP_ORIGIN,
                 timeout: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_MCP_TIMEOUT_MS),
             });
-            let terminated = false;
+            const toolName = env.QINIU_LIVE_VERIFY_MCP_TOOL_NAME?.trim();
+            const toolArgs = parseOptionalJsonObject(env.QINIU_LIVE_VERIFY_MCP_TOOL_ARGS_JSON) ?? {};
 
-            try {
-                if (env.QINIU_LIVE_VERIFY_MCP_LIST_TOOLS === '1') {
-                    if (!transport.connect || !transport.listTools) {
-                        throw new Error('MCP tool listing probe requires connect() and listTools() support');
-                    }
-                    await transport.connect();
-                    const tools = await transport.listTools();
-                    addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${tools.length} tools`);
+            if (transport.probe) {
+                const probeResult = await transport.probe({
+                    listTools: env.QINIU_LIVE_VERIFY_MCP_LIST_TOOLS === '1',
+                    executeTool: toolName
+                        ? { name: toolName, args: toolArgs }
+                        : undefined,
+                    eventStream: true,
+                    oauthMetadata: env.QINIU_LIVE_VERIFY_MCP_OAUTH_DISCOVERY === '1'
+                        ? { challengeHeader: env.QINIU_LIVE_VERIFY_MCP_CHALLENGE }
+                        : undefined,
+                    terminateSession: env.QINIU_LIVE_VERIFY_MCP_TERMINATE === '1',
+                });
+
+                if (probeResult.tools) {
+                    addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${probeResult.tools.length} tools`);
                 }
 
-                const toolName = env.QINIU_LIVE_VERIFY_MCP_TOOL_NAME?.trim();
-                if (toolName) {
-                    if (!transport.connect || !transport.executeTool) {
-                        throw new Error('MCP tool execution probe requires connect() and executeTool() support');
-                    }
-                    await transport.connect();
-                    const toolArgs = parseOptionalJsonObject(env.QINIU_LIVE_VERIFY_MCP_TOOL_ARGS_JSON) ?? {};
-                    const toolResult = await transport.executeTool(toolName, toolArgs);
-                    const firstText = toolResult.content?.find(
+                if (toolName && probeResult.toolResult) {
+                    const firstText = probeResult.toolResult.content?.find(
                         (item: { type: string; text?: string }) => item.type === 'text',
                     )?.text;
                     addCheck(
@@ -303,35 +320,89 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     );
                 }
 
-                const stream = await transport.openEventStream();
-                const contentType = stream.headers.get('content-type');
-                addCheck(
-                    checks,
-                    'ok',
-                    `MCP event stream probe succeeded: ${stream.status}${contentType ? ` (${contentType})` : ''}`,
-                );
+                if (probeResult.eventStream) {
+                    addCheck(
+                        checks,
+                        'ok',
+                        `MCP event stream probe succeeded: ${probeResult.eventStream.status}${probeResult.eventStream.contentType ? ` (${probeResult.eventStream.contentType})` : ''}`,
+                    );
+                }
 
-                if (env.QINIU_LIVE_VERIFY_MCP_OAUTH_DISCOVERY === '1') {
-                    const metadata = await transport.discoverOAuthMetadata(env.QINIU_LIVE_VERIFY_MCP_CHALLENGE);
-                    const issuer = metadata.authorizationServer?.issuer
-                        ?? metadata.protectedResource.authorization_servers?.[0]
+                if (probeResult.oauthMetadata) {
+                    const issuer = probeResult.oauthMetadata.authorizationServer?.issuer
+                        ?? probeResult.oauthMetadata.protectedResource.authorization_servers?.[0]
                         ?? 'unadvertised';
                     addCheck(checks, 'ok', `MCP OAuth metadata probe succeeded: ${issuer}`);
                 }
 
                 if (env.QINIU_LIVE_VERIFY_MCP_TERMINATE === '1') {
-                    terminated = await transport.terminateSession();
                     addCheck(
                         checks,
-                        terminated ? 'ok' : 'warn',
-                        terminated
+                        probeResult.terminated ? 'ok' : 'warn',
+                        probeResult.terminated
                             ? 'MCP DELETE terminate probe succeeded.'
                             : 'MCP DELETE terminate probe is not supported by the server.',
                     );
                 }
-            } finally {
-                if (!terminated) {
-                    await transport.disconnect?.();
+            } else {
+                let terminated = false;
+
+                try {
+                    if (env.QINIU_LIVE_VERIFY_MCP_LIST_TOOLS === '1') {
+                        if (!transport.connect || !transport.listTools) {
+                            throw new Error('MCP tool listing probe requires connect() and listTools() support');
+                        }
+                        await transport.connect();
+                        const tools = await transport.listTools();
+                        addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${tools.length} tools`);
+                    }
+
+                    if (toolName) {
+                        if (!transport.connect || !transport.executeTool) {
+                            throw new Error('MCP tool execution probe requires connect() and executeTool() support');
+                        }
+                        await transport.connect();
+                        const toolResult = await transport.executeTool(toolName, toolArgs);
+                        const firstText = toolResult.content?.find(
+                            (item: { type: string; text?: string }) => item.type === 'text',
+                        )?.text;
+                        addCheck(
+                            checks,
+                            'ok',
+                            `MCP tool call probe succeeded: ${toolName}${firstText ? ` -> ${firstText}` : ''}`,
+                        );
+                    }
+
+                    const stream = await transport.openEventStream();
+                    const contentType = stream.headers.get('content-type');
+                    addCheck(
+                        checks,
+                        'ok',
+                        `MCP event stream probe succeeded: ${stream.status}${contentType ? ` (${contentType})` : ''}`,
+                    );
+
+                    if (env.QINIU_LIVE_VERIFY_MCP_OAUTH_DISCOVERY === '1') {
+                        const metadata = await transport.discoverOAuthMetadata(env.QINIU_LIVE_VERIFY_MCP_CHALLENGE);
+                        const issuer = metadata.authorizationServer?.issuer
+                            ?? metadata.protectedResource.authorization_servers?.[0]
+                            ?? 'unadvertised';
+                        addCheck(checks, 'ok', `MCP OAuth metadata probe succeeded: ${issuer}`);
+                    }
+
+                    if (env.QINIU_LIVE_VERIFY_MCP_TERMINATE === '1') {
+                        terminated = await transport.terminateSession();
+                        addCheck(
+                            checks,
+                            terminated ? 'ok' : 'warn',
+                            terminated
+                                ? 'MCP DELETE terminate probe succeeded.'
+                                : 'MCP DELETE terminate probe is not supported by the server.',
+                        );
+                    }
+                } finally {
+                    if (!terminated) {
+                        await transport.disconnect?.();
+                    }
                 }
             }
         } else {

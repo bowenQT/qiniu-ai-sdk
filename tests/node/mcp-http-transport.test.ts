@@ -239,4 +239,56 @@ describe('MCPHttpTransport', () => {
         await vi.advanceTimersByTimeAsync(25);
         await discoveryPromise;
     });
+
+    it('probes MCP capabilities through a single helper surface', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+
+        fetchMock
+            .mockResolvedValueOnce(new Response('event: ready\n\n', {
+                status: 200,
+                headers: { 'Content-Type': 'text/event-stream' },
+            }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({
+                resource: 'https://mcp.example.com',
+                authorization_servers: ['https://auth.example.com'],
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({
+                issuer: 'https://auth.example.com',
+                authorization_endpoint: 'https://auth.example.com/authorize',
+                token_endpoint: 'https://auth.example.com/token',
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+            .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        mockClientInstance.listTools.mockResolvedValueOnce({
+            tools: [{ name: 'ping', description: 'Ping', inputSchema: { type: 'object', properties: {} } }],
+        });
+        mockClientInstance.callTool.mockResolvedValueOnce({
+            content: [{ type: 'text', text: 'pong' }],
+            isError: false,
+        });
+
+        const transport = new MCPHttpTransport({
+            name: 'server-probe',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+        });
+
+        const result = await transport.probe({
+            listTools: true,
+            executeTool: { name: 'ping', args: { echo: 'pong' } },
+            eventStream: true,
+            oauthMetadata: true,
+            terminateSession: true,
+        });
+
+        expect(result.tools?.[0]?.name).toBe('ping');
+        expect(result.toolResult?.content?.[0]).toEqual({ type: 'text', text: 'pong' });
+        expect(result.eventStream).toEqual({
+            status: 200,
+            contentType: 'text/event-stream',
+        });
+        expect(result.oauthMetadata?.authorizationServer?.issuer).toBe('https://auth.example.com');
+        expect(result.terminated).toBe(true);
+        expect(mockClientInstance.close).toHaveBeenCalledTimes(1);
+    });
 });

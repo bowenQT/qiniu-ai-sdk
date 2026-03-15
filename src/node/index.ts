@@ -61,6 +61,8 @@ export {
     startFromEnv,
 } from './mcp';
 export type {
+    MCPProbeOptions,
+    MCPProbeResult,
     TokenProvider,
     OAuthTokens,
     TokenStore,
