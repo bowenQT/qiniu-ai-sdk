@@ -139,6 +139,9 @@ export type {
     ResponseInputMessage,
     ResponseOutput,
     ResponseContentBlock,
+    ResponseStreamEvent,
+    ResponseStreamOptions,
+    ResponseStreamResult,
 } from '../modules/response';
 
 export { Log } from '../modules/log';
