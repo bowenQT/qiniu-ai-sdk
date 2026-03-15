@@ -231,6 +231,33 @@ function normalizeMessages(options: GenerateTextOptions): ChatMessage[] {
     return messages;
 }
 
+function normalizeMessagesForResume(
+    options: GenerateTextOptions,
+    historicalMessages: ChatMessage[],
+): ChatMessage[] {
+    if (options.messages && options.messages.length > 0) {
+        const freshMessages = [...options.messages];
+        while (freshMessages[0]?.role === 'system') {
+            freshMessages.shift();
+        }
+        return freshMessages;
+    }
+
+    const freshMessages: ChatMessage[] = [];
+    if (options.prompt) {
+        freshMessages.push({ role: 'user', content: options.prompt });
+    }
+    return freshMessages;
+}
+
+function buildResumePrefixMessages(options: GenerateTextOptions, historicalMessages: ChatMessage[]): ChatMessage[] {
+    const hasHistoricalSystemMessage = historicalMessages.some(message => message.role === 'system');
+    if (hasHistoricalSystemMessage || !options.system) {
+        return [];
+    }
+    return [{ role: 'system', content: options.system }];
+}
+
 async function buildChatRequest(params: {
     model: string;
     messages: ChatMessage[];
@@ -638,27 +665,21 @@ export async function generateTextWithGraph(
 
     // Try to resume from checkpoint if available
     let resumedMessages: ChatMessage[] | null = null;
-    if (threadId && memory && sessionStore) {
-        const session = await sessionStore.load(threadId);
-        if (session?.summary) {
-            memory.setSummary(threadId, session.summary);
-        }
+    const loadedSession = threadId && sessionStore ? await sessionStore.load(threadId) : null;
+    if (threadId && memory && loadedSession?.summary) {
+        memory.setSummary(threadId, loadedSession.summary);
     }
 
     if (threadId && resumeFromCheckpoint) {
-        const sessionCheckpoint = sessionStore ? (await sessionStore.load(threadId))?.checkpoint : null;
+        const sessionCheckpoint = loadedSession?.checkpoint ?? null;
         const checkpoint = sessionCheckpoint ?? (checkpointer ? await checkpointer.load(threadId) : null);
         if (checkpoint) {
             // Extract historical messages and append new input
             // v0.32.0+: prefer internalMessages, fallback to legacy messages for migration
             const historicalMessages = (checkpoint.state.internalMessages ?? checkpoint.state.messages) as ChatMessage[];
-            const newMessages = normalizeMessages(options);
-            // Only append new messages if there are any (avoid duplicating history)
-            if (newMessages.length > 0) {
-                resumedMessages = [...historicalMessages, ...newMessages];
-            } else {
-                resumedMessages = historicalMessages;
-            }
+            const prefixMessages = buildResumePrefixMessages(options, historicalMessages);
+            const newMessages = normalizeMessagesForResume(options, historicalMessages);
+            resumedMessages = [...prefixMessages, ...historicalMessages, ...newMessages];
         }
     }
 
