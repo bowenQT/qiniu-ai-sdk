@@ -63,6 +63,8 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('batch: BETA (unit, validated 2026-03-15)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('admin: BETA (unit, validated 2026-03-15)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('censor: BETA (unit, validated 2026-03-15)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('account: BETA (unit'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('log: GA (unit'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('ResponseAPI: EXPERIMENTAL (unit, validated 2026-03-15)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Chat probe succeeded'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('File/qfile live probe was skipped'))).toBe(true);
@@ -70,6 +72,8 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('Batch live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Censor live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Censor video live probe was skipped'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Account usage live probe was skipped'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Log export live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API stream live probe was skipped'))).toBe(false);
     });
 
@@ -388,6 +392,61 @@ describe('CLI live verification helpers', () => {
         expect(result.exitCode).toBe(2);
         expect(result.checks.some((check) => check.message.includes('Censor video create probe succeeded: job-789'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Censor video wait probe succeeded: job-789 -> DONE (review) [terror:review]'))).toBe(true);
+    });
+
+    it('runs the optional account usage and log export live probes when explicitly enabled', async () => {
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_ACCOUNT_USAGE: '1',
+                QINIU_LIVE_VERIFY_ACCOUNT_START: '2026-03-14T00:00:00.000Z',
+                QINIU_LIVE_VERIFY_ACCOUNT_END: '2026-03-15T00:00:00.000Z',
+                QINIU_LIVE_VERIFY_LOG_EXPORT: '1',
+                QINIU_LIVE_VERIFY_LOG_START: '2026-03-14T00:00:00.000Z',
+                QINIU_LIVE_VERIFY_LOG_END: '2026-03-15T00:00:00.000Z',
+                QINIU_LIVE_VERIFY_LOG_SIZE: '1',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                file: {
+                    create: async () => ({ id: 'unused', status: 'ready' }),
+                    waitForReady: async () => ({ id: 'unused', status: 'ready' }),
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'unused', format: 'text/plain' },
+                    }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
+                },
+                account: {
+                    usage: async () => ({
+                        data: [{ id: 'model-1', name: 'gemini-2.5-flash' }],
+                    }),
+                },
+                log: {
+                    export: async () => [{ id: 'log-1', code: 200 }],
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(result.checks.some((check) => check.message.includes('Account usage probe succeeded: 1 models (gemini-2.5-flash)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Log export probe succeeded: 1 entries (log-1)'))).toBe(true);
     });
 
     it('warns when node-integrations lane skips MCP live probing', async () => {

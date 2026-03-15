@@ -21,7 +21,7 @@ export interface LiveVerifyResult {
 export interface LiveVerifyOptions {
     lane: WorktreeLane;
     env?: NodeJS.ProcessEnv;
-    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file' | 'response' | 'batch' | 'censor'>;
+    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file' | 'response' | 'batch' | 'censor' | 'account' | 'log'>;
     createNodeClient?: (apiKey: string) => ReturnType<typeof createNodeQiniuAI>;
     createMcpTransport?: (config: MCPHttpServerConfig) => LiveVerifyMcpTransport;
 }
@@ -115,11 +115,32 @@ function parseOptionalJsonStringRecord(value: string | undefined, envName: strin
 
 const LANE_MODULES: Record<Exclude<WorktreeLane, 'integration'>, string[]> = {
     foundation: ['chat'],
-    'cloud-surface': ['chat', 'file', 'batch', 'admin', 'censor', 'ResponseAPI'],
+    'cloud-surface': ['chat', 'file', 'batch', 'admin', 'censor', 'account', 'log', 'ResponseAPI'],
     runtime: ['generateText', 'createAgent', 'memory', 'guardrails'],
     'node-integrations': ['NodeMCPHost', 'sandbox', 'skills', 'auditLogger'],
     'dx-validation': ['chat', 'file', 'generateText'],
 };
+
+function buildLiveTimeRange(
+    startOverride: string | undefined,
+    endOverride: string | undefined,
+    durationMs: number,
+): { start: string; end: string } {
+    if (startOverride && endOverride) {
+        return {
+            start: startOverride,
+            end: endOverride,
+        };
+    }
+
+    const end = endOverride ? new Date(endOverride) : new Date();
+    const start = startOverride ? new Date(startOverride) : new Date(end.getTime() - durationMs);
+
+    return {
+        start: start.toISOString(),
+        end: end.toISOString(),
+    };
+}
 
 function addMaturityEvidence(checks: LiveVerifyCheck[], lane: WorktreeLane): void {
     if (lane === 'integration') return;
@@ -539,6 +560,81 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_CENSOR_VIDEO not set. Censor video live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_ACCOUNT_USAGE === '1') {
+            const accountClient = client.account as {
+                usage?: (params: {
+                    granularity: 'day' | 'hour';
+                    start: string;
+                    end: string;
+                }) => Promise<{
+                    data?: Array<{ id?: string; name?: string }>;
+                }>;
+            };
+            if (!accountClient.usage) {
+                throw new Error('Account live probe requires account.usage() support in the current SDK build');
+            }
+
+            const granularity = env.QINIU_LIVE_VERIFY_ACCOUNT_GRANULARITY === 'hour' ? 'hour' : 'day';
+            const range = buildLiveTimeRange(
+                env.QINIU_LIVE_VERIFY_ACCOUNT_START,
+                env.QINIU_LIVE_VERIFY_ACCOUNT_END,
+                granularity === 'hour' ? 6 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
+            );
+            const usage = await accountClient.usage({
+                granularity,
+                start: range.start,
+                end: range.end,
+            });
+            const firstModel = usage.data?.[0]?.name ?? usage.data?.[0]?.id;
+            addCheck(
+                checks,
+                'ok',
+                `Account usage probe succeeded: ${usage.data?.length ?? 0} models${firstModel ? ` (${firstModel})` : ''}`,
+            );
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_ACCOUNT_USAGE not set. Account usage live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_LOG_EXPORT === '1') {
+            const logClient = client.log as {
+                export?: (params: {
+                    start: string;
+                    end: string;
+                    size?: number;
+                }) => Promise<Array<{ id?: string; code?: number }>>;
+            };
+            if (!logClient.export) {
+                throw new Error('Log live probe requires log.export() support in the current SDK build');
+            }
+
+            const range = buildLiveTimeRange(
+                env.QINIU_LIVE_VERIFY_LOG_START,
+                env.QINIU_LIVE_VERIFY_LOG_END,
+                24 * 60 * 60 * 1000,
+            );
+            const size = parseOptionalTimeout(env.QINIU_LIVE_VERIFY_LOG_SIZE) ?? 1;
+            const entries = await logClient.export({
+                start: range.start,
+                end: range.end,
+                size,
+            });
+            addCheck(
+                checks,
+                'ok',
+                `Log export probe succeeded: ${entries.length} entries${entries[0]?.id ? ` (${entries[0].id})` : ''}`,
+            );
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_LOG_EXPORT not set. Log export live probe was skipped.',
             );
         }
     } else if (options.lane === 'runtime') {
