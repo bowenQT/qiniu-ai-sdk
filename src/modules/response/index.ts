@@ -6,6 +6,8 @@ import {
 } from '../../lib/types';
 import { normalizeContentAsync } from '../../lib/content-converter';
 
+const RESPONSE_API_VERSION = '2025-04-01-preview';
+
 // ============================================================================
 // Type Definitions (Response API - @experimental)
 // ============================================================================
@@ -22,8 +24,29 @@ export interface ResponseCreateRequest {
     };
     include?: string[];
     instructions?: string;
+    stream?: boolean;
+    metadata?: Record<string, unknown>;
+    text?: {
+        format?: {
+            type: 'text' | 'json_object' | 'json_schema';
+            name?: string;
+            description?: string;
+            strict?: boolean;
+            schema?: Record<string, unknown>;
+        };
+        verbosity?: 'low' | 'medium' | 'high';
+    };
     temperature?: number;
+    top_p?: number;
     max_output_tokens?: number;
+    previous_response_id?: string | null;
+    store?: boolean;
+    background?: boolean;
+    parallel_tool_calls?: boolean;
+    tools?: unknown[];
+    tool_choice?: 'auto' | 'none' | 'required' | { type: string; name?: string };
+    truncation?: 'disabled' | 'auto';
+    user?: string | null;
 }
 
 export interface ResponseInputMessage {
@@ -35,10 +58,14 @@ export type ResponseInputContentPart = ContentPartWithCacheControl;
 
 export interface ResponseOutput {
     type: string;
+    id?: string;
     role?: string;
+    status?: string | null;
     content?: ResponseContentBlock[];
     thinking_blocks?: ThinkingBlock[];
     images?: ImageObject[];
+    summary?: Array<{ type: string; text?: string }>;
+    encrypted_content?: string;
 }
 
 export interface ResponseContentBlock {
@@ -59,6 +86,7 @@ export interface ResponseCreateResponse {
     id: string;
     object?: string;
     created_at?: number;
+    model?: string;
     status: string;
     output?: ResponseOutput[];
     /**
@@ -66,15 +94,45 @@ export interface ResponseCreateResponse {
      * Mirrors the mainstream Response API ergonomics for direct text consumption.
      */
     output_text?: string;
+    error?: unknown;
+    incomplete_details?: unknown;
+    instructions?: string | null;
+    metadata?: Record<string, unknown>;
     reasoning?: {
         effort?: string;
+        summary?: string;
         encrypted_content?: string;
     };
+    parallel_tool_calls?: boolean;
+    temperature?: number;
+    tool_choice?: unknown;
+    tools?: unknown[];
+    top_p?: number;
+    previous_response_id?: string | null;
+    text?: {
+        format?: { type?: string };
+        verbosity?: string;
+    };
+    truncation?: string;
     usage?: {
         input_tokens: number;
         output_tokens: number;
         total_tokens: number;
+        input_tokens_details?: unknown;
+        output_tokens_details?: unknown;
+        cost?: unknown;
     };
+    user?: string | null;
+    store?: boolean;
+    background?: boolean;
+    completed_at?: number;
+    content_filters?: unknown[];
+    max_tool_calls?: number | null;
+    prompt_cache_key?: string | null;
+    prompt_cache_retention?: string | null;
+    safety_identifier?: string | null;
+    service_tier?: string;
+    top_logprobs?: number;
 }
 
 // ============================================================================
@@ -105,9 +163,13 @@ export class ResponseAPI {
             model: request.model,
             endpoint: '/llm/v1/responses',
             hasReasoning: !!request.reasoning,
+            apiVersion: RESPONSE_API_VERSION,
         });
 
-        const response = await this.client.post<ResponseCreateResponse>('/llm/v1/responses', request);
+        const response = await this.client.post<ResponseCreateResponse>(
+            `/llm/v1/responses?api-version=${encodeURIComponent(RESPONSE_API_VERSION)}`,
+            request,
+        );
         return {
             ...response,
             output_text: response.output_text ?? extractResponseOutputText(response),
