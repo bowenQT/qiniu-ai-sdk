@@ -40,7 +40,7 @@ This document is generated from the SDK capability registry and is intended to m
 | ocr | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | streamText | ga | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | tts | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| video | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| video | ga | unit | 2026-03-15 | Dedicated unit suites cover Veo/Kling normalization and task-handle behavior; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
 | account | beta | unit | 2026-03-15 | Usage auth signing and response handling are covered by unit tests; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
 | adapter | beta | unit |  |  | https://ai-sdk.dev/docs |
 | admin | beta | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
