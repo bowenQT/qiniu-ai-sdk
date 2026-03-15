@@ -56,6 +56,12 @@ export interface FileListResponse {
     has_more?: boolean;
 }
 
+export interface FileDeleteResponse {
+    id?: string;
+    object?: string;
+    deleted?: boolean;
+}
+
 export interface FileListOptions {
     /** Filter by status */
     status?: string;
@@ -138,6 +144,13 @@ export class File {
         if (options?.limit) params.limit = String(options.limit);
 
         return this.client.get<FileListResponse>('/files', Object.keys(params).length > 0 ? params : undefined);
+    }
+
+    /**
+     * Delete a previously uploaded file.
+     */
+    async delete(fileId: string): Promise<FileDeleteResponse> {
+        return this.client.delete<FileDeleteResponse>(`/files/${encodeURIComponent(fileId)}`);
     }
 
     /**

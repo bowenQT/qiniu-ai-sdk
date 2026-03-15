@@ -306,6 +306,7 @@ import type { ChildTransport } from './child-transport';
 export interface IQiniuClient {
     post<T>(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<T>;
     get<T>(endpoint: string, params?: Record<string, string>, requestId?: string, options?: RequestOptions): Promise<T>;
+    delete<T>(endpoint: string, requestId?: string, options?: RequestOptions): Promise<T>;
     postStream(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions & { signal?: AbortSignal }): Promise<Response>;
     /** GET using absolute URL (skips baseUrl prepend) */
     getAbsolute<T>(absoluteUrl: string, params?: Record<string, string>, requestId?: string, options?: RequestOptions): Promise<T>;

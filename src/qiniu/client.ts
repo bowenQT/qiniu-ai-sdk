@@ -168,6 +168,17 @@ export class QiniuAI implements IQiniuClient {
         );
     }
 
+    async delete<T>(endpoint: string, requestId?: string, options?: RequestOptions): Promise<T> {
+        const url = `${this.baseUrl}${endpoint}`;
+        return request<T>(
+            url,
+            'DELETE',
+            undefined,
+            this.requestContext,
+            { ...options, requestId }
+        );
+    }
+
     async postStream(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions & { signal?: AbortSignal }): Promise<Response> {
         const url = `${this.baseUrl}${endpoint}`;
         const timeout = options?.timeout ?? this.timeout;
