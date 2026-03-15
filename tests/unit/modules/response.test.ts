@@ -51,6 +51,34 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         expect(result.reasoning?.encrypted_content).toBe('enc_abc_123');
     });
 
+    it('should preserve backend-provided output_text when present', async () => {
+        const mockResponse = {
+            id: 'resp-server-text',
+            status: 'completed',
+            output_text: 'Server projection',
+            output: [
+                {
+                    type: 'message',
+                    role: 'assistant',
+                    content: [{ type: 'output_text', text: 'Derived projection' }],
+                },
+            ],
+        };
+
+        const mockFetch = createStaticMockFetch({ status: 200, body: mockResponse });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const result = await client.response.create({
+            model: 'openai/gpt-5',
+            input: 'Hi',
+        });
+
+        expect(result.output_text).toBe('Server projection');
+    });
+
     it('should accept multimodal response input messages', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,
