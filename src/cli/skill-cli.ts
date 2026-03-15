@@ -7,6 +7,7 @@
  *   qiniu-ai doctor [--template <chat|agent|node-agent>] [--lane <name>] [--dir <project-dir>]
  *   qiniu-ai worktree <init|spawn|status|integrate> [options]
  *   qiniu-ai verify live --lane <name>
+ *   qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict]
  *   qiniu-ai skill list [--dir <skills-dir>]
  *   qiniu-ai skill add <manifest-url> [--sha256 <hash>] [--auth <token>] [--allow-actions] [--dir <dir>]
  *   qiniu-ai skill verify [--fix] [--dir <dir>]
@@ -28,7 +29,7 @@ import type { RemoteSkillSource } from '../node/skills';
 import { doctorProject } from './doctor';
 import type { WorktreeLane } from './doctor';
 import { initStarterProject, parseStarterTemplate } from './init';
-import { verifyLiveLane } from './live-verify';
+import { parseLiveVerifyGateLanes, verifyLiveGate, verifyLiveLane } from './live-verify';
 import {
     initWorktreeWorkspace,
     integrateLaneWorktree,
@@ -108,6 +109,7 @@ function printMainUsage(): void {
     console.log('  qiniu-ai doctor [--template <chat|agent|node-agent>] [--lane <name>] [--dir <project-dir>]');
     console.log('  qiniu-ai worktree <init|spawn|status|integrate> [options]');
     console.log('  qiniu-ai verify live --lane <name>');
+    console.log('  qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict]');
     console.log('  qiniu-ai skill <list|add|verify|remove> [options]');
     console.log('');
     console.log('Top-level commands:');
@@ -166,6 +168,7 @@ function printWorktreeUsage(): void {
 
 function printVerifyUsage(): void {
     console.log('Usage: qiniu-ai verify live --lane <name>');
+    console.log('       qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict]');
 }
 
 export function commandList(skillsDir: string): string[] {
@@ -518,22 +521,32 @@ async function runWorktreeCommand(args: string[], options: RunCLIOptions): Promi
 async function runVerifyCommand(args: string[], options: RunCLIOptions): Promise<void> {
     const subcommand = args[1];
 
-    if (subcommand !== 'live') {
+    let result;
+    if (subcommand === 'live') {
+        const lane = getArgValue(args, '--lane');
+        if (process.exitCode === 1 || !lane) {
+            printVerifyUsage();
+            process.exitCode = 1;
+            return;
+        }
+
+        result = await verifyLiveLane({
+            lane: lane as WorktreeLane,
+            env: options.env,
+        });
+    } else if (subcommand === 'gate') {
+        const lanesArg = getArgValue(args, '--lanes');
+        if (process.exitCode === 1) return;
+
+        result = await verifyLiveGate({
+            lanes: parseLiveVerifyGateLanes(lanesArg),
+            strict: args.includes('--strict'),
+            env: options.env,
+        });
+    } else {
         printVerifyUsage();
         return;
     }
-
-    const lane = getArgValue(args, '--lane');
-    if (process.exitCode === 1 || !lane) {
-        printVerifyUsage();
-        process.exitCode = 1;
-        return;
-    }
-
-    const result = await verifyLiveLane({
-        lane: lane as WorktreeLane,
-        env: options.env,
-    });
 
     for (const check of result.checks) {
         console.log(`[${check.level}] ${check.message}`);
