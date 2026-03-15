@@ -147,6 +147,16 @@ export interface AgentRestoreThreadOptions {
     overwrite?: boolean;
 }
 
+/** Options for moving persisted thread state into another thread id */
+export interface AgentMoveThreadOptions {
+    /** Source thread ID to move from */
+    fromThreadId: string;
+    /** Target thread ID to move into */
+    toThreadId: string;
+    /** Allow overwriting an existing target thread */
+    overwrite?: boolean;
+}
+
 /** Agent instance */
 export interface Agent {
     /** Agent ID for A2A identification */
@@ -169,6 +179,8 @@ export interface Agent {
     forkThread: (options: AgentForkThreadOptions) => Promise<SessionRecord>;
     /** Restore a persisted thread record into a thread */
     restoreThread: (options: AgentRestoreThreadOptions) => Promise<SessionRecord>;
+    /** Move persisted thread state into another thread id */
+    moveThread: (options: AgentMoveThreadOptions) => Promise<SessionRecord>;
     /** Clear persisted thread state */
     clearThread: (options: AgentThreadOptions) => Promise<void>;
     /** Connect MCP host (if hostProvider configured) */
@@ -217,6 +229,12 @@ export interface Agent {
  *     record: snapshot,
  *   });
  * }
+ *
+ * // Move a persisted thread to a new thread id
+ * await assistant.moveThread({
+ *   fromThreadId: 'user-123',
+ *   toThreadId: 'user-123-renamed',
+ * });
  * ```
  */
 export function createAgent(config: AgentConfig): Agent {
@@ -309,11 +327,21 @@ export function createAgent(config: AgentConfig): Agent {
         requirePersistentThreadSupport('restoreThread', threadId);
     };
 
+    const requireMoveThreadSupport = (fromThreadId: string, toThreadId: string): void => {
+        requirePersistentThreadSupport('moveThread', fromThreadId);
+        if (!toThreadId) {
+            throw new Error('toThreadId is required for moveThread');
+        }
+        if (fromThreadId === toThreadId) {
+            throw new Error('moveThread requires fromThreadId and toThreadId to be different');
+        }
+    };
+
     const restoreThreadRecord = async (
         targetThreadId: string,
         record: SessionRecord,
         overwrite = false,
-        operation: 'forkThread' | 'restoreThread' = 'restoreThread',
+        operation: 'forkThread' | 'restoreThread' | 'moveThread' = 'restoreThread',
     ): Promise<SessionRecord> => {
         requireRestoreThreadSupport(targetThreadId);
 
@@ -557,6 +585,20 @@ export function createAgent(config: AgentConfig): Agent {
         async restoreThread(options: AgentRestoreThreadOptions): Promise<SessionRecord> {
             const { threadId, record, overwrite = false } = options;
             return restoreThreadRecord(threadId, record, overwrite, 'restoreThread');
+        },
+
+        async moveThread(options: AgentMoveThreadOptions): Promise<SessionRecord> {
+            const { fromThreadId, toThreadId, overwrite = false } = options;
+            requireMoveThreadSupport(fromThreadId, toThreadId);
+
+            const source = await loadThreadRecord(fromThreadId);
+            if (!source) {
+                throw new Error(`moveThread could not find source thread: ${fromThreadId}`);
+            }
+
+            const moved = await restoreThreadRecord(toThreadId, source, overwrite, 'moveThread');
+            await agent.clearThread({ threadId: fromThreadId });
+            return moved;
         },
 
         async clearThread(options: AgentThreadOptions): Promise<void> {
