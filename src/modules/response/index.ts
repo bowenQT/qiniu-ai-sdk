@@ -212,6 +212,48 @@ export class ResponseAPI {
     async followUpChatCompletion(params: ResponseFollowUpRequest): Promise<ChatCompletionResponse> {
         return toChatCompletionResponse(await this.followUp(params));
     }
+
+    /**
+     * Create a response and directly return its projected output text.
+     */
+    async createText(params: ResponseCreateRequest): Promise<string | undefined> {
+        return extractResponseOutputText(await this.create(params));
+    }
+
+    /**
+     * Create a follow-up response and directly return its projected output text.
+     */
+    async followUpText(params: ResponseFollowUpRequest): Promise<string | undefined> {
+        return extractResponseOutputText(await this.followUp(params));
+    }
+
+    /**
+     * Create a response and directly return its projected output messages.
+     */
+    async createMessages(params: ResponseCreateRequest): Promise<ChatMessage[]> {
+        return extractResponseOutputMessages(await this.create(params));
+    }
+
+    /**
+     * Create a follow-up response and directly return its projected output messages.
+     */
+    async followUpMessages(params: ResponseFollowUpRequest): Promise<ChatMessage[]> {
+        return extractResponseOutputMessages(await this.followUp(params));
+    }
+
+    /**
+     * Create a response and directly return its projected reasoning summary text.
+     */
+    async createReasoningSummaryText(params: ResponseCreateRequest): Promise<string | undefined> {
+        return extractResponseReasoningSummaryText(await this.create(params));
+    }
+
+    /**
+     * Create a follow-up response and directly return its projected reasoning summary text.
+     */
+    async followUpReasoningSummaryText(params: ResponseFollowUpRequest): Promise<string | undefined> {
+        return extractResponseReasoningSummaryText(await this.followUp(params));
+    }
 }
 
 export function extractResponseOutputText(response: Pick<ResponseCreateResponse, 'output'>): string | undefined {
