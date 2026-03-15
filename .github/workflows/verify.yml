@@ -15,6 +15,7 @@ jobs:
       QINIU_API_KEY: ${{ secrets.QINIU_API_KEY }}
       QINIU_ENABLE_LIVE_VERIFY_GATE: ${{ secrets.QINIU_API_KEY != '' && '1' || '0' }}
       QINIU_LIVE_VERIFY_OUTPUT: artifacts/live-verify-gate.json
+      QINIU_LIVE_VERIFY_SUMMARY_OUTPUT: artifacts/live-verify-gate.md
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,10 +32,16 @@ jobs:
       - name: Run repository verification gate
         run: npm run test:ci
 
+      - name: Render live verification summary artifact
+        if: always()
+        run: npm run generate:live-verify-summary
+
       - name: Upload live verification artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: live-verify-gate
-          path: artifacts/live-verify-gate.json
+          path: |
+            artifacts/live-verify-gate.json
+            artifacts/live-verify-gate.md
           if-no-files-found: ignore
