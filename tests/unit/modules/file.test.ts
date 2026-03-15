@@ -257,4 +257,58 @@ describe('Phase 2: File Module', () => {
             timeoutMs: 100,
         })).rejects.toThrow('File qfile-failed is not ready: Failed to download file from source URL');
     });
+
+    it('should upload, wait, and build a qfile content part in one step', async () => {
+        const mockFetch = createMockFetch([
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-uploaded',
+                    object: 'file',
+                    status: 'uploading',
+                    created_at: 1,
+                    file_name: 'clip.mp4',
+                },
+            },
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-uploaded',
+                    object: 'file',
+                    status: 'ready',
+                    created_at: 1,
+                    synced_at: 2,
+                    expires_at: 3,
+                    file_name: 'clip.mp4',
+                    content_type: 'video/mp4',
+                },
+            },
+        ]);
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const part = await client.file.createContentPart({
+            file: 'SGVsbG8=',
+            filename: 'clip.mp4',
+            purpose: 'assistants',
+        }, {
+            intervalMs: 1,
+            timeoutMs: 100,
+        });
+
+        expect(JSON.parse(String(mockFetch.calls[0]?.init?.body))).toMatchObject({
+            file: 'SGVsbG8=',
+            filename: 'clip.mp4',
+            purpose: 'assistants',
+        });
+        expect(part).toEqual({
+            type: 'file',
+            file: {
+                file_id: 'qfile-uploaded',
+                format: 'video/mp4',
+            },
+        });
+    });
 });
