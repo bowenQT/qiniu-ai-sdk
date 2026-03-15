@@ -7,6 +7,7 @@ import {
     extractResponseOutputMessages,
     extractResponseOutputText,
     extractResponseReasoningSummaryText,
+    parseResponseOutputJson,
     toChatCompletionResponse,
 } from '../../../src/modules/response';
 import { createSSEResponse, createStaticMockFetch } from '../../mocks/fetch';
@@ -252,6 +253,40 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         })).resolves.toBe('Direct text helper');
     });
 
+    it('should create structured JSON directly from Response API', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-json-direct',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: '{"answer":42,"ok":true}' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.createJson<{ answer: number; ok: boolean }>({
+            model: 'gpt-5.2',
+            input: 'Return JSON',
+        })).resolves.toEqual({ answer: 42, ok: true });
+
+        expect(JSON.parse(String(mockFetch.calls[0].init?.body))).toMatchObject({
+            text: {
+                format: {
+                    type: 'json_object',
+                },
+            },
+        });
+    });
+
     it('should create projected output messages directly from Response API', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,
@@ -343,6 +378,70 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         expect(JSON.parse(String(mockFetch.calls[0].init?.body))).toMatchObject({
             previous_response_id: 'resp-prev',
         });
+    });
+
+    it('should preserve explicit JSON format when creating structured JSON follow-ups', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-json-follow-up',
+                status: 'completed',
+                output_text: '{"status":"ok"}',
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.followUpJson<{ status: string }>({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue with JSON',
+            text: {
+                format: {
+                    type: 'json_schema',
+                    name: 'follow_up_payload',
+                    schema: {
+                        type: 'object',
+                        properties: {
+                            status: { type: 'string' },
+                        },
+                        required: ['status'],
+                    },
+                },
+            },
+        })).resolves.toEqual({ status: 'ok' });
+
+        expect(JSON.parse(String(mockFetch.calls[0].init?.body))).toMatchObject({
+            previous_response_id: 'resp-prev',
+            text: {
+                format: {
+                    type: 'json_schema',
+                    name: 'follow_up_payload',
+                },
+            },
+        });
+    });
+
+    it('should throw a helpful error when response JSON output is invalid', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-json-invalid',
+                status: 'completed',
+                output_text: '{not valid json',
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.createJson({
+            model: 'gpt-5.2',
+            input: 'Return malformed JSON',
+        })).rejects.toThrow('did not contain valid JSON output text');
     });
 
     it('should stream raw response events and accumulate output text', async () => {
@@ -983,6 +1082,13 @@ describe('Phase 3: Response API Module (@experimental)', () => {
             ],
             usage: undefined,
         });
+    });
+
+    it('should parse projected response output text as JSON', () => {
+        expect(parseResponseOutputJson<{ hello: string }>({
+            id: 'resp-json-helper',
+            output_text: '{"hello":"world"}',
+        })).toEqual({ hello: 'world' });
     });
 
     it('should preserve documented response metadata fields', async () => {

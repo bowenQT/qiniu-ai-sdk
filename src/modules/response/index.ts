@@ -166,6 +166,11 @@ export interface ResponseChatCompletionStreamResult extends ResponseStreamResult
     completion?: ChatCompletionResponse;
 }
 
+export interface ResponseJsonResult<T = unknown> {
+    response: ResponseCreateResponse;
+    json: T;
+}
+
 // ============================================================================
 // ResponseAPI Class
 // ============================================================================
@@ -449,6 +454,22 @@ export class ResponseAPI {
     }
 
     /**
+     * Create a response and parse its projected output text as JSON.
+     * Defaults to `text.format.type = json_object` when no explicit format is provided.
+     */
+    async createJson<T = unknown>(params: ResponseCreateRequest): Promise<T> {
+        return parseResponseOutputJson(await this.create(withDefaultJsonFormat(params)));
+    }
+
+    /**
+     * Create a follow-up response and parse its projected output text as JSON.
+     * Defaults to `text.format.type = json_object` when no explicit format is provided.
+     */
+    async followUpJson<T = unknown>(params: ResponseFollowUpRequest): Promise<T> {
+        return parseResponseOutputJson(await this.followUp(withDefaultJsonFormat(params)));
+    }
+
+    /**
      * Create a response and directly return its projected output text.
      */
     async createText(params: ResponseCreateRequest): Promise<string | undefined> {
@@ -505,10 +526,42 @@ export function extractResponseOutputText(response: Pick<ResponseCreateResponse,
     return parts.length > 0 ? parts.join('') : undefined;
 }
 
+export function parseResponseOutputJson<T = unknown>(
+    response: Pick<ResponseCreateResponse, 'output' | 'output_text' | 'id'>,
+): T {
+    const outputText = response.output_text ?? extractResponseOutputText(response);
+    if (typeof outputText !== 'string' || outputText.trim().length === 0) {
+        throw new Error(`Response ${response.id ?? 'unknown'} did not contain JSON output text`);
+    }
+
+    try {
+        return JSON.parse(outputText) as T;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Response ${response.id ?? 'unknown'} did not contain valid JSON output text: ${message}`);
+    }
+}
+
 function normalizeResponseCreateResponse(response: ResponseCreateResponse): ResponseCreateResponse {
     return {
         ...response,
         output_text: response.output_text ?? extractResponseOutputText(response),
+    };
+}
+
+function withDefaultJsonFormat<T extends ResponseCreateRequest | ResponseFollowUpRequest>(params: T): T {
+    if (params.text?.format) {
+        return params;
+    }
+
+    return {
+        ...params,
+        text: {
+            ...params.text,
+            format: {
+                type: 'json_object',
+            },
+        },
     };
 }
 
