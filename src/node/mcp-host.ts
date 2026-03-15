@@ -216,6 +216,28 @@ export class NodeMCPHost implements MCPHostProvider {
     }
 
     /**
+     * Probe a single configured HTTP MCP server by name.
+     * Useful for targeted health checks and verification flows.
+     */
+    async probeServer(serverName: string, options: MCPProbeOptions = {}): Promise<NodeMCPHostProbeResult> {
+        const server = this.config.servers.find((candidate) => candidate.name === serverName);
+        if (!server) {
+            throw new Error(`MCP server "${serverName}" not found`);
+        }
+
+        if (server.transport !== 'http') {
+            throw new Error(`MCP server "${serverName}" does not use HTTP transport and cannot be probed`);
+        }
+
+        const transport = new MCPHttpTransport(server);
+        const result = await transport.probe(options);
+        return {
+            serverName,
+            result,
+        };
+    }
+
+    /**
      * Probe configured HTTP MCP servers using the shared MCPHttpTransport helper surface.
      * Stdio servers are skipped because they do not expose the same resumable HTTP semantics.
      */
@@ -227,12 +249,7 @@ export class NodeMCPHost implements MCPHostProvider {
                 continue;
             }
 
-            const transport = new MCPHttpTransport(server);
-            const result = await transport.probe(options);
-            results.push({
-                serverName: server.name,
-                result,
-            });
+            results.push(await this.probeServer(server.name, options));
         }
 
         return results;
