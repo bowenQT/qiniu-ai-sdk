@@ -149,6 +149,9 @@ export type {
     ResponseStreamResult,
     ResponseChatCompletionStreamResult,
     ResponseJsonResult,
+    ResponseTextResult,
+    ResponseMessagesResult,
+    ResponseReasoningSummaryResult,
     ResponseJsonStreamResult,
     ResponseDeepPartial,
 } from '../modules/response';

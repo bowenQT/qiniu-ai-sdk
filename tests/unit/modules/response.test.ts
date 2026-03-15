@@ -253,6 +253,39 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         })).resolves.toBe('Direct text helper');
     });
 
+    it('should return both raw response and projected output text via createTextResult()', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-text-result',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Text result helper' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.createTextResult({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        })).resolves.toEqual({
+            response: expect.objectContaining({
+                id: 'resp-text-result',
+                status: 'completed',
+                output_text: 'Text result helper',
+            }),
+            outputText: 'Text result helper',
+        });
+    });
+
     it('should create structured JSON directly from Response API', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,
@@ -351,6 +384,45 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         ]);
     });
 
+    it('should return both raw response and projected output messages via followUpMessagesResult()', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-messages-result',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Follow-up message helper' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.followUpMessagesResult({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue',
+        })).resolves.toEqual({
+            response: expect.objectContaining({
+                id: 'resp-messages-result',
+                status: 'completed',
+                output_text: 'Follow-up message helper',
+            }),
+            messages: [
+                {
+                    role: 'assistant',
+                    content: 'Follow-up message helper',
+                },
+            ],
+        });
+    });
+
     it('should create projected reasoning summary text directly from Response API', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,
@@ -374,6 +446,38 @@ describe('Phase 3: Response API Module (@experimental)', () => {
             model: 'gpt-5.2',
             input: 'Hello',
         })).resolves.toBe('Reasoning summary');
+    });
+
+    it('should return both raw response and projected reasoning summary text via followUpReasoningSummaryTextResult()', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-reasoning-result',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'reasoning',
+                        summary: [{ type: 'summary_text', text: 'Follow-up reasoning summary' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.followUpReasoningSummaryTextResult({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue',
+        })).resolves.toEqual({
+            response: expect.objectContaining({
+                id: 'resp-reasoning-result',
+                status: 'completed',
+            }),
+            reasoningSummaryText: 'Follow-up reasoning summary',
+        });
     });
 
     it('should create projected follow-up helpers directly from Response API', async () => {

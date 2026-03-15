@@ -172,6 +172,21 @@ export interface ResponseJsonResult<T = unknown> {
     json: T;
 }
 
+export interface ResponseTextResult {
+    response: ResponseCreateResponse;
+    outputText?: string;
+}
+
+export interface ResponseMessagesResult {
+    response: ResponseCreateResponse;
+    messages: ChatMessage[];
+}
+
+export interface ResponseReasoningSummaryResult {
+    response: ResponseCreateResponse;
+    reasoningSummaryText?: string;
+}
+
 export type ResponseDeepPartial<T> = T extends object
     ? { [P in keyof T]?: ResponseDeepPartial<T[P]> }
     : T;
@@ -558,42 +573,112 @@ export class ResponseAPI {
      * Create a response and directly return its projected output text.
      */
     async createText(params: ResponseCreateRequest): Promise<string | undefined> {
-        return extractResponseOutputText(await this.create(params));
+        return (await this.createTextResult(params)).outputText;
     }
 
     /**
      * Create a follow-up response and directly return its projected output text.
      */
     async followUpText(params: ResponseFollowUpRequest): Promise<string | undefined> {
-        return extractResponseOutputText(await this.followUp(params));
+        return (await this.followUpTextResult(params)).outputText;
+    }
+
+    /**
+     * Create a response and return both the raw response and projected output text.
+     */
+    async createTextResult(params: ResponseCreateRequest): Promise<ResponseTextResult> {
+        const response = await this.create(params);
+        return {
+            response,
+            outputText: extractResponseOutputText(response),
+        };
+    }
+
+    /**
+     * Create a follow-up response and return both the raw response and projected output text.
+     */
+    async followUpTextResult(params: ResponseFollowUpRequest): Promise<ResponseTextResult> {
+        const response = await this.followUp(params);
+        return {
+            response,
+            outputText: extractResponseOutputText(response),
+        };
     }
 
     /**
      * Create a response and directly return its projected output messages.
      */
     async createMessages(params: ResponseCreateRequest): Promise<ChatMessage[]> {
-        return extractResponseOutputMessages(await this.create(params));
+        return (await this.createMessagesResult(params)).messages;
     }
 
     /**
      * Create a follow-up response and directly return its projected output messages.
      */
     async followUpMessages(params: ResponseFollowUpRequest): Promise<ChatMessage[]> {
-        return extractResponseOutputMessages(await this.followUp(params));
+        return (await this.followUpMessagesResult(params)).messages;
+    }
+
+    /**
+     * Create a response and return both the raw response and projected output messages.
+     */
+    async createMessagesResult(params: ResponseCreateRequest): Promise<ResponseMessagesResult> {
+        const response = await this.create(params);
+        return {
+            response,
+            messages: extractResponseOutputMessages(response),
+        };
+    }
+
+    /**
+     * Create a follow-up response and return both the raw response and projected output messages.
+     */
+    async followUpMessagesResult(params: ResponseFollowUpRequest): Promise<ResponseMessagesResult> {
+        const response = await this.followUp(params);
+        return {
+            response,
+            messages: extractResponseOutputMessages(response),
+        };
     }
 
     /**
      * Create a response and directly return its projected reasoning summary text.
      */
     async createReasoningSummaryText(params: ResponseCreateRequest): Promise<string | undefined> {
-        return extractResponseReasoningSummaryText(await this.create(params));
+        return (await this.createReasoningSummaryTextResult(params)).reasoningSummaryText;
     }
 
     /**
      * Create a follow-up response and directly return its projected reasoning summary text.
      */
     async followUpReasoningSummaryText(params: ResponseFollowUpRequest): Promise<string | undefined> {
-        return extractResponseReasoningSummaryText(await this.followUp(params));
+        return (await this.followUpReasoningSummaryTextResult(params)).reasoningSummaryText;
+    }
+
+    /**
+     * Create a response and return both the raw response and projected reasoning summary text.
+     */
+    async createReasoningSummaryTextResult(
+        params: ResponseCreateRequest,
+    ): Promise<ResponseReasoningSummaryResult> {
+        const response = await this.create(params);
+        return {
+            response,
+            reasoningSummaryText: extractResponseReasoningSummaryText(response),
+        };
+    }
+
+    /**
+     * Create a follow-up response and return both the raw response and projected reasoning summary text.
+     */
+    async followUpReasoningSummaryTextResult(
+        params: ResponseFollowUpRequest,
+    ): Promise<ResponseReasoningSummaryResult> {
+        const response = await this.followUp(params);
+        return {
+            response,
+            reasoningSummaryText: extractResponseReasoningSummaryText(response),
+        };
     }
 }
 
