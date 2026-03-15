@@ -18,12 +18,30 @@ export interface LiveVerifyResult {
     checks: LiveVerifyCheck[];
 }
 
+export interface LiveVerifyGateLaneResult {
+    lane: WorktreeLane;
+    result: LiveVerifyResult;
+}
+
+export interface LiveVerifyGateResult extends LiveVerifyResult {
+    lanes: LiveVerifyGateLaneResult[];
+}
+
 export interface LiveVerifyOptions {
     lane: WorktreeLane;
     env?: NodeJS.ProcessEnv;
     createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'image' | 'video' | 'file' | 'response' | 'batch' | 'censor' | 'account' | 'admin' | 'log' | 'ocr' | 'asr' | 'tts'>;
     createNodeClient?: (apiKey: string) => ReturnType<typeof createNodeQiniuAI>;
     createMcpTransport?: (config: MCPHttpServerConfig) => LiveVerifyMcpTransport;
+}
+
+export interface LiveVerifyGateOptions {
+    lanes: WorktreeLane[];
+    env?: NodeJS.ProcessEnv;
+    strict?: boolean;
+    createQiniuClient?: LiveVerifyOptions['createQiniuClient'];
+    createNodeClient?: LiveVerifyOptions['createNodeClient'];
+    createMcpTransport?: LiveVerifyOptions['createMcpTransport'];
 }
 
 interface LiveVerifyMcpTransport {
@@ -120,6 +138,43 @@ const LANE_MODULES: Record<Exclude<WorktreeLane, 'integration'>, string[]> = {
     'node-integrations': ['NodeMCPHost', 'sandbox', 'skills', 'auditLogger'],
     'dx-validation': ['chat', 'file', 'generateText'],
 };
+
+export const DEFAULT_LIVE_VERIFY_GATE_LANES: WorktreeLane[] = [
+    'cloud-surface',
+    'node-integrations',
+    'dx-validation',
+];
+
+export function parseLiveVerifyGateLanes(value?: string): WorktreeLane[] {
+    if (!value?.trim()) {
+        return [...DEFAULT_LIVE_VERIFY_GATE_LANES];
+    }
+
+    const parsed = value
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean) as WorktreeLane[];
+    const valid = new Set<WorktreeLane>([
+        'foundation',
+        'cloud-surface',
+        'runtime',
+        'node-integrations',
+        'dx-validation',
+        'integration',
+    ]);
+    const deduped: WorktreeLane[] = [];
+
+    for (const lane of parsed) {
+        if (!valid.has(lane)) {
+            throw new Error(`Unknown live verification lane: ${lane}`);
+        }
+        if (!deduped.includes(lane)) {
+            deduped.push(lane);
+        }
+    }
+
+    return deduped.length > 0 ? deduped : [...DEFAULT_LIVE_VERIFY_GATE_LANES];
+}
 
 function buildLiveTimeRange(
     startOverride: string | undefined,
@@ -1315,5 +1370,59 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
         status,
         exitCode: status === 'ok' ? 0 : status === 'warn' ? 2 : 1,
         checks,
+    };
+}
+
+export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<LiveVerifyGateResult> {
+    const checks: LiveVerifyCheck[] = [];
+    const laneResults: LiveVerifyGateLaneResult[] = [];
+    const env = options.env ?? process.env;
+    const lanes = options.lanes.length > 0 ? options.lanes : [...DEFAULT_LIVE_VERIFY_GATE_LANES];
+    const strict = options.strict ?? env.QINIU_REQUIRE_LIVE_VERIFY === '1';
+
+    addCheck(
+        checks,
+        'ok',
+        `Running live verification gate for lanes: ${lanes.join(', ')}${strict ? ' (strict)' : ''}`,
+    );
+
+    for (const lane of lanes) {
+        const result = await verifyLiveLane({
+            lane,
+            env,
+            createQiniuClient: options.createQiniuClient,
+            createNodeClient: options.createNodeClient,
+            createMcpTransport: options.createMcpTransport,
+        });
+        laneResults.push({ lane, result });
+
+        for (const check of result.checks) {
+            addCheck(checks, check.level, `[${lane}] ${check.message}`);
+        }
+    }
+
+    if (strict) {
+        const blocking = laneResults.filter((entry) => entry.result.exitCode !== 0);
+        if (blocking.length > 0) {
+            addCheck(
+                checks,
+                'fail',
+                `Strict live verification gate failed for lanes: ${blocking.map((entry) => entry.lane).join(', ')}`,
+            );
+            return {
+                status: 'fail',
+                exitCode: 1,
+                checks,
+                lanes: laneResults,
+            };
+        }
+    }
+
+    const status = summarize(checks);
+    return {
+        status,
+        exitCode: status === 'ok' ? 0 : status === 'warn' ? 2 : 1,
+        checks,
+        lanes: laneResults,
     };
 }
