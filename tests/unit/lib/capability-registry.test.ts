@@ -48,10 +48,22 @@ describe('capability registry', () => {
     it('returns module maturity records for roadmap tracking', () => {
         const allModules = listModuleMaturities();
         expect(allModules.some((entry) => entry.name === 'ResponseAPI')).toBe(true);
+        expect(allModules.some((entry) => entry.name === 'batch')).toBe(true);
 
         expect(getModuleMaturity('ResponseAPI')).toMatchObject({
             maturity: 'experimental',
-            validationLevel: 'static',
+            validationLevel: 'unit',
+            validatedAt: '2026-03-15',
+        });
+        expect(getModuleMaturity('batch')).toMatchObject({
+            maturity: 'beta',
+            validationLevel: 'unit',
+            validatedAt: '2026-03-15',
+        });
+        expect(getModuleMaturity('admin')).toMatchObject({
+            maturity: 'beta',
+            validationLevel: 'unit',
+            validatedAt: '2026-03-15',
         });
         expect(getModuleMaturity('NodeMCPHost')).toMatchObject({
             maturity: 'beta',
