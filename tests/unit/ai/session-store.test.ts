@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CheckpointerSessionStore, MemorySessionStore } from '../../../src/ai/session-store';
+import {
+    CheckpointerSessionStore,
+    MemorySessionStore,
+    extractSessionMessages,
+    replaySession,
+} from '../../../src/ai/session-store';
 import type { Checkpointer } from '../../../src/ai/graph/checkpointer';
 
 describe('session store', () => {
@@ -22,6 +27,7 @@ describe('session store', () => {
 
         const record = await store.load('thread-1');
         expect(record?.checkpoint?.state.internalMessages).toHaveLength(1);
+        expect(record?.messages).toEqual([{ role: 'user', content: 'hello' }]);
         expect(record?.summary).toBe('hello summary');
     });
 
@@ -76,6 +82,7 @@ describe('session store', () => {
         expect(save).toHaveBeenCalled();
         expect(record?.summary).toBe('hello summary');
         expect(record?.checkpoint?.metadata.id).toBe('ckpt-1');
+        expect(record?.messages).toEqual([{ role: 'user', content: 'hello' }]);
     });
 
     it('persists summary through checkpoint metadata for restart scenarios', async () => {
@@ -195,5 +202,52 @@ describe('session store', () => {
             existing: true,
             session_summary: 'updated summary',
         });
+    });
+
+    it('replays stored thread messages without exposing checkpoint internals', async () => {
+        const store = new MemorySessionStore();
+        await store.save({
+            threadId: 'thread-replay',
+            state: {
+                internalMessages: [
+                    { role: 'system', content: 'You are helpful.' },
+                    { role: 'user', content: 'Hello' },
+                    { role: 'assistant', content: 'Hi there' },
+                ],
+                stepCount: 1,
+                maxSteps: 4,
+                done: false,
+                output: 'Hi there',
+                reasoning: '',
+                finishReason: null,
+            },
+        });
+
+        const messages = await replaySession(store, 'thread-replay');
+
+        expect(messages).toEqual([
+            { role: 'system', content: 'You are helpful.' },
+            { role: 'user', content: 'Hello' },
+            { role: 'assistant', content: 'Hi there' },
+        ]);
+    });
+
+    it('extracts session messages from both records and checkpoints', async () => {
+        const store = new MemorySessionStore();
+        const record = await store.save({
+            threadId: 'thread-extract',
+            state: {
+                internalMessages: [{ role: 'user', content: 'Hello' }],
+                stepCount: 1,
+                maxSteps: 4,
+                done: false,
+                output: '',
+                reasoning: '',
+                finishReason: null,
+            },
+        });
+
+        expect(extractSessionMessages(record)).toEqual([{ role: 'user', content: 'Hello' }]);
+        expect(extractSessionMessages(record.checkpoint)).toEqual([{ role: 'user', content: 'Hello' }]);
     });
 });
