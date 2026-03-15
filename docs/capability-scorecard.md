@@ -8,7 +8,7 @@ This document is generated from the SDK capability registry and is intended to m
 
 - Validated models: 10
 - Validated chat/image/video split: chat=5, image=2, video=3
-- Module maturity split: ga=12, beta=13, experimental=5
+- Module maturity split: ga=12, beta=14, experimental=5
 
 ## Validated Models
 
@@ -43,8 +43,9 @@ This document is generated from the SDK capability registry and is intended to m
 | video | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | account | beta | unit |  |  | https://apidocs.qnaigc.com/ |
 | adapter | beta | unit |  |  | https://ai-sdk.dev/docs |
-| admin | beta | static |  | Direct module validation is still being expanded. | https://apidocs.qnaigc.com/ |
+| admin | beta | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
 | auditLogger | beta | unit |  |  | https://apidocs.qnaigc.com/ |
+| batch | beta | unit | 2026-03-15 | Core task lifecycle and handle behavior are covered; live verification remains env-gated. | https://apidocs.qnaigc.com/ |
 | censor | beta | static |  | Direct module validation is still being expanded. | https://apidocs.qnaigc.com/ |
 | guardrails | beta | unit |  |  | https://openai.github.io/openai-agents-js/guides/guardrails/ |
 | KodoCheckpointer | beta | unit |  |  | https://apidocs.qnaigc.com/ |
@@ -58,4 +59,4 @@ This document is generated from the SDK capability registry and is intended to m
 | ai-tools | experimental | unit |  |  | https://apidocs.qnaigc.com/ |
 | crew | experimental | static |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
 | QiniuMCPServer | experimental | unit |  |  | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
-| ResponseAPI | experimental | static |  |  | https://apidocs.qnaigc.com/417773141e0 |
+| ResponseAPI | experimental | unit | 2026-03-15 | Provider-only surface is covered by dedicated unit suites; live verification remains opt-in. | https://apidocs.qnaigc.com/417773141e0 |
