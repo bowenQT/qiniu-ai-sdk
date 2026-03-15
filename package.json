@@ -86,6 +86,7 @@
     "prebuild": "node scripts/generate-version.js",
     "generate:capability-scorecard": "node scripts/render-capability-scorecard.mjs",
     "generate:live-verify-summary": "node scripts/render-live-verify-gate-summary.mjs",
+    "generate:verification-report": "node scripts/render-verification-report.mjs",
     "build": "npm run prebuild && npm run build:cjs && npm run build:esm",
     "build:cjs": "tsc -p tsconfig.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm.js",
