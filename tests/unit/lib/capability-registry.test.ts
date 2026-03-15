@@ -65,8 +65,18 @@ describe('capability registry', () => {
             validationLevel: 'unit',
             validatedAt: '2026-03-15',
         });
+        expect(getModuleMaturity('account')).toMatchObject({
+            maturity: 'beta',
+            validationLevel: 'unit',
+            validatedAt: '2026-03-15',
+        });
         expect(getModuleMaturity('censor')).toMatchObject({
             maturity: 'beta',
+            validationLevel: 'unit',
+            validatedAt: '2026-03-15',
+        });
+        expect(getModuleMaturity('log')).toMatchObject({
+            maturity: 'ga',
             validationLevel: 'unit',
             validatedAt: '2026-03-15',
         });
