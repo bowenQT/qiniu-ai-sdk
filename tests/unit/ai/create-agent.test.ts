@@ -9,29 +9,32 @@ import type { QiniuAI } from '../../../src/client';
 import type { Checkpointer } from '../../../src/ai/graph/checkpointer';
 
 // Mock client
-const createMockClient = (): QiniuAI => ({
-    chat: {
-        create: vi.fn().mockResolvedValue({
-            choices: [{ message: { role: 'assistant', content: 'Hello!' }, finish_reason: 'stop' }],
-            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-        }),
-        createStream: vi.fn(async function* () {
-            yield {
-                choices: [{ index: 0, delta: { content: 'Hello!' }, finish_reason: 'stop' }],
-            };
-            return {
-                content: 'Hello!',
-                reasoningContent: '',
-                toolCalls: [],
-                finishReason: 'stop',
+const createMockClient = (): QiniuAI & { requests: any[] } => {
+    const requests: any[] = [];
+
+    return {
+        requests,
+        chat: {
+            create: vi.fn().mockResolvedValue({
+                choices: [{ message: { role: 'assistant', content: 'Hello!' }, finish_reason: 'stop' }],
                 usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-            };
-        }),
-    },
-    getBaseUrl: () => 'https://api.qnaigc.com/v1',
-    post: vi.fn(),
-    get: vi.fn(),
-} as unknown as QiniuAI);
+            }),
+            createStream: vi.fn(async function* (request: any) {
+                requests.push(request);
+                return {
+                    content: 'Hello!',
+                    reasoningContent: '',
+                    toolCalls: [],
+                    finishReason: 'stop',
+                    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+                };
+            }),
+        },
+        getBaseUrl: () => 'https://api.qnaigc.com/v1',
+        post: vi.fn(),
+        get: vi.fn(),
+    } as unknown as QiniuAI & { requests: any[] };
+};
 
 // Mock checkpointer
 const createMockCheckpointer = (): Checkpointer => ({
@@ -123,6 +126,71 @@ describe('createAgent', () => {
             await expect(
                 agent.runWithThread({ threadId: '', prompt: 'Hello' }),
             ).rejects.toThrow('threadId is required');
+        });
+
+        it('resumes a thread without duplicating the configured system prompt', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                system: 'You are a helpful assistant.',
+                sessionStore,
+            });
+
+            await agent.runWithThread({ threadId: 'thread-system', prompt: 'Hello' });
+            await agent.runWithThread({ threadId: 'thread-system', prompt: 'Continue' });
+
+            const secondRequest = client.requests[1];
+            expect(secondRequest.messages.filter((message: { role: string }) => message.role === 'system')).toHaveLength(1);
+            expect(secondRequest.messages[0]).toMatchObject({
+                role: 'system',
+                content: 'You are a helpful assistant.',
+            });
+            expect(secondRequest.messages.at(-1)).toMatchObject({
+                role: 'user',
+                content: 'Continue',
+            });
+        });
+
+        it('restores a configured system prompt when loading a legacy checkpoint without one', async () => {
+            const client = createMockClient();
+            const sessionStore = new MemorySessionStore();
+            await sessionStore.save({
+                threadId: 'thread-legacy',
+                state: {
+                    internalMessages: [
+                        { role: 'user', content: 'Earlier user turn' },
+                        { role: 'assistant', content: 'Earlier assistant reply' },
+                    ],
+                    stepCount: 1,
+                    maxSteps: 4,
+                    done: false,
+                    output: 'Earlier assistant reply',
+                    reasoning: '',
+                    finishReason: null,
+                } as any,
+            });
+
+            const agent = createAgent({
+                client,
+                model: 'gemini-2.5-flash',
+                system: 'You are a helpful assistant.',
+                sessionStore,
+            });
+
+            await agent.runWithThread({ threadId: 'thread-legacy', prompt: 'Continue' });
+
+            const request = client.requests[0];
+            expect(request.messages[0]).toMatchObject({
+                role: 'system',
+                content: 'You are a helpful assistant.',
+            });
+            expect(request.messages.filter((message: { role: string }) => message.role === 'system')).toHaveLength(1);
+            expect(request.messages.at(-1)).toMatchObject({
+                role: 'user',
+                content: 'Continue',
+            });
         });
     });
 
