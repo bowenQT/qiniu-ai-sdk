@@ -7,6 +7,7 @@ import {
     extractResponseOutputMessages,
     extractResponseOutputText,
     extractResponseReasoningSummaryText,
+    toChatCompletionResponse,
 } from '../../../src/modules/response';
 import { createStaticMockFetch } from '../../mocks/fetch';
 
@@ -373,6 +374,74 @@ describe('Phase 3: Response API Module (@experimental)', () => {
                 content: 'Hello, world',
             },
         ]);
+    });
+
+    it('should project Response API payloads into chat-completion shape', () => {
+        expect(toChatCompletionResponse({
+            id: 'resp-chat-projection',
+            created_at: 1770773311,
+            model: 'gpt-5.2',
+            status: 'completed',
+            output_text: 'Server projection',
+            output: [
+                {
+                    type: 'message',
+                    role: 'assistant',
+                    content: [
+                        { type: 'output_text', text: 'Projected assistant answer' },
+                    ],
+                },
+            ],
+            usage: {
+                input_tokens: 20,
+                output_tokens: 12,
+                total_tokens: 32,
+            },
+        })).toEqual({
+            id: 'resp-chat-projection',
+            object: 'chat.completion',
+            created: 1770773311,
+            model: 'gpt-5.2',
+            choices: [
+                {
+                    index: 0,
+                    message: {
+                        role: 'assistant',
+                        content: 'Projected assistant answer',
+                    },
+                    finish_reason: 'stop',
+                },
+            ],
+            usage: {
+                prompt_tokens: 20,
+                completion_tokens: 12,
+                total_tokens: 32,
+            },
+        });
+    });
+
+    it('should fall back to output_text when projecting responses without message outputs', () => {
+        expect(toChatCompletionResponse({
+            id: 'resp-text-only',
+            status: 'in_progress',
+            output_text: 'Fallback text',
+        } as any)).toEqual({
+            id: 'resp-text-only',
+            object: 'chat.completion',
+            created: 0,
+            model: '',
+            choices: [
+                {
+                    index: 0,
+                    message: {
+                        role: 'assistant',
+                        content: 'Fallback text',
+                    },
+                    finish_reason: null,
+                },
+            ],
+            usage: undefined,
+        });
     });
 
     it('should preserve documented response metadata fields', async () => {
