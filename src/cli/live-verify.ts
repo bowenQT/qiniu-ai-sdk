@@ -424,6 +424,19 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     suggestion?: string;
                     scenes?: Array<{ scene: string; suggestion: string }>;
                 }>;
+                video?: (params: {
+                    uri: string;
+                    scenes?: Array<'pulp' | 'terror' | 'politician'>;
+                }) => Promise<{
+                    id?: string;
+                    jobId: string;
+                    wait?: (options?: { timeoutMs?: number; intervalMs?: number }) => Promise<{
+                        jobId: string;
+                        status: string;
+                        suggestion?: string;
+                        scenes?: Array<{ scene: string; suggestion: string }>;
+                    }>;
+                }>;
             };
             if (!censorClient.image) {
                 throw new Error('Censor live probe requires censor.image() support in the current SDK build');
@@ -457,6 +470,75 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_CENSOR not set. Censor live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_CENSOR_VIDEO === '1') {
+            const censorClient = client.censor as {
+                video?: (params: {
+                    uri: string;
+                    scenes?: Array<'pulp' | 'terror' | 'politician'>;
+                }) => Promise<{
+                    id?: string;
+                    jobId: string;
+                    wait?: (options?: { timeoutMs?: number; intervalMs?: number }) => Promise<{
+                        jobId: string;
+                        status: string;
+                        suggestion?: string;
+                        scenes?: Array<{ scene: string; suggestion: string }>;
+                    }>;
+                }>;
+            };
+            if (!censorClient.video) {
+                throw new Error('Censor video live probe requires censor.video() support in the current SDK build');
+            }
+
+            const uri = env.QINIU_LIVE_VERIFY_CENSOR_VIDEO_URI?.trim();
+            if (!uri) {
+                throw new Error('QINIU_LIVE_VERIFY_CENSOR_VIDEO_URI is required when QINIU_LIVE_VERIFY_CENSOR_VIDEO=1');
+            }
+
+            const scenes = env.QINIU_LIVE_VERIFY_CENSOR_VIDEO_SCENES
+                ?.split(',')
+                .map((scene) => scene.trim())
+                .filter(Boolean) as Array<'pulp' | 'terror' | 'politician'> | undefined;
+
+            const videoJob = await censorClient.video({
+                uri,
+                ...(scenes && scenes.length > 0 ? { scenes } : {}),
+            });
+
+            addCheck(
+                checks,
+                'ok',
+                `Censor video create probe succeeded: ${videoJob.id ?? videoJob.jobId}`,
+            );
+
+            if (!videoJob.wait) {
+                throw new Error('Censor video live probe requires VideoCensorTaskHandle.wait() support in the current SDK build');
+            }
+
+            const waited = await videoJob.wait({
+                timeoutMs: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_CENSOR_VIDEO_TIMEOUT_MS) ?? 120_000,
+                intervalMs: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_CENSOR_VIDEO_INTERVAL_MS) ?? 2_000,
+            });
+
+            addCheck(
+                checks,
+                'ok',
+                `Censor video wait probe succeeded: ${waited.jobId}${waited.status ? ` -> ${waited.status}` : ''}${
+                    waited.suggestion ? ` (${waited.suggestion})` : ''
+                }${
+                    waited.scenes?.length
+                        ? ` [${waited.scenes.map((scene) => `${scene.scene}:${scene.suggestion}`).join(', ')}]`
+                        : ''
+                }`,
+            );
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_CENSOR_VIDEO not set. Censor video live probe was skipped.',
             );
         }
     } else if (options.lane === 'runtime') {
