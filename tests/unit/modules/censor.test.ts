@@ -79,6 +79,9 @@ describe('Censor', () => {
     it('starts a video moderation job with default interval and scenes', async () => {
         const client = createMockClient();
         client.post.mockResolvedValue({ job: 'job-123' });
+        client.get
+            .mockResolvedValueOnce({ status: 'WAITING' })
+            .mockResolvedValueOnce({ status: 'DONE', result: { suggestion: 'pass' } });
 
         const censor = new Censor(client);
         const result = await censor.video({ uri: 'https://example.com/video.mp4' });
@@ -95,7 +98,25 @@ describe('Censor', () => {
                 },
             },
         });
-        expect(result).toEqual({ jobId: 'job-123' });
+        expect(result.jobId).toBe('job-123');
+        expect(result.id).toBe('job-123');
+        await expect(result.get()).resolves.toEqual({
+            jobId: 'job-123',
+            status: 'WAITING',
+            suggestion: undefined,
+            scenes: undefined,
+            error: undefined,
+        });
+        await expect(result.wait({ intervalMs: 1, timeoutMs: 100 })).resolves.toEqual({
+            jobId: 'job-123',
+            status: 'DONE',
+            suggestion: 'pass',
+            scenes: undefined,
+            error: undefined,
+        });
+        await expect(result.cancel()).rejects.toThrow(
+            'Video censor task cancellation is not supported for task job-123',
+        );
     });
 
     it('throws when the video moderation job creation returns no job id', async () => {
@@ -142,6 +163,63 @@ describe('Censor', () => {
                 },
             ],
             error: undefined,
+        });
+    });
+
+    it('waits until a video moderation job reaches a terminal status', async () => {
+        const client = createMockClient();
+        client.get
+            .mockResolvedValueOnce({ status: 'WAITING' })
+            .mockResolvedValueOnce({ status: 'DOING' })
+            .mockResolvedValueOnce({
+                status: 'FAILED',
+                error: 'moderation failed',
+            });
+
+        const censor = new Censor(client);
+        const result = await censor.waitForVideoCompletion('job-wait', {
+            intervalMs: 1,
+            timeoutMs: 100,
+        });
+
+        expect(result).toEqual({
+            jobId: 'job-wait',
+            status: 'FAILED',
+            suggestion: undefined,
+            scenes: undefined,
+            error: 'moderation failed',
+        });
+    });
+
+    it('accepts a video job handle when fetching or waiting for status', async () => {
+        const client = createMockClient();
+        client.post.mockResolvedValue({ job: 'job-handle' });
+        client.get
+            .mockResolvedValueOnce({
+                status: 'DONE',
+                result: {
+                    suggestion: 'review',
+                },
+            })
+            .mockResolvedValueOnce({
+                status: 'DONE',
+                result: {
+                    suggestion: 'review',
+                },
+            });
+
+        const censor = new Censor(client);
+        const handle = await censor.video({ uri: 'https://example.com/video.mp4' });
+
+        await expect(censor.getVideoStatus(handle)).resolves.toMatchObject({
+            jobId: 'job-handle',
+            status: 'DONE',
+            suggestion: 'review',
+        });
+        await expect(censor.waitForVideoCompletion(handle, { intervalMs: 1, timeoutMs: 100 })).resolves.toMatchObject({
+            jobId: 'job-handle',
+            status: 'DONE',
+            suggestion: 'review',
         });
     });
 });

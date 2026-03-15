@@ -423,6 +423,8 @@ export type {
     ImageCensorResponse,
     VideoCensorRequest,
     VideoCensorJobResponse,
+    VideoCensorTaskHandle,
+    VideoCensorWaitOptions,
     VideoCensorStatus,
     VideoCensorResult,
     SceneResult,
