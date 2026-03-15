@@ -874,6 +874,11 @@ describe('Phase 3: Response API Module (@experimental)', () => {
                                 status: 'completed',
                                 output: [
                                     {
+                                        type: 'reasoning',
+                                        summary: [{ type: 'summary_text', text: 'Stream reasoning' }],
+                                        encrypted_content: 'enc_stream',
+                                    },
+                                    {
                                         type: 'message',
                                         role: 'assistant',
                                         content: [{ type: 'output_text', text: 'Hello, stream' }],
@@ -900,6 +905,10 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         expect(result.outputText).toBe('Hello, stream');
         expect(result.eventCount).toBe(3);
         expect(result.response?.id).toBe('resp-stream');
+        expect(result.message).toEqual({ role: 'assistant', content: 'Hello, stream' });
+        expect(result.messages).toEqual([{ role: 'assistant', content: 'Hello, stream' }]);
+        expect(result.reasoningSummaryText).toBe('Stream reasoning');
+        expect(result.encryptedContent).toBe('enc_stream');
         expect(calls[0]?.url).toContain('/llm/v1/responses?api-version=2025-04-01-preview');
         expect(JSON.parse(String(calls[0]?.init?.body))).toMatchObject({
             model: 'gpt-5.2',
@@ -929,6 +938,8 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         }));
 
         expect(result.outputText).toBe('Follow-up');
+        expect(result.message).toEqual({ role: 'assistant', content: 'Follow-up' });
+        expect(result.messages).toEqual([{ role: 'assistant', content: 'Follow-up' }]);
         expect(JSON.parse(String(calls[0]?.init?.body))).toMatchObject({
             previous_response_id: 'resp-prev',
             stream: true,
@@ -955,6 +966,8 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         expect(events).toEqual(['Hello', ', world']);
         expect(result.outputText).toBe('Hello, world');
         expect(result.eventCount).toBe(3);
+        expect(result.message).toEqual({ role: 'assistant', content: 'Hello, world' });
+        expect(result.messages).toEqual([{ role: 'assistant', content: 'Hello, world' }]);
     });
 
     it('should stream assistant message snapshots directly', async () => {
