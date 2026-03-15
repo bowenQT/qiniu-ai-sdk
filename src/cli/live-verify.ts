@@ -2,6 +2,7 @@ import { generateText } from '../core';
 import { createNodeQiniuAI } from '../node';
 import { QiniuAI } from '../qiniu';
 import type { WorktreeLane } from './doctor';
+import { getModuleMaturity } from '../lib/capability-registry';
 
 export type LiveVerifyStatus = 'ok' | 'warn' | 'fail';
 
@@ -19,6 +20,8 @@ export interface LiveVerifyResult {
 export interface LiveVerifyOptions {
     lane: WorktreeLane;
     env?: NodeJS.ProcessEnv;
+    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file'>;
+    createNodeClient?: (apiKey: string) => ReturnType<typeof createNodeQiniuAI>;
 }
 
 function addCheck(checks: LiveVerifyCheck[], level: LiveVerifyStatus, message: string): void {
@@ -31,10 +34,35 @@ function summarize(checks: LiveVerifyCheck[]): LiveVerifyStatus {
     return 'ok';
 }
 
+const LANE_MODULES: Record<Exclude<WorktreeLane, 'integration'>, string[]> = {
+    foundation: ['chat'],
+    'cloud-surface': ['chat', 'file', 'ResponseAPI'],
+    runtime: ['generateText', 'createAgent', 'memory', 'guardrails'],
+    'node-integrations': ['NodeMCPHost', 'sandbox', 'skills', 'auditLogger'],
+    'dx-validation': ['chat', 'file', 'generateText'],
+};
+
+function addMaturityEvidence(checks: LiveVerifyCheck[], lane: WorktreeLane): void {
+    if (lane === 'integration') return;
+
+    for (const moduleName of LANE_MODULES[lane]) {
+        const maturity = getModuleMaturity(moduleName);
+        if (!maturity) continue;
+
+        addCheck(
+            checks,
+            'ok',
+            `${moduleName}: ${maturity.maturity.toUpperCase()} (${maturity.validationLevel}${maturity.validatedAt ? `, validated ${maturity.validatedAt}` : ''})`,
+        );
+    }
+}
+
 export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVerifyResult> {
     const checks: LiveVerifyCheck[] = [];
     const env = options.env ?? process.env;
     const apiKey = env.QINIU_API_KEY;
+    const createQiniuClient = options.createQiniuClient ?? ((nextApiKey: string) => new QiniuAI({ apiKey: nextApiKey }));
+    const createNodeClient = options.createNodeClient ?? ((nextApiKey: string) => createNodeQiniuAI({ apiKey: nextApiKey }));
 
     if (options.lane === 'foundation') {
         addCheck(
@@ -49,6 +77,8 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
         };
     }
 
+    addMaturityEvidence(checks, options.lane);
+
     if (!apiKey) {
         addCheck(checks, 'fail', 'Missing QINIU_API_KEY for live lane verification.');
         return {
@@ -59,7 +89,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
     }
 
     if (options.lane === 'cloud-surface' || options.lane === 'dx-validation' || options.lane === 'integration') {
-        const client = new QiniuAI({ apiKey });
+        const client = createQiniuClient(apiKey);
         const result = await client.chat.create({
             model: 'gemini-2.5-flash',
             messages: [{ role: 'user', content: 'Reply with the single word pong.' }],
@@ -67,8 +97,42 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
         });
         const content = result.choices[0]?.message?.content;
         addCheck(checks, 'ok', `Chat probe succeeded: ${typeof content === 'string' ? content : '[non-text]'}`);
+
+        if (env.QINIU_LIVE_VERIFY_FILE_WORKFLOW === '1') {
+            const fileClient = client.file as {
+                create: (params: { file: string; filename: string; purpose: string }) => Promise<any>;
+                waitForReady?: (file: any, options: { timeoutMs: number; intervalMs: number }) => Promise<any>;
+                toContentPart?: (file: any) => { file: { file_id?: string; format?: string } };
+            };
+            const created = await fileClient.create({
+                file: 'SGVsbG8=',
+                filename: 'verify.txt',
+                purpose: 'assistants',
+            });
+            const ready = created.status === 'ready' || !fileClient.waitForReady
+                ? created
+                : await fileClient.waitForReady(created, {
+                    timeoutMs: 120_000,
+                    intervalMs: 1000,
+                });
+            if (!fileClient.toContentPart) {
+                throw new Error('File live probe requires toContentPart() support in the current SDK build');
+            }
+            const part = fileClient.toContentPart(ready);
+            addCheck(
+                checks,
+                'ok',
+                `File workflow probe succeeded: ${part.file.file_id}${part.file.format ? ` (${part.file.format})` : ''}`,
+            );
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_FILE_WORKFLOW not set. File/qfile live probe was skipped.',
+            );
+        }
     } else if (options.lane === 'runtime') {
-        const client = new QiniuAI({ apiKey });
+        const client = createQiniuClient(apiKey);
         const result = await generateText({
             client,
             model: 'gemini-2.5-flash',
@@ -84,7 +148,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
         });
         addCheck(checks, 'ok', `Runtime probe succeeded: ${result.text}`);
     } else if (options.lane === 'node-integrations') {
-        const client = createNodeQiniuAI({ apiKey });
+        const client = createNodeClient(apiKey);
         const result = await client.chat.create({
             model: 'gemini-2.5-flash',
             messages: [{ role: 'user', content: 'Reply with the single word node.' }],
