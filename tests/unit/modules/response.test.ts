@@ -3,7 +3,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import { QiniuAI } from '../../../src/client';
-import { extractResponseOutputText } from '../../../src/modules/response';
+import {
+    extractResponseOutputMessages,
+    extractResponseOutputText,
+    extractResponseReasoningSummaryText,
+} from '../../../src/modules/response';
 import { createStaticMockFetch } from '../../mocks/fetch';
 
 describe('Phase 3: Response API Module (@experimental)', () => {
@@ -312,6 +316,63 @@ describe('Phase 3: Response API Module (@experimental)', () => {
                 },
             ],
         } as any)).toBeUndefined();
+    });
+
+    it('should extract reasoning summary text from response outputs', () => {
+        expect(extractResponseReasoningSummaryText({
+            output: [
+                {
+                    type: 'reasoning',
+                    summary: [
+                        { type: 'summary_text', text: 'First summary' },
+                        { type: 'summary_text', text: 'Second summary' },
+                    ],
+                },
+            ],
+        } as any)).toBe('First summary\n\nSecond summary');
+    });
+
+    it('should extract chat-style messages from response outputs', () => {
+        expect(extractResponseOutputMessages({
+            output: [
+                {
+                    type: 'reasoning',
+                    summary: [{ type: 'summary_text', text: 'Ignored for message extraction' }],
+                },
+                {
+                    type: 'message',
+                    role: 'assistant',
+                    thinking_blocks: [{ type: 'thinking', thinking: 'plan' }],
+                    images: [{ type: 'image', image_url: { url: 'https://example.com/image.png' } }],
+                    content: [
+                        { type: 'output_text', text: 'Look at this image.' },
+                        { type: 'image_url', image_url: { url: 'https://example.com/image.png' } },
+                    ],
+                },
+                {
+                    type: 'message',
+                    role: 'assistant',
+                    content: [
+                        { type: 'output_text', text: 'Hello' },
+                        { type: 'output_text', text: ', world' },
+                    ],
+                },
+            ],
+        } as any)).toEqual([
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'text', text: 'Look at this image.' },
+                    { type: 'image_url', image_url: { url: 'https://example.com/image.png' } },
+                ],
+                thinking_blocks: [{ type: 'thinking', thinking: 'plan' }],
+                images: [{ type: 'image', image_url: { url: 'https://example.com/image.png' } }],
+            },
+            {
+                role: 'assistant',
+                content: 'Hello, world',
+            },
+        ]);
     });
 
     it('should preserve documented response metadata fields', async () => {

@@ -1,5 +1,6 @@
 import {
     IQiniuClient,
+    type ChatMessage,
     type ContentPartWithCacheControl,
     type ImageObject,
     type ThinkingBlock,
@@ -209,6 +210,85 @@ export function extractResponseOutputText(response: Pick<ResponseCreateResponse,
     }
 
     return parts.length > 0 ? parts.join('') : undefined;
+}
+
+export function extractResponseReasoningSummaryText(
+    response: Pick<ResponseCreateResponse, 'output'>,
+): string | undefined {
+    const parts: string[] = [];
+
+    for (const item of response.output ?? []) {
+        for (const summary of item.summary ?? []) {
+            if (typeof summary.text === 'string' && summary.text.length > 0) {
+                parts.push(summary.text);
+            }
+        }
+    }
+
+    return parts.length > 0 ? parts.join('\n\n') : undefined;
+}
+
+export function extractResponseOutputMessages(
+    response: Pick<ResponseCreateResponse, 'output'>,
+): ChatMessage[] {
+    const messages: ChatMessage[] = [];
+
+    for (const item of response.output ?? []) {
+        if (item.type !== 'message') continue;
+
+        const normalizedContent = normalizeResponseOutputContent(item.content ?? []);
+        const content = normalizedContent.every((part) => part.type === 'text')
+            ? normalizedContent.map((part) => (part.type === 'text' ? part.text : '')).join('')
+            : normalizedContent;
+
+        messages.push({
+            role: normalizeResponseRole(item.role),
+            content,
+            ...(item.thinking_blocks ? { thinking_blocks: item.thinking_blocks } : {}),
+            ...(item.images ? { images: item.images } : {}),
+        });
+    }
+
+    return messages;
+}
+
+function normalizeResponseRole(role?: string): ChatMessage['role'] {
+    if (role === 'system' || role === 'user' || role === 'assistant' || role === 'tool' || role === 'function') {
+        return role;
+    }
+    return 'assistant';
+}
+
+function normalizeResponseOutputContent(content: ResponseContentBlock[]): ContentPartWithCacheControl[] {
+    const parts: ContentPartWithCacheControl[] = [];
+
+    for (const block of content) {
+        if ((block.type === 'output_text' || block.type === 'text') && typeof block.text === 'string') {
+            parts.push({ type: 'text', text: block.text });
+            continue;
+        }
+        if (block.type === 'image_url' && block.image_url) {
+            parts.push({ type: 'image_url', image_url: block.image_url });
+            continue;
+        }
+        if (block.type === 'file_url' && block.file_url) {
+            parts.push({ type: 'file_url', file_url: block.file_url });
+            continue;
+        }
+        if (block.type === 'input_audio' && block.input_audio) {
+            parts.push({ type: 'input_audio', input_audio: block.input_audio });
+            continue;
+        }
+        if (block.type === 'video_url' && block.video_url) {
+            parts.push({ type: 'video_url', video_url: block.video_url });
+            continue;
+        }
+        if (block.type === 'thinking' && typeof block.thinking === 'string') {
+            parts.push({ type: 'thinking', thinking: block.thinking });
+        }
+    }
+
+    return parts;
 }
 
 async function normalizeResponseRequest(params: ResponseCreateRequest): Promise<ResponseCreateRequest> {
