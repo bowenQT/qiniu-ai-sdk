@@ -122,6 +122,98 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         });
     });
 
+    it('should create a projected chat completion directly from Response API', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-chat-direct',
+                created_at: 1770773311,
+                model: 'gpt-5.2',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Projected direct answer' }],
+                    },
+                ],
+                usage: {
+                    input_tokens: 10,
+                    output_tokens: 6,
+                    total_tokens: 16,
+                },
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const result = await client.response.createChatCompletion({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        });
+
+        expect(result).toEqual({
+            id: 'resp-chat-direct',
+            object: 'chat.completion',
+            created: 1770773311,
+            model: 'gpt-5.2',
+            choices: [
+                {
+                    index: 0,
+                    message: {
+                        role: 'assistant',
+                        content: 'Projected direct answer',
+                    },
+                    finish_reason: 'stop',
+                },
+            ],
+            usage: {
+                prompt_tokens: 10,
+                completion_tokens: 6,
+                total_tokens: 16,
+            },
+        });
+    });
+
+    it('should create a projected follow-up chat completion directly from Response API', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-chat-follow-up',
+                created_at: 1770773312,
+                model: 'gpt-5.2',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Follow-up projected answer' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const result = await client.response.followUpChatCompletion({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue',
+        });
+
+        expect(result.choices[0]?.message).toEqual({
+            role: 'assistant',
+            content: 'Follow-up projected answer',
+        });
+        expect(JSON.parse(String(mockFetch.calls[0].init?.body))).toMatchObject({
+            previous_response_id: 'resp-prev',
+        });
+    });
+
     it('should accept multimodal response input messages', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,
