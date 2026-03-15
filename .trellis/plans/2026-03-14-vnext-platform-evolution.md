@@ -32,4 +32,5 @@ Lane briefs: `.trellis/plans/2026-03-14-vnext-lane-briefs.md`
 - `npm run test:docs`
 - `npm run test:package-smoke`
 - `npm run test:template-smoke`
+- `npm run test:ci` in repository CI, with `QINIU_ENABLE_LIVE_VERIFY_GATE=1` when live credentials are available
 - lane-specific live verification evidence for affected GA/Beta surfaces

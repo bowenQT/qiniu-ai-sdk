@@ -68,6 +68,13 @@ function runGitQuiet(repoRoot: string, args: string[], opts: { cwd?: string } = 
 }
 
 export function resolveRepoRoot(cwd: string = process.cwd()): string {
+    const commonDir = runGit(cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd });
+    const candidate = path.dirname(commonDir);
+
+    if (fs.existsSync(path.join(candidate, '.git'))) {
+        return candidate;
+    }
+
     return runGit(cwd, ['rev-parse', '--show-toplevel'], { cwd });
 }
 

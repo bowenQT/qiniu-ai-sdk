@@ -77,6 +77,19 @@ describe('CLI worktree workflow', () => {
         expect(fs.existsSync(path.join(initResult.integrationPath, 'lane.txt'))).toBe(true);
     });
 
+    it('integrates correctly when invoked from a lane worktree path', () => {
+        const initResult = initWorktreeWorkspace({ projectDir: repoDir });
+        const laneResult = spawnLaneWorktree({ projectDir: repoDir, lane: 'dx-validation' });
+
+        fs.writeFileSync(path.join(laneResult.path, 'lane.txt'), 'hello from lane\n', 'utf8');
+        git(laneResult.path, 'add', 'lane.txt');
+        git(laneResult.path, 'commit', '-m', 'lane work');
+
+        const result = integrateLaneWorktree({ projectDir: laneResult.path, lane: 'dx-validation' });
+        expect(result.summary).toContain('Merge made by the');
+        expect(fs.existsSync(path.join(initResult.integrationPath, 'lane.txt'))).toBe(true);
+    });
+
     it('rejects reusing an integration worktree path on the wrong branch', () => {
         const initResult = initWorktreeWorkspace({ projectDir: repoDir });
         git(initResult.integrationPath, 'switch', '-c', 'codex/tmp-integration');

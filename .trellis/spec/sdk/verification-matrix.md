@@ -4,6 +4,7 @@ Use this matrix before claiming completion.
 
 | Change Area | Minimum Verification |
 | --- | --- |
+| `.github/workflows/**`, `scripts/run-live-verify-gate.mjs`, `src/cli/live-verify.ts` | `npm test -- tests/cli/live-verify.test.ts tests/cli/live-verify-gate.test.ts`, `npm run build`, and a local `node scripts/run-live-verify-gate.mjs` smoke |
 | `.agent/**`, `.trellis/**`, `AGENTS.md`, `.claude/CLAUDE.md` | `git check-ignore -v` on tracked and ignored paths, `rg 'docs/plans/' .agent`, and manual link/path review |
 | `package.json`, exports, `tsconfig*.json`, entrypoints | `npm run build` and `npm test` |
 | `src/lib/**`, `src/core/**`, `src/adapter/**` | `npm test` and `npm run build` |
