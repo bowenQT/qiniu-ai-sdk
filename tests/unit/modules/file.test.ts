@@ -336,6 +336,62 @@ describe('Phase 2: File Module', () => {
         });
     });
 
+    it('should return both ready file and content part via createContentPartResult', async () => {
+        const mockFetch = createMockFetch([
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-uploaded-result',
+                    object: 'file',
+                    status: 'uploading',
+                    created_at: 1,
+                    file_name: 'clip.mp4',
+                },
+            },
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-uploaded-result',
+                    object: 'file',
+                    status: 'ready',
+                    created_at: 1,
+                    synced_at: 2,
+                    expires_at: 3,
+                    file_name: 'clip.mp4',
+                    content_type: 'video/mp4',
+                },
+            },
+        ]);
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const result = await client.file.createContentPartResult({
+            file: 'SGVsbG8=',
+            filename: 'clip.mp4',
+            purpose: 'assistants',
+        }, {
+            intervalMs: 1,
+            timeoutMs: 100,
+        });
+
+        expect(result).toEqual({
+            file: expect.objectContaining({
+                id: 'qfile-uploaded-result',
+                status: 'ready',
+                content_type: 'video/mp4',
+            }),
+            part: {
+                type: 'file',
+                file: {
+                    file_id: 'qfile-uploaded-result',
+                    format: 'video/mp4',
+                },
+            },
+        });
+    });
+
     it('should upload, wait, and build a qfile user message in one step', async () => {
         const mockFetch = createMockFetch([
             {
@@ -388,6 +444,68 @@ describe('Phase 2: File Module', () => {
                     },
                 },
             ],
+        });
+    });
+
+    it('should return both ready file and qfile user message via createUserMessageResult', async () => {
+        const mockFetch = createMockFetch([
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-user-message-result',
+                    object: 'file',
+                    status: 'uploading',
+                    created_at: 1,
+                    file_name: 'clip.mp4',
+                },
+            },
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-user-message-result',
+                    object: 'file',
+                    status: 'ready',
+                    created_at: 1,
+                    synced_at: 2,
+                    expires_at: 3,
+                    file_name: 'clip.mp4',
+                    content_type: 'video/mp4',
+                },
+            },
+        ]);
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const result = await client.file.createUserMessageResult('分析这个视频', {
+            file: 'SGVsbG8=',
+            filename: 'clip.mp4',
+            purpose: 'assistants',
+        }, {
+            intervalMs: 1,
+            timeoutMs: 100,
+        });
+
+        expect(result).toEqual({
+            file: expect.objectContaining({
+                id: 'qfile-user-message-result',
+                status: 'ready',
+                content_type: 'video/mp4',
+            }),
+            message: {
+                role: 'user',
+                content: [
+                    { type: 'text', text: '分析这个视频' },
+                    {
+                        type: 'file',
+                        file: {
+                            file_id: 'qfile-user-message-result',
+                            format: 'video/mp4',
+                        },
+                    },
+                ],
+            },
         });
     });
 });
