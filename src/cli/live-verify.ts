@@ -27,6 +27,8 @@ export interface LiveVerifyOptions {
 }
 
 interface LiveVerifyMcpTransport {
+    connect?(): Promise<void>;
+    listTools?(): Promise<Array<{ name: string }>>;
     openEventStream(lastEventId?: string): Promise<Pick<Response, 'status' | 'headers'>>;
     discoverOAuthMetadata(challengeHeader?: string): Promise<{
         protectedResource: {
@@ -197,6 +199,15 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
             let terminated = false;
 
             try {
+                if (env.QINIU_LIVE_VERIFY_MCP_LIST_TOOLS === '1') {
+                    if (!transport.connect || !transport.listTools) {
+                        throw new Error('MCP tool listing probe requires connect() and listTools() support');
+                    }
+                    await transport.connect();
+                    const tools = await transport.listTools();
+                    addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${tools.length} tools`);
+                }
+
                 const stream = await transport.openEventStream();
                 const contentType = stream.headers.get('content-type');
                 addCheck(
