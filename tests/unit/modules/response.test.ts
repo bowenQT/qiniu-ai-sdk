@@ -472,6 +472,197 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         });
     });
 
+    it('should project response streams into chat-completion chunks', async () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async () => createSSEResponse([
+                    {
+                        type: 'response.created',
+                        response: {
+                            id: 'resp-stream-chat',
+                            created_at: 1770774000,
+                            model: 'gpt-5.2',
+                        },
+                    },
+                    { type: 'response.output_text.delta', delta: 'Hello' },
+                    { type: 'response.output_text.delta', delta: ', world' },
+                    {
+                        type: 'response.completed',
+                        response: {
+                            id: 'resp-stream-chat',
+                            created_at: 1770774000,
+                            model: 'gpt-5.2',
+                            status: 'completed',
+                            usage: {
+                                input_tokens: 10,
+                                output_tokens: 4,
+                                total_tokens: 14,
+                            },
+                            output: [
+                                {
+                                    type: 'message',
+                                    role: 'assistant',
+                                    content: [{ type: 'output_text', text: 'Hello, world' }],
+                                },
+                            ],
+                        },
+                    },
+                ]),
+            },
+        });
+
+        const { events, result } = await collectStream(client.response.createChatCompletionStream({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        }));
+
+        expect(events).toEqual([
+            {
+                id: 'resp-stream-chat',
+                object: 'chat.completion.chunk',
+                created: 1770774000,
+                model: 'gpt-5.2',
+                choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }],
+                usage: undefined,
+            },
+            {
+                id: 'resp-stream-chat',
+                object: 'chat.completion.chunk',
+                created: 1770774000,
+                model: 'gpt-5.2',
+                choices: [{ index: 0, delta: { content: 'Hello' }, finish_reason: null }],
+                usage: undefined,
+            },
+            {
+                id: 'resp-stream-chat',
+                object: 'chat.completion.chunk',
+                created: 1770774000,
+                model: 'gpt-5.2',
+                choices: [{ index: 0, delta: { content: ', world' }, finish_reason: null }],
+                usage: undefined,
+            },
+            {
+                id: 'resp-stream-chat',
+                object: 'chat.completion.chunk',
+                created: 1770774000,
+                model: 'gpt-5.2',
+                choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+                usage: {
+                    prompt_tokens: 10,
+                    completion_tokens: 4,
+                    total_tokens: 14,
+                },
+            },
+        ]);
+        expect(result.outputText).toBe('Hello, world');
+        expect(result.completion?.choices[0]?.message).toEqual({
+            role: 'assistant',
+            content: 'Hello, world',
+        });
+    });
+
+    it('should project follow-up response streams into chat-completion chunks', async () => {
+        const calls: Array<{ init?: RequestInit }> = [];
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async (_url, init) => {
+                    calls.push({ init });
+                    return createSSEResponse([
+                        { type: 'response.output_text.delta', delta: 'Follow-up chunk' },
+                    ]);
+                },
+            },
+        });
+
+        const { events, result } = await collectStream(client.response.followUpChatCompletionStream({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue',
+        }));
+
+        expect(events).toEqual([
+            {
+                id: 'response-stream',
+                object: 'chat.completion.chunk',
+                created: expect.any(Number),
+                model: 'gpt-5.2',
+                choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }],
+                usage: undefined,
+            },
+            {
+                id: 'response-stream',
+                object: 'chat.completion.chunk',
+                created: expect.any(Number),
+                model: 'gpt-5.2',
+                choices: [{ index: 0, delta: { content: 'Follow-up chunk' }, finish_reason: null }],
+                usage: undefined,
+            },
+        ]);
+        expect(result.outputText).toBe('Follow-up chunk');
+        expect(JSON.parse(String(calls[0]?.init?.body))).toMatchObject({
+            previous_response_id: 'resp-prev',
+            stream: true,
+        });
+    });
+
+    it('should fall back to completed response output_text when no delta events are emitted', async () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async () => createSSEResponse([
+                    {
+                        type: 'response.completed',
+                        response: {
+                            id: 'resp-no-delta',
+                            created_at: 1770774001,
+                            model: 'gpt-5.2',
+                            status: 'completed',
+                            output_text: 'Completed only',
+                        },
+                    },
+                ]),
+            },
+        });
+
+        const { events, result } = await collectStream(client.response.createChatCompletionStream({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        }));
+
+        expect(events).toEqual([
+            {
+                id: 'resp-no-delta',
+                object: 'chat.completion.chunk',
+                created: 1770774001,
+                model: 'gpt-5.2',
+                choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }],
+                usage: undefined,
+            },
+            {
+                id: 'resp-no-delta',
+                object: 'chat.completion.chunk',
+                created: 1770774001,
+                model: 'gpt-5.2',
+                choices: [{ index: 0, delta: { content: 'Completed only' }, finish_reason: null }],
+                usage: undefined,
+            },
+            {
+                id: 'resp-no-delta',
+                object: 'chat.completion.chunk',
+                created: 1770774001,
+                model: 'gpt-5.2',
+                choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+                usage: undefined,
+            },
+        ]);
+        expect(result.completion?.choices[0]?.message).toEqual({
+            role: 'assistant',
+            content: 'Completed only',
+        });
+    });
+
     it('should accept multimodal response input messages', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,

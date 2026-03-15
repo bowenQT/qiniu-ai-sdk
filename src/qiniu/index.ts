@@ -142,6 +142,7 @@ export type {
     ResponseStreamEvent,
     ResponseStreamOptions,
     ResponseStreamResult,
+    ResponseChatCompletionStreamResult,
 } from '../modules/response';
 
 export { Log } from '../modules/log';
