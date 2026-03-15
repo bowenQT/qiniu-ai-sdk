@@ -73,6 +73,7 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('Censor live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Censor video live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Account usage live probe was skipped'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Admin live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Log export live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API stream live probe was skipped'))).toBe(false);
     });
@@ -447,6 +448,52 @@ describe('CLI live verification helpers', () => {
         expect(result.exitCode).toBe(2);
         expect(result.checks.some((check) => check.message.includes('Account usage probe succeeded: 1 models (gemini-2.5-flash)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Log export probe succeeded: 1 entries (log-1)'))).toBe(true);
+    });
+
+    it('runs the optional admin live probes when explicitly enabled', async () => {
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_ADMIN_LIST_KEYS: '1',
+                QINIU_LIVE_VERIFY_ADMIN_GET_KEY: 'sk-live-1',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                file: {
+                    create: async () => ({ id: 'unused', status: 'ready' }),
+                    waitForReady: async () => ({ id: 'unused', status: 'ready' }),
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'unused', format: 'text/plain' },
+                    }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
+                },
+                admin: {
+                    listKeys: async () => [{ key: 'sk-live-1', name: 'live-key', status: 'active' }],
+                    getKey: async () => ({ key: 'sk-live-1', name: 'live-key', status: 'active' }),
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(result.checks.some((check) => check.message.includes('Admin listKeys probe succeeded: 1 keys (live-key)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Admin getKey probe succeeded: live-key (active)'))).toBe(true);
     });
 
     it('warns when node-integrations lane skips MCP live probing', async () => {
