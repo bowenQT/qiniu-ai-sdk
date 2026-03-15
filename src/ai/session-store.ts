@@ -106,6 +106,31 @@ function mergeCheckpointCustom(
     return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
+function buildSyntheticAgentState(
+    messages: ChatMessage[],
+    existingCheckpoint: Checkpoint | null,
+    checkpointMetadata?: Partial<CheckpointMetadata>,
+): AgentState {
+    const existingState = existingCheckpoint ? deserializeCheckpoint(existingCheckpoint) : null;
+    const stepCount = checkpointMetadata?.stepCount
+        ?? existingCheckpoint?.metadata.stepCount
+        ?? existingState?.stepCount
+        ?? 0;
+    const maxSteps = existingState?.maxSteps ?? Math.max(stepCount, 1);
+
+    return {
+        internalMessages: messages,
+        stepCount,
+        maxSteps,
+        done: existingState?.done ?? false,
+        output: existingState?.output ?? '',
+        reasoning: existingState?.reasoning ?? '',
+        finishReason: existingState?.finishReason ?? null,
+        usage: existingState?.usage,
+        get messages() { return this.internalMessages; },
+    } as AgentState;
+}
+
 export class MemorySessionStore implements SessionStore {
     private sessions = new Map<string, SessionRecord>();
 
@@ -208,6 +233,22 @@ export class CheckpointerSessionStore implements SessionStore {
             checkpoint = loaded ?? {
                 metadata,
                 state: existingCheckpoint.state,
+            };
+        } else if (!checkpoint && input.messages) {
+            const syntheticState = buildSyntheticAgentState(
+                input.messages,
+                existingCheckpoint,
+                input.checkpointMetadata,
+            );
+            const metadata = await this.checkpointer.save(input.threadId, syntheticState, {
+                status: input.checkpointMetadata?.status ?? existingCheckpoint?.metadata.status,
+                pendingApproval: input.checkpointMetadata?.pendingApproval ?? existingCheckpoint?.metadata.pendingApproval,
+                custom: mergedCustom,
+            });
+            const loaded = await this.checkpointer.load(input.threadId);
+            checkpoint = loaded ?? {
+                metadata,
+                state: serializeState(syntheticState),
             };
         }
 

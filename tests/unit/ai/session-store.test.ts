@@ -204,6 +204,62 @@ describe('session store', () => {
         });
     });
 
+    it('persists message-only sessions through CheckpointerSessionStore', async () => {
+        let persistedCheckpoint: any = null;
+        const save = vi.fn().mockImplementation(async (_threadId, state, options) => {
+            persistedCheckpoint = {
+                metadata: {
+                    id: 'ckpt-message-only',
+                    threadId: 'thread-message-only',
+                    createdAt: 4,
+                    stepCount: state.stepCount,
+                    custom: options?.custom,
+                },
+                state: {
+                    internalMessages: state.internalMessages,
+                    stepCount: state.stepCount,
+                    maxSteps: state.maxSteps,
+                    done: state.done,
+                    output: state.output,
+                    reasoning: state.reasoning,
+                    finishReason: state.finishReason,
+                },
+            };
+            return persistedCheckpoint.metadata;
+        });
+        const load = vi.fn().mockImplementation(async () => persistedCheckpoint);
+        const checkpointer: Checkpointer = {
+            save,
+            load,
+            list: vi.fn().mockResolvedValue([]),
+            delete: vi.fn().mockResolvedValue(true),
+            clear: vi.fn().mockResolvedValue(0),
+        };
+
+        const store = new CheckpointerSessionStore(checkpointer);
+        await store.save({
+            threadId: 'thread-message-only',
+            messages: [
+                { role: 'system', content: 'You are helpful.' },
+                { role: 'user', content: 'Hello from message-only checkpoint store' },
+            ],
+            summary: 'message-only checkpoint summary',
+        });
+
+        const restartedStore = new CheckpointerSessionStore(checkpointer);
+        const record = await restartedStore.load('thread-message-only');
+
+        expect(save).toHaveBeenCalledTimes(1);
+        expect(record?.summary).toBe('message-only checkpoint summary');
+        expect(record?.messages).toEqual([
+            { role: 'system', content: 'You are helpful.' },
+            { role: 'user', content: 'Hello from message-only checkpoint store' },
+        ]);
+        expect(record?.checkpoint?.metadata.custom).toMatchObject({
+            session_summary: 'message-only checkpoint summary',
+        });
+    });
+
     it('replays stored thread messages without exposing checkpoint internals', async () => {
         const store = new MemorySessionStore();
         await store.save({
