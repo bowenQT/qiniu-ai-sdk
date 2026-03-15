@@ -7,7 +7,13 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type { MCPHttpServerConfig, MCPToolDefinition, MCPToolResult } from './types';
+import type {
+    MCPHttpServerConfig,
+    MCPPromptDefinition,
+    MCPResourceDefinition,
+    MCPToolDefinition,
+    MCPToolResult,
+} from './types';
 import { DEFAULT_MCP_CONFIG } from './types';
 import { SDK_VERSION } from '../../lib/version';
 import {
@@ -33,6 +39,8 @@ export type TokenProvider = () => Promise<string | undefined>;
 
 export interface MCPProbeOptions {
     listTools?: boolean;
+    listResources?: boolean;
+    listPrompts?: boolean;
     executeTool?: {
         name: string;
         args?: Record<string, unknown>;
@@ -48,6 +56,8 @@ export interface MCPProbeOptions {
 
 export interface MCPProbeResult {
     tools?: MCPToolDefinition[];
+    resources?: MCPResourceDefinition[];
+    prompts?: MCPPromptDefinition[];
     toolResult?: MCPToolResult;
     eventStream?: {
         status: number;
@@ -290,7 +300,7 @@ export class MCPHttpTransport {
     async probe(options: MCPProbeOptions = {}): Promise<MCPProbeResult> {
         const result: MCPProbeResult = {};
         let terminated = false;
-        const needsClient = options.listTools || options.executeTool;
+        const needsClient = options.listTools || options.listResources || options.listPrompts || options.executeTool;
 
         try {
             if (needsClient) {
@@ -299,6 +309,14 @@ export class MCPHttpTransport {
 
             if (options.listTools) {
                 result.tools = await this.listTools();
+            }
+
+            if (options.listResources) {
+                result.resources = await this.listResources();
+            }
+
+            if (options.listPrompts) {
+                result.prompts = await this.listPrompts();
             }
 
             if (options.executeTool) {
@@ -350,6 +368,41 @@ export class MCPHttpTransport {
             name: tool.name,
             description: tool.description || '',
             inputSchema: tool.inputSchema as MCPToolDefinition['inputSchema'],
+        }));
+    }
+
+    /**
+     * List available resources.
+     */
+    async listResources(): Promise<MCPResourceDefinition[]> {
+        if (!this.client) {
+            throw new MCPHttpTransportError('Not connected', this.config.name);
+        }
+
+        const result = await this.client.listResources();
+        return (result.resources || []).map((resource) => ({
+            uri: resource.uri,
+            name: resource.name ?? resource.uri,
+            mimeType: (resource as any).mimeType,
+        }));
+    }
+
+    /**
+     * List available prompts.
+     */
+    async listPrompts(): Promise<MCPPromptDefinition[]> {
+        if (!this.client) {
+            throw new MCPHttpTransportError('Not connected', this.config.name);
+        }
+
+        const result = await this.client.listPrompts();
+        return (result.prompts || []).map((prompt) => ({
+            name: prompt.name,
+            description: prompt.description,
+            arguments: prompt.arguments?.map((arg) => ({
+                name: arg.name,
+                required: arg.required,
+            })),
         }));
     }
 

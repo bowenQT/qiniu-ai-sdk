@@ -8,6 +8,8 @@ const mockClientInstance = {
     connect: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
     listTools: vi.fn().mockResolvedValue({ tools: [] }),
+    listResources: vi.fn().mockResolvedValue({ resources: [] }),
+    listPrompts: vi.fn().mockResolvedValue({ prompts: [] }),
     callTool: vi.fn(),
 };
 const fetchMock = vi.fn();
@@ -262,6 +264,12 @@ describe('MCPHttpTransport', () => {
         mockClientInstance.listTools.mockResolvedValueOnce({
             tools: [{ name: 'ping', description: 'Ping', inputSchema: { type: 'object', properties: {} } }],
         });
+        mockClientInstance.listResources.mockResolvedValueOnce({
+            resources: [{ uri: 'file:///readme.md', name: 'readme', mimeType: 'text/markdown' }],
+        });
+        mockClientInstance.listPrompts.mockResolvedValueOnce({
+            prompts: [{ name: 'summarize', description: 'Summarize text', arguments: [{ name: 'text', required: true }] }],
+        });
         mockClientInstance.callTool.mockResolvedValueOnce({
             content: [{ type: 'text', text: 'pong' }],
             isError: false,
@@ -275,6 +283,8 @@ describe('MCPHttpTransport', () => {
 
         const result = await transport.probe({
             listTools: true,
+            listResources: true,
+            listPrompts: true,
             executeTool: { name: 'ping', args: { echo: 'pong' } },
             eventStream: true,
             oauthMetadata: true,
@@ -282,6 +292,16 @@ describe('MCPHttpTransport', () => {
         });
 
         expect(result.tools?.[0]?.name).toBe('ping');
+        expect(result.resources?.[0]).toEqual({
+            uri: 'file:///readme.md',
+            name: 'readme',
+            mimeType: 'text/markdown',
+        });
+        expect(result.prompts?.[0]).toEqual({
+            name: 'summarize',
+            description: 'Summarize text',
+            arguments: [{ name: 'text', required: true }],
+        });
         expect(result.toolResult?.content?.[0]).toEqual({ type: 'text', text: 'pong' });
         expect(result.eventStream).toEqual({
             status: 200,
@@ -290,5 +310,39 @@ describe('MCPHttpTransport', () => {
         expect(result.oauthMetadata?.authorizationServer?.issuer).toBe('https://auth.example.com');
         expect(result.terminated).toBe(true);
         expect(mockClientInstance.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('lists resources and prompts directly once connected', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+
+        mockClientInstance.listResources.mockResolvedValueOnce({
+            resources: [{ uri: 'file:///guide.md', name: 'guide', mimeType: 'text/markdown' }],
+        });
+        mockClientInstance.listPrompts.mockResolvedValueOnce({
+            prompts: [{ name: 'rewrite', description: 'Rewrite text' }],
+        });
+
+        const transport = new MCPHttpTransport({
+            name: 'server-direct',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+        });
+
+        await transport.connect();
+
+        await expect(transport.listResources()).resolves.toEqual([
+            {
+                uri: 'file:///guide.md',
+                name: 'guide',
+                mimeType: 'text/markdown',
+            },
+        ]);
+        await expect(transport.listPrompts()).resolves.toEqual([
+            {
+                name: 'rewrite',
+                description: 'Rewrite text',
+                arguments: undefined,
+            },
+        ]);
     });
 });
