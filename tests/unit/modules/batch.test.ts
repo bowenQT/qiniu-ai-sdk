@@ -16,7 +16,7 @@ function createMockClient() {
 }
 
 describe('Batch', () => {
-    it('creates a batch task handle and reuses it for get/wait/cancel', async () => {
+    it('creates a batch task handle and reuses it for get/wait/cancel/resume/delete', async () => {
         const client = createMockClient();
         client.post.mockResolvedValueOnce({
             id: 'batch_1',
@@ -34,7 +34,10 @@ describe('Batch', () => {
                 status: 'completed',
                 output_files_url: 'https://example.com/output.jsonl',
             });
-        client.post.mockResolvedValueOnce({ id: 'batch_1', status: 'cancelling' });
+        client.post
+            .mockResolvedValueOnce({ id: 'batch_1', status: 'cancelling' })
+            .mockResolvedValueOnce({ id: 'batch_1', status: 'in_progress' });
+        client.delete.mockResolvedValueOnce({ deleted: true });
 
         const batch = new Batch(client);
         const handle = await batch.create({
@@ -54,7 +57,12 @@ describe('Batch', () => {
             output_files_url: 'https://example.com/output.jsonl',
         });
         await expect(handle.cancel()).resolves.toBeUndefined();
-        expect(client.post).toHaveBeenLastCalledWith('/batches/batch_1/cancel', {});
+        await expect(handle.resume()).resolves.toMatchObject({ status: 'in_progress' });
+        await expect(handle.delete()).resolves.toBeUndefined();
+
+        expect(client.post).toHaveBeenNthCalledWith(2, '/batches/batch_1/cancel', {});
+        expect(client.post).toHaveBeenNthCalledWith(3, '/batches/batch_1/resume', {});
+        expect(client.delete).toHaveBeenCalledWith('/batches/batch_1');
     });
 
     it('lists batches with query params and normalizes missing data arrays', async () => {
@@ -81,6 +89,8 @@ describe('Batch', () => {
         expect(typeof listed.data[0].get).toBe('function');
         expect(typeof listed.data[0].wait).toBe('function');
         expect(typeof listed.data[0].cancel).toBe('function');
+        expect(typeof listed.data[0].resume).toBe('function');
+        expect(typeof listed.data[0].delete).toBe('function');
         expect(client.get).toHaveBeenNthCalledWith(1, '/batches', {
             page: '2',
             page_size: '20',
@@ -93,12 +103,15 @@ describe('Batch', () => {
         });
     });
 
-    it('gets batches as handle-capable snapshots and supports chaining wait/cancel', async () => {
+    it('gets batches as handle-capable snapshots and supports chaining wait/cancel/resume/delete', async () => {
         const client = createMockClient();
         client.get
             .mockResolvedValueOnce({ id: 'batch_1', status: 'in_progress' })
             .mockResolvedValueOnce({ id: 'batch_1', status: 'completed' });
-        client.post.mockResolvedValue({ id: 'batch_1', status: 'cancelling' });
+        client.post
+            .mockResolvedValueOnce({ id: 'batch_1', status: 'cancelling' })
+            .mockResolvedValueOnce({ id: 'batch_1', status: 'in_progress' });
+        client.delete.mockResolvedValueOnce({ deleted: true });
 
         const batch = new Batch(client);
         const snapshot = await batch.get('batch_1');
@@ -107,14 +120,20 @@ describe('Batch', () => {
         expect(typeof snapshot.get).toBe('function');
         expect(typeof snapshot.wait).toBe('function');
         expect(typeof snapshot.cancel).toBe('function');
+        expect(typeof snapshot.resume).toBe('function');
+        expect(typeof snapshot.delete).toBe('function');
         await expect(snapshot.wait({ intervalMs: 1, timeoutMs: 100 })).resolves.toMatchObject({
             id: 'batch_1',
             status: 'completed',
         });
         await expect(snapshot.cancel()).resolves.toBeUndefined();
+        await expect(snapshot.resume()).resolves.toMatchObject({ status: 'in_progress' });
+        await expect(snapshot.delete()).resolves.toBeUndefined();
 
         expect(client.get).toHaveBeenCalledWith('/batches/batch_1');
-        expect(client.post).toHaveBeenCalledWith('/batches/batch_1/cancel', {});
+        expect(client.post).toHaveBeenNthCalledWith(1, '/batches/batch_1/cancel', {});
+        expect(client.post).toHaveBeenNthCalledWith(2, '/batches/batch_1/resume', {});
+        expect(client.delete).toHaveBeenCalledWith('/batches/batch_1');
     });
 
     it('gets, resumes and deletes a batch', async () => {

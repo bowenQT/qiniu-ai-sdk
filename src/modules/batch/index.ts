@@ -62,6 +62,8 @@ export interface BatchTaskSnapshot
     extends BatchResponse,
         TaskHandle<BatchTaskSnapshot, BatchTaskSnapshot, BatchWaitOptions> {
     id: string;
+    resume(): Promise<BatchCancelResponse>;
+    delete(): Promise<void>;
 }
 
 export interface BatchListResponse {
@@ -115,6 +117,8 @@ function createBatchSnapshot(batch: Batch, response: BatchResponse): BatchTaskSn
         get: () => batch.get(response.id),
         wait: (options?: BatchWaitOptions) => batch.waitForCompletion(response.id, options),
         cancel: () => batch.cancel(response.id).then(() => undefined),
+        resume: () => batch.resume(response.id),
+        delete: () => batch.delete(response.id),
     };
 }
 
