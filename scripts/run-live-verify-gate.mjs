@@ -11,10 +11,15 @@ if (!enabled) {
 
 const lanes = process.env.QINIU_LIVE_VERIFY_GATE_LANES || 'cloud-surface,node-integrations,dx-validation';
 const strict = process.env.QINIU_LIVE_VERIFY_GATE_STRICT !== '0';
+const outputPath = process.env.QINIU_LIVE_VERIFY_OUTPUT;
 const args = ['bin/qiniu-ai.mjs', 'verify', 'gate', '--lanes', lanes];
 
 if (strict) {
   args.push('--strict');
+}
+
+if (outputPath) {
+  args.push('--out', outputPath, '--json');
 }
 
 const result = spawnSync('node', args, {
