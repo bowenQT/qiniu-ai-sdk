@@ -21,7 +21,7 @@ export interface LiveVerifyResult {
 export interface LiveVerifyOptions {
     lane: WorktreeLane;
     env?: NodeJS.ProcessEnv;
-    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file' | 'response' | 'batch'>;
+    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file' | 'response' | 'batch' | 'censor'>;
     createNodeClient?: (apiKey: string) => ReturnType<typeof createNodeQiniuAI>;
     createMcpTransport?: (config: MCPHttpServerConfig) => LiveVerifyMcpTransport;
 }
@@ -115,7 +115,7 @@ function parseOptionalJsonStringRecord(value: string | undefined, envName: strin
 
 const LANE_MODULES: Record<Exclude<WorktreeLane, 'integration'>, string[]> = {
     foundation: ['chat'],
-    'cloud-surface': ['chat', 'file', 'batch', 'admin', 'ResponseAPI'],
+    'cloud-surface': ['chat', 'file', 'batch', 'admin', 'censor', 'ResponseAPI'],
     runtime: ['generateText', 'createAgent', 'memory', 'guardrails'],
     'node-integrations': ['NodeMCPHost', 'sandbox', 'skills', 'auditLogger'],
     'dx-validation': ['chat', 'file', 'generateText'],
@@ -412,6 +412,51 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_BATCH not set. Batch live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_CENSOR === '1') {
+            const censorClient = client.censor as {
+                image?: (params: {
+                    uri: string;
+                    scenes?: Array<'pulp' | 'terror' | 'politician'>;
+                }) => Promise<{
+                    suggestion?: string;
+                    scenes?: Array<{ scene: string; suggestion: string }>;
+                }>;
+            };
+            if (!censorClient.image) {
+                throw new Error('Censor live probe requires censor.image() support in the current SDK build');
+            }
+
+            const uri = env.QINIU_LIVE_VERIFY_CENSOR_URI?.trim();
+            if (!uri) {
+                throw new Error('QINIU_LIVE_VERIFY_CENSOR_URI is required when QINIU_LIVE_VERIFY_CENSOR=1');
+            }
+
+            const scenes = env.QINIU_LIVE_VERIFY_CENSOR_SCENES
+                ?.split(',')
+                .map((scene) => scene.trim())
+                .filter(Boolean) as Array<'pulp' | 'terror' | 'politician'> | undefined;
+
+            const censorResult = await censorClient.image({
+                uri,
+                ...(scenes && scenes.length > 0 ? { scenes } : {}),
+            });
+            addCheck(
+                checks,
+                'ok',
+                `Censor probe succeeded: ${censorResult.suggestion ?? 'unknown'}${
+                    censorResult.scenes?.length
+                        ? ` (${censorResult.scenes.map((scene) => `${scene.scene}:${scene.suggestion}`).join(', ')})`
+                        : ''
+                }`,
+            );
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_CENSOR not set. Censor live probe was skipped.',
             );
         }
     } else if (options.lane === 'runtime') {

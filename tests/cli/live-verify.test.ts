@@ -62,11 +62,13 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('file: GA'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('batch: BETA (unit, validated 2026-03-15)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('admin: BETA (unit, validated 2026-03-15)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('censor: BETA (unit, validated 2026-03-15)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('ResponseAPI: EXPERIMENTAL (unit, validated 2026-03-15)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Chat probe succeeded'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('File/qfile live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Batch live probe was skipped'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Censor live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API stream live probe was skipped'))).toBe(false);
     });
 
@@ -277,6 +279,57 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('Batch create probe succeeded: batch-live-1 (validating)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Batch cancel probe succeeded: batch-live-1 -> cancelling'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Batch cleanup succeeded: batch-live-1'))).toBe(true);
+    });
+
+    it('runs the optional censor live probe when explicitly enabled', async () => {
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_CENSOR: '1',
+                QINIU_LIVE_VERIFY_CENSOR_URI: 'https://example.com/censor.jpg',
+                QINIU_LIVE_VERIFY_CENSOR_SCENES: 'pulp,terror',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                file: {
+                    create: async () => ({ id: 'unused', status: 'ready' }),
+                    waitForReady: async () => ({ id: 'unused', status: 'ready' }),
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'unused', format: 'text/plain' },
+                    }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
+                },
+                censor: {
+                    image: async () => ({
+                        suggestion: 'review',
+                        scenes: [
+                            { scene: 'pulp', suggestion: 'review' },
+                            { scene: 'terror', suggestion: 'pass' },
+                        ],
+                    }),
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(result.checks.some((check) => check.message.includes('Censor probe succeeded: review (pulp:review, terror:pass)'))).toBe(true);
     });
 
     it('warns when node-integrations lane skips MCP live probing', async () => {
