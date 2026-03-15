@@ -84,6 +84,16 @@ export interface FileUserMessageOptions extends FileContentPartOptions {}
 
 export interface FileReferenceUserMessageOptions extends FileReferenceCreateOptions {}
 
+export interface FileContentPartResult {
+    file: FileResponse;
+    part: FileContentPart;
+}
+
+export interface FileUserMessageResult {
+    file: FileResponse;
+    message: ChatMessage;
+}
+
 // ============================================================================
 // File Class
 // ============================================================================
@@ -174,11 +184,25 @@ export class File {
         params: FileCreateRequest,
         options: FileReferenceCreateOptions = {},
     ): Promise<FileContentPart> {
+        return (await this.createContentPartResult(params, options)).part;
+    }
+
+    /**
+     * Upload a file, wait until it is ready for inference, then return both
+     * the ready file record and the derived chat/response content part.
+     */
+    async createContentPartResult(
+        params: FileCreateRequest,
+        options: FileReferenceCreateOptions = {},
+    ): Promise<FileContentPartResult> {
         const created = await this.create(params);
         const ready = created.status === 'ready'
             ? created
             : await this.waitForReady(created, options);
-        return this.toContentPart(ready, { format: options.format });
+        return {
+            file: ready,
+            part: this.toContentPart(ready, { format: options.format }),
+        };
     }
 
     /**
@@ -207,13 +231,28 @@ export class File {
         params: FileCreateRequest,
         options: FileReferenceUserMessageOptions = {},
     ): Promise<ChatMessage> {
-        const part = await this.createContentPart(params, options);
+        return (await this.createUserMessageResult(text, params, options)).message;
+    }
+
+    /**
+     * Upload a file, wait until it is ready, then return both the ready file
+     * record and the derived user message that references the qfile.
+     */
+    async createUserMessageResult(
+        text: string,
+        params: FileCreateRequest,
+        options: FileReferenceUserMessageOptions = {},
+    ): Promise<FileUserMessageResult> {
+        const { file, part } = await this.createContentPartResult(params, options);
         return {
-            role: 'user',
-            content: [
-                { type: 'text', text },
-                part,
-            ],
+            file,
+            message: {
+                role: 'user',
+                content: [
+                    { type: 'text', text },
+                    part,
+                ],
+            },
         };
     }
 }

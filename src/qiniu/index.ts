@@ -118,6 +118,8 @@ export type {
     FileListOptions,
     FileUserMessageOptions,
     FileReferenceUserMessageOptions,
+    FileContentPartResult,
+    FileUserMessageResult,
 } from '../modules/file';
 
 export { Anthropic } from '../modules/anthropic';
