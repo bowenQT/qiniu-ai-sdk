@@ -6,6 +6,7 @@ import { runCLI } from '../../src/cli/skill-cli';
 import {
     DEFAULT_LIVE_VERIFY_GATE_LANES,
     parseLiveVerifyGateLanes,
+    renderLiveVerifyGateMarkdown,
     verifyLiveGate,
 } from '../../src/cli/live-verify';
 
@@ -67,6 +68,19 @@ describe('CLI live verification gate', () => {
         expect(result.exitCode).toBe(1);
         expect(result.status).toBe('fail');
         expect(result.checks.some((check) => check.message.includes('Strict live verification gate failed for lanes: foundation'))).toBe(true);
+    });
+
+    it('renders a markdown summary for gate artifacts', async () => {
+        const result = await verifyLiveGate({
+            lanes: ['foundation'],
+            env: {},
+        });
+
+        const markdown = renderLiveVerifyGateMarkdown(result);
+        expect(markdown).toContain('# Live Verification Gate');
+        expect(markdown).toContain('### foundation');
+        expect(markdown).toContain('Overall status: WARN (exit 2)');
+        expect(markdown).toContain('[warn] foundation lane has no direct live API probe yet');
     });
 
     it('wires the verify gate CLI command through runCLI', async () => {

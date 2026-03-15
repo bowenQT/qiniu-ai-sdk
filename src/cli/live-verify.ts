@@ -24,6 +24,7 @@ export interface LiveVerifyGateLaneResult {
 }
 
 export interface LiveVerifyGateResult extends LiveVerifyResult {
+    generatedAt: string;
     lanes: LiveVerifyGateLaneResult[];
 }
 
@@ -1379,6 +1380,7 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
     const env = options.env ?? process.env;
     const lanes = options.lanes.length > 0 ? options.lanes : [...DEFAULT_LIVE_VERIFY_GATE_LANES];
     const strict = options.strict ?? env.QINIU_REQUIRE_LIVE_VERIFY === '1';
+    const generatedAt = new Date().toISOString();
 
     addCheck(
         checks,
@@ -1413,6 +1415,7 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
                 status: 'fail',
                 exitCode: 1,
                 checks,
+                generatedAt,
                 lanes: laneResults,
             };
         }
@@ -1423,6 +1426,41 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
         status,
         exitCode: status === 'ok' ? 0 : status === 'warn' ? 2 : 1,
         checks,
+        generatedAt,
         lanes: laneResults,
     };
+}
+
+export function renderLiveVerifyGateMarkdown(result: LiveVerifyGateResult): string {
+    const lines: string[] = [
+        '# Live Verification Gate',
+        '',
+        `Generated at: ${result.generatedAt}`,
+        '',
+        `Overall status: ${result.status.toUpperCase()} (exit ${result.exitCode})`,
+        '',
+        '## Lanes',
+        '',
+    ];
+
+    for (const entry of result.lanes) {
+        lines.push(`### ${entry.lane}`);
+        lines.push('');
+        lines.push(`- Status: ${entry.result.status.toUpperCase()} (exit ${entry.result.exitCode})`);
+        lines.push(`- Checks: ${entry.result.checks.length}`);
+        lines.push('');
+        for (const check of entry.result.checks) {
+            lines.push(`- [${check.level}] ${check.message}`);
+        }
+        lines.push('');
+    }
+
+    lines.push('## Aggregated Checks');
+    lines.push('');
+    for (const check of result.checks) {
+        lines.push(`- [${check.level}] ${check.message}`);
+    }
+    lines.push('');
+
+    return lines.join('\n');
 }
