@@ -167,6 +167,11 @@ export interface ResponseChatCompletionStreamResult extends ResponseStreamResult
     completion?: ChatCompletionResponse;
 }
 
+export interface ResponseChatCompletionResult {
+    response: ResponseCreateResponse;
+    completion: ChatCompletionResponse;
+}
+
 export interface ResponseJsonResult<T = unknown> {
     response: ResponseCreateResponse;
     json: T;
@@ -467,14 +472,38 @@ export class ResponseAPI {
      * Useful when callers want Response API semantics on the wire but chat-style consumption.
      */
     async createChatCompletion(params: ResponseCreateRequest): Promise<ChatCompletionResponse> {
-        return toChatCompletionResponse(await this.create(params));
+        return (await this.createChatCompletionResult(params)).completion;
     }
 
     /**
      * Create a follow-up response and project it into chat-completion shape.
      */
     async followUpChatCompletion(params: ResponseFollowUpRequest): Promise<ChatCompletionResponse> {
-        return toChatCompletionResponse(await this.followUp(params));
+        return (await this.followUpChatCompletionResult(params)).completion;
+    }
+
+    /**
+     * Create a response and return both the raw response and projected chat-completion shape.
+     */
+    async createChatCompletionResult(params: ResponseCreateRequest): Promise<ResponseChatCompletionResult> {
+        const response = await this.create(params);
+        return {
+            completion: toChatCompletionResponse(response),
+            response,
+        };
+    }
+
+    /**
+     * Create a follow-up response and return both the raw response and projected chat-completion shape.
+     */
+    async followUpChatCompletionResult(
+        params: ResponseFollowUpRequest,
+    ): Promise<ResponseChatCompletionResult> {
+        const response = await this.followUp(params);
+        return {
+            completion: toChatCompletionResponse(response),
+            response,
+        };
     }
 
     /**
