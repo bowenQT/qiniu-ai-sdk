@@ -197,6 +197,21 @@ export class ResponseAPI {
             previous_response_id: previousResponseId,
         });
     }
+
+    /**
+     * Create a response and immediately project it into OpenAI-compatible chat-completion shape.
+     * Useful when callers want Response API semantics on the wire but chat-style consumption.
+     */
+    async createChatCompletion(params: ResponseCreateRequest): Promise<ChatCompletionResponse> {
+        return toChatCompletionResponse(await this.create(params));
+    }
+
+    /**
+     * Create a follow-up response and project it into chat-completion shape.
+     */
+    async followUpChatCompletion(params: ResponseFollowUpRequest): Promise<ChatCompletionResponse> {
+        return toChatCompletionResponse(await this.followUp(params));
+    }
 }
 
 export function extractResponseOutputText(response: Pick<ResponseCreateResponse, 'output'>): string | undefined {
