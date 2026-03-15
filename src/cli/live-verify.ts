@@ -186,27 +186,53 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 create: (params: { file: string; filename: string; purpose: string }) => Promise<any>;
                 waitForReady?: (file: any, options: { timeoutMs: number; intervalMs: number }) => Promise<any>;
                 toContentPart?: (file: any) => { file: { file_id?: string; format?: string } };
+                delete?: (fileId: string) => Promise<unknown>;
             };
-            const created = await fileClient.create({
-                file: 'SGVsbG8=',
-                filename: 'verify.txt',
-                purpose: 'assistants',
-            });
-            const ready = created.status === 'ready' || !fileClient.waitForReady
-                ? created
-                : await fileClient.waitForReady(created, {
-                    timeoutMs: 120_000,
-                    intervalMs: 1000,
+            let cleanupFileId: string | undefined;
+
+            try {
+                const created = await fileClient.create({
+                    file: 'SGVsbG8=',
+                    filename: 'verify.txt',
+                    purpose: 'assistants',
                 });
-            if (!fileClient.toContentPart) {
-                throw new Error('File live probe requires toContentPart() support in the current SDK build');
+                cleanupFileId = created?.id;
+                const ready = created.status === 'ready' || !fileClient.waitForReady
+                    ? created
+                    : await fileClient.waitForReady(created, {
+                        timeoutMs: 120_000,
+                        intervalMs: 1000,
+                    });
+                cleanupFileId = ready?.id ?? cleanupFileId;
+                if (!fileClient.toContentPart) {
+                    throw new Error('File live probe requires toContentPart() support in the current SDK build');
+                }
+                const part = fileClient.toContentPart(ready);
+                addCheck(
+                    checks,
+                    'ok',
+                    `File workflow probe succeeded: ${part.file.file_id}${part.file.format ? ` (${part.file.format})` : ''}`,
+                );
+            } finally {
+                if (cleanupFileId && fileClient.delete) {
+                    try {
+                        await fileClient.delete(cleanupFileId);
+                        addCheck(checks, 'ok', `File cleanup succeeded: ${cleanupFileId}`);
+                    } catch (error) {
+                        addCheck(
+                            checks,
+                            'warn',
+                            `File cleanup failed: ${cleanupFileId} (${error instanceof Error ? error.message : String(error)})`,
+                        );
+                    }
+                } else if (cleanupFileId) {
+                    addCheck(
+                        checks,
+                        'warn',
+                        `File cleanup was skipped: delete() is not available for ${cleanupFileId}`,
+                    );
+                }
             }
-            const part = fileClient.toContentPart(ready);
-            addCheck(
-                checks,
-                'ok',
-                `File workflow probe succeeded: ${part.file.file_id}${part.file.format ? ` (${part.file.format})` : ''}`,
-            );
         } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
             addCheck(
                 checks,

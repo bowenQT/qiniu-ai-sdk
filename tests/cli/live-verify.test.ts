@@ -77,6 +77,7 @@ describe('CLI live verification helpers', () => {
                         type: 'file',
                         file: { file_id: 'qfile-123', format: 'text/plain' },
                     }),
+                    delete: async () => ({ id: 'qfile-123', deleted: true }),
                 },
                 response: {
                     createText: async () => 'response',
@@ -86,7 +87,39 @@ describe('CLI live verification helpers', () => {
 
         expect(result.exitCode).toBe(2);
         expect(result.checks.some((check) => check.message.includes('File workflow probe succeeded: qfile-123 (text/plain)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('File cleanup succeeded: qfile-123'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API live probe was skipped'))).toBe(true);
+    });
+
+    it('warns when file workflow cleanup cannot run because delete() is unavailable', async () => {
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_FILE_WORKFLOW: '1',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                file: {
+                    create: async () => ({ id: 'qfile-no-delete', status: 'ready', content_type: 'text/plain' }),
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'qfile-no-delete', format: 'text/plain' },
+                    }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(result.checks.some((check) => check.message.includes('File workflow probe succeeded: qfile-no-delete (text/plain)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('File cleanup was skipped: delete() is not available for qfile-no-delete'))).toBe(true);
     });
 
     it('runs the optional Response API probe when explicitly enabled', async () => {
