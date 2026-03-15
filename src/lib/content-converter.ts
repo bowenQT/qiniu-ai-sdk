@@ -115,8 +115,7 @@ function imageSourceToDataUrl(source: ImageSource): string {
         if (source.startsWith('data:') || source.startsWith('http://') || source.startsWith('https://')) {
             return source;
         }
-        // Assume base64, wrap in data URL
-        return `data:image/png;base64,${source}`;
+        return base64StringToDataUrl(source);
     }
 
     // URL object
@@ -148,7 +147,7 @@ export async function imageSourceToDataUrlAsync(source: ImageSource): Promise<st
         if (source.startsWith('data:') || source.startsWith('http://') || source.startsWith('https://')) {
             return source;
         }
-        return `data:image/png;base64,${source}`;
+        return base64StringToDataUrl(source);
     }
 
     if (source instanceof URL) {
@@ -169,6 +168,13 @@ export async function imageSourceToDataUrlAsync(source: ImageSource): Promise<st
     }
 
     throw new Error(`Unsupported image source type: ${typeof source}`);
+}
+
+function base64StringToDataUrl(source: string): string {
+    const normalized = normalizeBase64String(source);
+    const decoded = decodeBase64Bytes(normalized);
+    const mimeType = decoded ? detectMimeType(decoded) : 'image/png';
+    return `data:${mimeType};base64,${normalized}`;
 }
 
 /**
@@ -213,6 +219,37 @@ function detectMimeType(buffer: Uint8Array): string {
     }
 
     return 'image/png'; // Default fallback
+}
+
+function normalizeBase64String(raw: string): string {
+    const sanitized = raw
+        .replace(/\s+/g, '')
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+
+    const remainder = sanitized.length % 4;
+    if (remainder === 0) {
+        return sanitized;
+    }
+
+    return sanitized + '='.repeat(4 - remainder);
+}
+
+function decodeBase64Bytes(base64: string): Uint8Array | null {
+    if (typeof Buffer !== 'undefined') {
+        return Uint8Array.from(Buffer.from(base64, 'base64'));
+    }
+
+    if (typeof atob === 'function') {
+        const decoded = atob(base64);
+        const bytes = new Uint8Array(decoded.length);
+        for (let i = 0; i < decoded.length; i++) {
+            bytes[i] = decoded.charCodeAt(i);
+        }
+        return bytes;
+    }
+
+    return null;
 }
 
 /**

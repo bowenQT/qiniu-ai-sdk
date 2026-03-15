@@ -110,7 +110,7 @@ export class ResponseAPI {
         const response = await this.client.post<ResponseCreateResponse>('/llm/v1/responses', request);
         return {
             ...response,
-            output_text: extractResponseOutputText(response),
+            output_text: response.output_text ?? extractResponseOutputText(response),
         };
     }
 }
