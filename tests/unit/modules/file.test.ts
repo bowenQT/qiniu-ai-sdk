@@ -117,4 +117,65 @@ describe('Phase 2: File Module', () => {
         const result = await client.file.list();
         expect(result.data).toHaveLength(2);
     });
+
+    it('should build a file content part from an uploaded file id', () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: createStaticMockFetch({ status: 200, body: {} }).adapter,
+        });
+
+        expect(client.file.toContentPart('qfile-123', { format: 'video/mp4' })).toEqual({
+            type: 'file',
+            file: {
+                file_id: 'qfile-123',
+                format: 'video/mp4',
+            },
+        });
+    });
+
+    it('should infer file format from uploaded file metadata when building content parts', () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: createStaticMockFetch({ status: 200, body: {} }).adapter,
+        });
+
+        expect(client.file.toContentPart({
+            id: 'qfile-clip',
+            filename: 'clip.mp4',
+        })).toEqual({
+            type: 'file',
+            file: {
+                file_id: 'qfile-clip',
+                format: 'video/mp4',
+            },
+        });
+
+        expect(client.file.toContentPart({
+            id: 'qfile-doc',
+            filename: 'spec.pdf',
+        })).toEqual({
+            type: 'file',
+            file: {
+                file_id: 'qfile-doc',
+                format: 'application/pdf',
+            },
+        });
+    });
+
+    it('should omit format when no override or known filename extension is available', () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: createStaticMockFetch({ status: 200, body: {} }).adapter,
+        });
+
+        expect(client.file.toContentPart({
+            id: 'qfile-raw',
+            filename: 'blob.bin',
+        })).toEqual({
+            type: 'file',
+            file: {
+                file_id: 'qfile-raw',
+            },
+        });
+    });
 });
