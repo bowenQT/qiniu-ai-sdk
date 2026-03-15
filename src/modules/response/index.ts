@@ -49,6 +49,14 @@ export interface ResponseCreateRequest {
     user?: string | null;
 }
 
+/**
+ * Convenience alias for creating a follow-up response from an existing response id.
+ * Mirrors `previous_response_id` while keeping the transport contract explicit.
+ */
+export interface ResponseFollowUpRequest extends Omit<ResponseCreateRequest, 'previous_response_id'> {
+    previousResponseId: string;
+}
+
 export interface ResponseInputMessage {
     role: 'user' | 'assistant' | 'system' | 'developer';
     content: string | ResponseInputContentPart[];
@@ -174,6 +182,18 @@ export class ResponseAPI {
             ...response,
             output_text: response.output_text ?? extractResponseOutputText(response),
         };
+    }
+
+    /**
+     * Create a follow-up response chained from a previous response.
+     * @experimental This endpoint requires whitelist access.
+     */
+    async followUp(params: ResponseFollowUpRequest): Promise<ResponseCreateResponse> {
+        const { previousResponseId, ...request } = params;
+        return this.create({
+            ...request,
+            previous_response_id: previousResponseId,
+        });
     }
 }
 
