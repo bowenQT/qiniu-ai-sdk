@@ -161,6 +161,11 @@ export interface ResponseStreamResult {
     response?: ResponseCreateResponse;
     outputText: string;
     eventCount: number;
+    message?: ChatMessage;
+    messages: ChatMessage[];
+    reasoningSummaryText?: string;
+    reasoning?: ResponseOutput;
+    encryptedContent?: string;
 }
 
 export interface ResponseChatCompletionStreamResult extends ResponseStreamResult {
@@ -319,6 +324,19 @@ export class ResponseAPI {
             response: finalResponse,
             outputText,
             eventCount,
+            message: finalResponse
+                ? extractResponseOutputMessage(finalResponse)
+                : (outputText
+                    ? { role: 'assistant', content: outputText }
+                    : undefined),
+            messages: finalResponse
+                ? extractResponseOutputMessages(finalResponse)
+                : (outputText
+                    ? [{ role: 'assistant', content: outputText }]
+                    : []),
+            reasoningSummaryText: finalResponse ? extractResponseReasoningSummaryText(finalResponse) : undefined,
+            reasoning: finalResponse ? extractResponseReasoningOutput(finalResponse) : undefined,
+            encryptedContent: finalResponse ? extractResponseReasoningEncryptedContent(finalResponse) : undefined,
         };
     }
 
