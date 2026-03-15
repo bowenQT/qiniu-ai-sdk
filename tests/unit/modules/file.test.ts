@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { QiniuAI } from '../../../src/client';
-import { createStaticMockFetch } from '../../mocks/fetch';
+import { createMockFetch, createStaticMockFetch } from '../../mocks/fetch';
 
 describe('Phase 2: File Module', () => {
     it('should have a file property on client', () => {
@@ -177,5 +177,84 @@ describe('Phase 2: File Module', () => {
                 file_id: 'qfile-raw',
             },
         });
+    });
+
+    it('should prefer server-provided content_type when building content parts', () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: createStaticMockFetch({ status: 200, body: {} }).adapter,
+        });
+
+        expect(client.file.toContentPart({
+            id: 'qfile-server',
+            file_name: 'mystery.bin',
+            content_type: 'video/mp4',
+        })).toEqual({
+            type: 'file',
+            file: {
+                file_id: 'qfile-server',
+                format: 'video/mp4',
+            },
+        });
+    });
+
+    it('should wait until a file becomes ready', async () => {
+        const mockFetch = createMockFetch([
+            {
+                status: 200,
+                body: { id: 'qfile-1', object: 'file', status: 'pending', created_at: 1, expires_at: 2 },
+            },
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-1',
+                    object: 'file',
+                    status: 'ready',
+                    created_at: 1,
+                    synced_at: 2,
+                    expires_at: 3,
+                    file_name: 'clip.mp4',
+                    content_type: 'video/mp4',
+                },
+            },
+        ]);
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const result = await client.file.waitForReady('qfile-1', {
+            intervalMs: 1,
+            timeoutMs: 100,
+        });
+
+        expect(result.status).toBe('ready');
+        expect(mockFetch.calls).toHaveLength(2);
+    });
+
+    it('should throw when a file reaches failed terminal state', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'qfile-failed',
+                object: 'file',
+                status: 'failed',
+                created_at: 1,
+                expires_at: 2,
+                error: {
+                    code: 'file_adapter_sync_failed',
+                    message: 'Failed to download file from source URL',
+                },
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.file.waitForReady('qfile-failed', {
+            intervalMs: 1,
+            timeoutMs: 100,
+        })).rejects.toThrow('File qfile-failed is not ready: Failed to download file from source URL');
     });
 });

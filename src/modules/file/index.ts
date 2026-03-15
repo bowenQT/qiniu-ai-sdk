@@ -1,4 +1,5 @@
 import { IQiniuClient, type FileContentPart } from '../../lib/types';
+import { pollUntilComplete, type PollerOptions } from '../../lib/poller';
 
 // ============================================================================
 // Type Definitions
@@ -31,9 +32,21 @@ export interface FileResponse {
     bytes?: number;
     created_at?: number;
     filename?: string;
+    file_name?: string;
     purpose?: string;
     status?: string;
     status_details?: string;
+    model?: string;
+    synced_at?: number;
+    expires_at?: number;
+    file_size?: number;
+    content_type?: string;
+    error?: {
+        code: string;
+        message: string;
+        type?: string;
+        param?: string;
+    };
 }
 
 export interface FileListResponse {
@@ -51,11 +64,18 @@ export interface FileListOptions {
     limit?: number;
 }
 
-export type FileReferenceInput = string | Pick<FileResponse, 'id' | 'filename'>;
+export type FileReferenceInput = string | Pick<FileResponse, 'id' | 'filename' | 'file_name' | 'content_type'>;
 
 export interface FileContentPartOptions {
     /** Explicit MIME type / format override for the referenced file */
     format?: string;
+}
+
+export interface FileWaitOptions {
+    intervalMs?: number;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+    onPoll?: PollerOptions<FileResponse>['onPoll'];
 }
 
 // ============================================================================
@@ -99,12 +119,37 @@ export class File {
     }
 
     /**
+     * Poll file processing until the file is ready for inference.
+     */
+    async waitForReady(file: string | Pick<FileResponse, 'id'>, options: FileWaitOptions = {}): Promise<FileResponse> {
+        const fileId = typeof file === 'string' ? file : file.id;
+        const { result } = await pollUntilComplete(fileId, {
+            intervalMs: options.intervalMs ?? 1000,
+            timeoutMs: options.timeoutMs ?? 120_000,
+            signal: options.signal,
+            onPoll: options.onPoll,
+            isTerminal: (state) => ['ready', 'failed', 'expired'].includes(state.status || ''),
+            getStatus: (id) => this.get(id),
+            logger: this.client.getLogger(),
+        });
+
+        if (result.status === 'ready') {
+            return result;
+        }
+
+        const detail = result.error?.message || result.status_details || result.status || 'unknown';
+        throw new Error(`File ${fileId} is not ready: ${detail}`);
+    }
+
+    /**
      * Build a chat/response content part referencing an uploaded file.
      * Useful for Gemini qfile and other file-aware multimodal calls.
      */
     toContentPart(file: FileReferenceInput, options: FileContentPartOptions = {}): FileContentPart {
         const reference = typeof file === 'string' ? { id: file } : file;
-        const format = options.format ?? inferFileFormat(reference.filename);
+        const format = options.format
+            ?? reference.content_type
+            ?? inferFileFormat(reference.filename ?? reference.file_name);
 
         return {
             type: 'file',
