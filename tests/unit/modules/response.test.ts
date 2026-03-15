@@ -49,6 +49,7 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         expect(result.status).toBe('completed');
         expect(result.output_text).toBe('Hello!');
         expect(result.reasoning?.encrypted_content).toBe('enc_abc_123');
+        expect(mockFetch.calls[0].url).toContain('/llm/v1/responses?api-version=2025-04-01-preview');
     });
 
     it('should preserve backend-provided output_text when present', async () => {
@@ -127,6 +128,56 @@ describe('Phase 3: Response API Module (@experimental)', () => {
             file_url: { url: 'https://example.com/doc.pdf' },
         });
         expect(body.input[1].content[2].input_audio.format).toBe('mp3');
+    });
+
+    it('should forward documented preview request fields', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: { id: 'resp-preview', status: 'completed' },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await client.response.create({
+            model: 'gpt-5.2',
+            input: 'Hello',
+            stream: false,
+            include: ['reasoning.encrypted_content'],
+            previous_response_id: 'resp-prev',
+            store: true,
+            background: false,
+            parallel_tool_calls: true,
+            truncation: 'disabled',
+            user: 'user-123',
+            metadata: { trace: 'abc' },
+            top_p: 0.98,
+            text: {
+                format: { type: 'text' },
+                verbosity: 'medium',
+            },
+        });
+
+        const body = JSON.parse(String(mockFetch.calls[0].init?.body));
+        expect(body).toMatchObject({
+            model: 'gpt-5.2',
+            input: 'Hello',
+            stream: false,
+            include: ['reasoning.encrypted_content'],
+            previous_response_id: 'resp-prev',
+            store: true,
+            background: false,
+            parallel_tool_calls: true,
+            truncation: 'disabled',
+            user: 'user-123',
+            metadata: { trace: 'abc' },
+            top_p: 0.98,
+            text: {
+                format: { type: 'text' },
+                verbosity: 'medium',
+            },
+        });
     });
 
     it('should normalize image sugar content in response inputs', async () => {
@@ -224,5 +275,66 @@ describe('Phase 3: Response API Module (@experimental)', () => {
                 },
             ],
         } as any)).toBeUndefined();
+    });
+
+    it('should preserve documented response metadata fields', async () => {
+        const mockResponse = {
+            id: 'resp-rich',
+            object: 'response',
+            created_at: 1770773311,
+            model: 'gpt-5.2',
+            status: 'completed',
+            parallel_tool_calls: true,
+            previous_response_id: 'resp-prev',
+            store: true,
+            background: false,
+            text: {
+                format: { type: 'text' },
+                verbosity: 'medium',
+            },
+            usage: {
+                input_tokens: 20,
+                output_tokens: 98,
+                total_tokens: 118,
+                input_tokens_details: { cached_tokens: 0 },
+                output_tokens_details: { reasoning_tokens: 76 },
+            },
+            output: [
+                {
+                    id: 'msg_1',
+                    type: 'message',
+                    role: 'assistant',
+                    status: 'completed',
+                    content: [{ type: 'output_text', text: 'Hello!' }],
+                },
+                {
+                    id: 'rs_1',
+                    type: 'reasoning',
+                    status: null,
+                    summary: [{ type: 'summary_text', text: 'Reasoned summary' }],
+                    encrypted_content: 'enc_123',
+                    content: null,
+                },
+            ],
+        };
+
+        const mockFetch = createStaticMockFetch({ status: 200, body: mockResponse });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const result = await client.response.create({
+            model: 'gpt-5.2',
+            input: 'Hi',
+        });
+
+        expect(result.model).toBe('gpt-5.2');
+        expect(result.parallel_tool_calls).toBe(true);
+        expect(result.previous_response_id).toBe('resp-prev');
+        expect(result.store).toBe(true);
+        expect(result.text?.format?.type).toBe('text');
+        expect(result.output?.[1].summary?.[0].text).toBe('Reasoned summary');
+        expect(result.output?.[1].encrypted_content).toBe('enc_123');
     });
 });
