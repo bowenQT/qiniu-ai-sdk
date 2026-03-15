@@ -287,6 +287,59 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('Batch cleanup succeeded: batch-live-1'))).toBe(true);
     });
 
+    it('runs the optional batch list/get live probes when explicitly enabled', async () => {
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_BATCH_LIST: '1',
+                QINIU_LIVE_VERIFY_BATCH_GET_ID: 'batch-known-1',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                file: {
+                    create: async () => ({ id: 'unused', status: 'ready' }),
+                    waitForReady: async () => ({ id: 'unused', status: 'ready' }),
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'unused', format: 'text/plain' },
+                    }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+                batch: {
+                    list: async () => ({
+                        data: [{
+                            id: 'batch-listed-1',
+                            status: 'completed',
+                            get: async () => ({ id: 'batch-listed-1', status: 'completed' }),
+                            wait: async () => ({ status: 'completed' }),
+                            cancel: async () => undefined,
+                        }],
+                    }),
+                    get: async (batchId: string) => ({
+                        id: batchId,
+                        status: 'completed',
+                        get: async () => ({ id: batchId, status: 'completed' }),
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(result.checks.some((check) => check.message.includes('Batch list probe succeeded: 1 item(s) (batch-listed-1 completed)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Batch list snapshot capabilities: batch-listed-1 -> get, wait, cancel'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Batch get probe succeeded: batch-known-1 (completed)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Batch snapshot refresh probe succeeded: batch-known-1 (completed)'))).toBe(true);
+    });
+
     it('runs the optional censor live probe when explicitly enabled', async () => {
         const result = await verifyLiveLane({
             lane: 'cloud-surface',

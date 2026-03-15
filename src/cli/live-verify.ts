@@ -338,7 +338,16 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     id: string;
                     status?: string;
                     wait?: (options?: { timeoutMs?: number; intervalMs?: number }) => Promise<{ status?: string }>;
-                    cancel?: () => Promise<void>;
+                        cancel?: () => Promise<void>;
+                    }>;
+                list?: (options?: { page_size?: number; status?: string }) => Promise<{
+                    data: Array<{
+                        id: string;
+                        status?: string;
+                        get?: () => Promise<{ status?: string }>;
+                        wait?: (options?: { timeoutMs?: number; intervalMs?: number }) => Promise<{ status?: string }>;
+                        cancel?: () => Promise<void>;
+                    }>;
                 }>;
                 get?: (batchId: string) => Promise<{ status?: string }>;
                 cancel?: (batchId: string) => Promise<{ status?: string }>;
@@ -433,6 +442,105 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_BATCH not set. Batch live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_BATCH_LIST === '1') {
+            const batchClient = client.batch as {
+                list?: (options?: { page_size?: number; status?: string }) => Promise<{
+                    data: Array<{
+                        id: string;
+                        status?: string;
+                        get?: () => Promise<{ status?: string }>;
+                        wait?: (options?: { timeoutMs?: number; intervalMs?: number }) => Promise<{ status?: string }>;
+                        cancel?: () => Promise<void>;
+                    }>;
+                }>;
+            };
+
+            if (!batchClient.list) {
+                throw new Error('Batch list live probe requires batch.list() support in the current SDK build');
+            }
+
+            const listed = await batchClient.list({
+                page_size: 1,
+                status: env.QINIU_LIVE_VERIFY_BATCH_LIST_STATUS?.trim() || undefined,
+            });
+            const first = listed.data[0];
+
+            addCheck(
+                checks,
+                'ok',
+                `Batch list probe succeeded: ${listed.data.length} item(s)${
+                    first?.id ? ` (${first.id}${first.status ? ` ${first.status}` : ''})` : ''
+                }`,
+            );
+
+            if (first) {
+                const features = [
+                    typeof first.get === 'function' ? 'get' : null,
+                    typeof first.wait === 'function' ? 'wait' : null,
+                    typeof first.cancel === 'function' ? 'cancel' : null,
+                ].filter(Boolean);
+
+                addCheck(
+                    checks,
+                    features.length === 3 ? 'ok' : 'warn',
+                    `Batch list snapshot capabilities: ${first.id} -> ${features.length ? features.join(', ') : 'none'}`,
+                );
+            }
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_BATCH_LIST not set. Batch list live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_BATCH_GET_ID) {
+            const batchClient = client.batch as {
+                get?: (batchId: string) => Promise<{
+                    id?: string;
+                    status?: string;
+                    get?: () => Promise<{ id?: string; status?: string }>;
+                    wait?: (options?: { timeoutMs?: number; intervalMs?: number }) => Promise<{ status?: string }>;
+                    cancel?: () => Promise<void>;
+                }>;
+            };
+
+            if (!batchClient.get) {
+                throw new Error('Batch get live probe requires batch.get() support in the current SDK build');
+            }
+
+            const targetBatchId = env.QINIU_LIVE_VERIFY_BATCH_GET_ID.trim();
+            const snapshot = await batchClient.get(targetBatchId);
+            addCheck(
+                checks,
+                'ok',
+                `Batch get probe succeeded: ${snapshot.id ?? targetBatchId}${snapshot.status ? ` (${snapshot.status})` : ''}`,
+            );
+
+            if (typeof snapshot.get === 'function') {
+                const refreshed = await snapshot.get();
+                addCheck(
+                    checks,
+                    'ok',
+                    `Batch snapshot refresh probe succeeded: ${refreshed.id ?? targetBatchId}${
+                        refreshed.status ? ` (${refreshed.status})` : ''
+                    }`,
+                );
+            } else {
+                addCheck(
+                    checks,
+                    'warn',
+                    `Batch get probe returned no snapshot refresh helper for ${snapshot.id ?? targetBatchId}`,
+                );
+            }
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_BATCH_GET_ID not set. Batch get live probe was skipped.',
             );
         }
 
