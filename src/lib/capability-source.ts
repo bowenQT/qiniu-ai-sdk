@@ -68,7 +68,7 @@ export const CURATED_MODEL_VALIDATION: Record<
 export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
     { name: 'chat', maturity: 'ga', docsUrl: DOCS_ROOT_URL, sourceUpdatedAt: DOCS_SYNC_DATE, validatedAt: DOCS_SYNC_DATE, validationLevel: 'live' },
     { name: 'image', maturity: 'ga', docsUrl: DOCS_ROOT_URL, sourceUpdatedAt: DOCS_SYNC_DATE, validatedAt: DOCS_SYNC_DATE, validationLevel: 'unit' },
-    { name: 'video', maturity: 'ga', docsUrl: DOCS_ROOT_URL, sourceUpdatedAt: DOCS_SYNC_DATE, validatedAt: DOCS_SYNC_DATE, validationLevel: 'unit' },
+    { name: 'video', maturity: 'ga', docsUrl: DOCS_ROOT_URL, sourceUpdatedAt: DOCS_SYNC_DATE, validatedAt: VALIDATION_SYNC_DATE, validationLevel: 'unit', notes: 'Dedicated unit suites cover Veo/Kling normalization and task-handle behavior; live verification remains opt-in.' },
     { name: 'ocr', maturity: 'ga', docsUrl: DOCS_ROOT_URL, sourceUpdatedAt: DOCS_SYNC_DATE, validatedAt: DOCS_SYNC_DATE, validationLevel: 'unit' },
     { name: 'asr', maturity: 'ga', docsUrl: DOCS_ROOT_URL, sourceUpdatedAt: DOCS_SYNC_DATE, validatedAt: DOCS_SYNC_DATE, validationLevel: 'unit' },
     { name: 'tts', maturity: 'ga', docsUrl: DOCS_ROOT_URL, sourceUpdatedAt: DOCS_SYNC_DATE, validatedAt: DOCS_SYNC_DATE, validationLevel: 'unit' },

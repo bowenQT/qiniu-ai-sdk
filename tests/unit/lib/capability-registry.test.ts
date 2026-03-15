@@ -80,6 +80,11 @@ describe('capability registry', () => {
             validationLevel: 'unit',
             validatedAt: '2026-03-15',
         });
+        expect(getModuleMaturity('video')).toMatchObject({
+            maturity: 'ga',
+            validationLevel: 'unit',
+            validatedAt: '2026-03-15',
+        });
         expect(getModuleMaturity('NodeMCPHost')).toMatchObject({
             maturity: 'beta',
         });
