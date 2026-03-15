@@ -1,4 +1,5 @@
 import { IQiniuClient, type ChatMessage, type FileContentPart } from '../../lib/types';
+import type { ResponseInputMessage } from '../response';
 import { pollUntilComplete, type PollerOptions } from '../../lib/poller';
 
 // ============================================================================
@@ -92,6 +93,11 @@ export interface FileContentPartResult {
 export interface FileUserMessageResult {
     file: FileResponse;
     message: ChatMessage;
+}
+
+export interface FileResponseInputMessageResult {
+    file: FileResponse;
+    message: ResponseInputMessage;
 }
 
 // ============================================================================
@@ -224,6 +230,24 @@ export class File {
     }
 
     /**
+     * Build a Response API input message that references an uploaded file.
+     * Useful when composing qfile workflows directly for Response API requests.
+     */
+    toResponseInputMessage(
+        text: string,
+        file: FileReferenceInput,
+        options: FileUserMessageOptions = {},
+    ): ResponseInputMessage {
+        return {
+            role: 'user',
+            content: [
+                { type: 'text', text },
+                this.toContentPart(file, options),
+            ],
+        };
+    }
+
+    /**
      * Upload a file, wait until it is ready, then build a user message that references the qfile.
      */
     async createUserMessage(
@@ -235,6 +259,17 @@ export class File {
     }
 
     /**
+     * Upload a file, wait until it is ready, then build a Response API input message that references the qfile.
+     */
+    async createResponseInputMessage(
+        text: string,
+        params: FileCreateRequest,
+        options: FileReferenceUserMessageOptions = {},
+    ): Promise<ResponseInputMessage> {
+        return (await this.createResponseInputMessageResult(text, params, options)).message;
+    }
+
+    /**
      * Upload a file, wait until it is ready, then return both the ready file
      * record and the derived user message that references the qfile.
      */
@@ -243,6 +278,28 @@ export class File {
         params: FileCreateRequest,
         options: FileReferenceUserMessageOptions = {},
     ): Promise<FileUserMessageResult> {
+        const { file, part } = await this.createContentPartResult(params, options);
+        return {
+            file,
+            message: {
+                role: 'user',
+                content: [
+                    { type: 'text', text },
+                    part,
+                ],
+            },
+        };
+    }
+
+    /**
+     * Upload a file, wait until it is ready, then return both the ready file
+     * record and the derived Response API input message that references the qfile.
+     */
+    async createResponseInputMessageResult(
+        text: string,
+        params: FileCreateRequest,
+        options: FileReferenceUserMessageOptions = {},
+    ): Promise<FileResponseInputMessageResult> {
         const { file, part } = await this.createContentPartResult(params, options);
         return {
             file,

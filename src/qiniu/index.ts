@@ -120,6 +120,7 @@ export type {
     FileReferenceUserMessageOptions,
     FileContentPartResult,
     FileUserMessageResult,
+    FileResponseInputMessageResult,
 } from '../modules/file';
 
 export { Anthropic } from '../modules/anthropic';
