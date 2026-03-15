@@ -1008,6 +1008,47 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         expect(result.outputText).toBe('Hello, world');
     });
 
+    it('should use the last projected output message for message-stream consumption', async () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async () => createSSEResponse([
+                    { type: 'response.output_text.delta', delta: 'Draft' },
+                    {
+                        type: 'response.completed',
+                        response: {
+                            id: 'resp-message-stream-final-last',
+                            status: 'completed',
+                            output: [
+                                {
+                                    type: 'message',
+                                    role: 'assistant',
+                                    content: [{ type: 'output_text', text: 'Draft' }],
+                                },
+                                {
+                                    type: 'message',
+                                    role: 'assistant',
+                                    content: [{ type: 'output_text', text: 'Final answer' }],
+                                },
+                            ],
+                        },
+                    },
+                ]),
+            },
+        });
+
+        const { events, result } = await collectStream(client.response.createMessageStream({
+            model: 'gpt-5.2',
+            input: 'Hello',
+        }));
+
+        expect(events).toEqual([
+            { role: 'assistant', content: 'Draft' },
+            { role: 'assistant', content: 'Final answer' },
+        ]);
+        expect(result.message).toEqual({ role: 'assistant', content: 'Final answer' });
+    });
+
     it('should stream output message snapshots and expose final projected messages', async () => {
         const client = new QiniuAI({
             apiKey: 'sk-test',
