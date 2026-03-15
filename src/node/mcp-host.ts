@@ -23,6 +23,7 @@ import {
     type MCPHttpServerConfig,
     type MCPServerConfig as MCPTransportServerConfig,
 } from './mcp/types';
+import { MCPHttpTransport, type MCPProbeOptions, type MCPProbeResult } from './mcp/http-transport';
 
 // ============================================================================
 // Types
@@ -40,6 +41,11 @@ export interface NodeMCPHostConfig {
     clientName?: string;
     /** SDK client info version */
     clientVersion?: string;
+}
+
+export interface NodeMCPHostProbeResult {
+    serverName: string;
+    result: MCPProbeResult;
 }
 
 // ============================================================================
@@ -207,6 +213,29 @@ export class NodeMCPHost implements MCPHostProvider {
         this.clients.clear();
         this.toolsCache = [];
         this.changeCallbacks.clear();
+    }
+
+    /**
+     * Probe configured HTTP MCP servers using the shared MCPHttpTransport helper surface.
+     * Stdio servers are skipped because they do not expose the same resumable HTTP semantics.
+     */
+    async probeServers(options: MCPProbeOptions = {}): Promise<NodeMCPHostProbeResult[]> {
+        const results: NodeMCPHostProbeResult[] = [];
+
+        for (const server of this.config.servers) {
+            if (server.transport !== 'http') {
+                continue;
+            }
+
+            const transport = new MCPHttpTransport(server);
+            const result = await transport.probe(options);
+            results.push({
+                serverName: server.name,
+                result,
+            });
+        }
+
+        return results;
     }
 
     // ========================================================================

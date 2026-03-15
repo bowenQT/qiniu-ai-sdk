@@ -7,6 +7,7 @@ import { SDK_VERSION } from '../../src/lib/version';
 
 // Mock @modelcontextprotocol/sdk before import
 const clientCtorCalls: Array<{ info: { name: string; version: string } }> = [];
+const hostProbeMock = vi.fn();
 const mockClientInstance = {
     connect: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
@@ -57,10 +58,21 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
     StreamableHTTPClientTransport: vi.fn(),
 }));
 
+vi.mock('../../src/node/mcp/http-transport', async () => {
+    const actual = await vi.importActual<typeof import('../../src/node/mcp/http-transport')>('../../src/node/mcp/http-transport');
+    return {
+        ...actual,
+        MCPHttpTransport: vi.fn().mockImplementation(function(this: any) {
+            this.probe = hostProbeMock;
+        }),
+    };
+});
+
 describe('NodeMCPHost', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         clientCtorCalls.length = 0;
+        hostProbeMock.mockReset();
     });
 
     it('can be instantiated with server configs', async () => {
@@ -271,5 +283,40 @@ describe('NodeMCPHost', () => {
 
         // onToolsChanged should have been called during connect
         expect(callback).toHaveBeenCalled();
+    });
+
+    it('probeServers() probes only configured HTTP servers', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+        hostProbeMock.mockResolvedValue({
+            tools: [{ name: 'ping', description: 'Ping', inputSchema: { type: 'object', properties: {} } }],
+            eventStream: { status: 200, contentType: 'text/event-stream' },
+        });
+
+        const host = new NodeMCPHost({
+            servers: [
+                { name: 'stdio-server', transport: 'stdio', command: 'mcp-stdio' },
+                { name: 'http-server', transport: 'http', url: 'https://mcp.example.com/mcp' },
+            ],
+        });
+
+        const result = await host.probeServers({
+            listTools: true,
+            eventStream: true,
+        });
+
+        expect(result).toEqual([
+            {
+                serverName: 'http-server',
+                result: {
+                    tools: [{ name: 'ping', description: 'Ping', inputSchema: { type: 'object', properties: {} } }],
+                    eventStream: { status: 200, contentType: 'text/event-stream' },
+                },
+            },
+        ]);
+        expect(hostProbeMock).toHaveBeenCalledTimes(1);
+        expect(hostProbeMock).toHaveBeenCalledWith({
+            listTools: true,
+            eventStream: true,
+        });
     });
 });
