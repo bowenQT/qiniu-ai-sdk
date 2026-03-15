@@ -7,6 +7,7 @@ import {
     type ThinkingBlock,
 } from '../../lib/types';
 import { normalizeContentAsync } from '../../lib/content-converter';
+import { parseSSEStream } from '../../lib/sse';
 
 const RESPONSE_API_VERSION = '2025-04-01-preview';
 
@@ -145,6 +146,21 @@ export interface ResponseCreateResponse {
     top_logprobs?: number;
 }
 
+export interface ResponseStreamEvent {
+    type: string;
+    [key: string]: unknown;
+}
+
+export interface ResponseStreamOptions {
+    signal?: AbortSignal;
+}
+
+export interface ResponseStreamResult {
+    response?: ResponseCreateResponse;
+    outputText: string;
+    eventCount: number;
+}
+
 // ============================================================================
 // ResponseAPI Class
 // ============================================================================
@@ -180,10 +196,7 @@ export class ResponseAPI {
             `/llm/v1/responses?api-version=${encodeURIComponent(RESPONSE_API_VERSION)}`,
             request,
         );
-        return {
-            ...response,
-            output_text: response.output_text ?? extractResponseOutputText(response),
-        };
+        return normalizeResponseCreateResponse(response);
     }
 
     /**
@@ -196,6 +209,74 @@ export class ResponseAPI {
             ...request,
             previous_response_id: previousResponseId,
         });
+    }
+
+    /**
+     * Create a streaming response via the experimental Response API.
+     * Emits raw provider events while accumulating a minimal text/result summary.
+     */
+    async *createStream(
+        params: Omit<ResponseCreateRequest, 'stream'>,
+        options: ResponseStreamOptions = {},
+    ): AsyncGenerator<ResponseStreamEvent, ResponseStreamResult, unknown> {
+        const logger = this.client.getLogger();
+        const { signal } = options;
+        const request = await normalizeResponseRequest({ ...params, stream: true });
+
+        logger.debug('Response API stream (experimental)', {
+            model: request.model,
+            endpoint: '/llm/v1/responses',
+            apiVersion: RESPONSE_API_VERSION,
+        });
+
+        const response = await this.client.postStream(
+            `/llm/v1/responses?api-version=${encodeURIComponent(RESPONSE_API_VERSION)}`,
+            request,
+            undefined,
+            { signal },
+        );
+
+        let outputText = '';
+        let finalResponse: ResponseCreateResponse | undefined;
+        let eventCount = 0;
+
+        for await (const event of parseSSEStream<ResponseStreamEvent>(response, { signal, logger })) {
+            eventCount += 1;
+
+            if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
+                outputText += event.delta;
+            }
+
+            if (event.type === 'response.completed') {
+                const completed = extractCompletedResponse(event);
+                if (completed) {
+                    finalResponse = normalizeResponseCreateResponse(completed);
+                    outputText = finalResponse.output_text ?? outputText;
+                }
+            }
+
+            yield event;
+        }
+
+        return {
+            response: finalResponse,
+            outputText,
+            eventCount,
+        };
+    }
+
+    /**
+     * Create a streaming follow-up response chained from a previous response.
+     */
+    async *followUpStream(
+        params: ResponseFollowUpRequest,
+        options: ResponseStreamOptions = {},
+    ): AsyncGenerator<ResponseStreamEvent, ResponseStreamResult, unknown> {
+        const { previousResponseId, ...request } = params;
+        return yield* this.createStream({
+            ...request,
+            previous_response_id: previousResponseId,
+        }, options);
     }
 
     /**
@@ -268,6 +349,13 @@ export function extractResponseOutputText(response: Pick<ResponseCreateResponse,
     }
 
     return parts.length > 0 ? parts.join('') : undefined;
+}
+
+function normalizeResponseCreateResponse(response: ResponseCreateResponse): ResponseCreateResponse {
+    return {
+        ...response,
+        output_text: response.output_text ?? extractResponseOutputText(response),
+    };
 }
 
 export function extractResponseReasoningSummaryText(
@@ -397,4 +485,18 @@ async function normalizeResponseRequest(params: ResponseCreateRequest): Promise<
             content: await normalizeContentAsync(message.content),
         }))),
     };
+}
+
+function extractCompletedResponse(event: ResponseStreamEvent): ResponseCreateResponse | undefined {
+    if (!isRecord(event.response)) {
+        return undefined;
+    }
+    if (typeof event.response.id !== 'string' || typeof event.response.status !== 'string') {
+        return undefined;
+    }
+    return event.response as unknown as ResponseCreateResponse;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return value != null && typeof value === 'object';
 }

@@ -9,7 +9,19 @@ import {
     extractResponseReasoningSummaryText,
     toChatCompletionResponse,
 } from '../../../src/modules/response';
-import { createStaticMockFetch } from '../../mocks/fetch';
+import { createSSEResponse, createStaticMockFetch } from '../../mocks/fetch';
+
+async function collectStream<T, R>(generator: AsyncGenerator<T, R, unknown>): Promise<{ events: T[]; result: R }> {
+    const events: T[] = [];
+
+    while (true) {
+        const next = await generator.next();
+        if (next.done) {
+            return { events, result: next.value };
+        }
+        events.push(next.value);
+    }
+}
 
 describe('Phase 3: Response API Module (@experimental)', () => {
     it('should have a response property on client', () => {
@@ -330,6 +342,84 @@ describe('Phase 3: Response API Module (@experimental)', () => {
 
         expect(JSON.parse(String(mockFetch.calls[0].init?.body))).toMatchObject({
             previous_response_id: 'resp-prev',
+        });
+    });
+
+    it('should stream raw response events and accumulate output text', async () => {
+        const calls: Array<{ url: string; init?: RequestInit }> = [];
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async (url, init) => {
+                    calls.push({ url, init });
+                    return createSSEResponse([
+                        { type: 'response.output_text.delta', delta: 'Hello' },
+                        { type: 'response.output_text.delta', delta: ', stream' },
+                        {
+                            type: 'response.completed',
+                            response: {
+                                id: 'resp-stream',
+                                status: 'completed',
+                                output: [
+                                    {
+                                        type: 'message',
+                                        role: 'assistant',
+                                        content: [{ type: 'output_text', text: 'Hello, stream' }],
+                                    },
+                                ],
+                            },
+                        },
+                    ]);
+                },
+            },
+        });
+
+        const { events, result } = await collectStream(client.response.createStream({
+            model: 'gpt-5.2',
+            input: 'Stream please',
+        }));
+
+        expect(events).toHaveLength(3);
+        expect(events.map((event: any) => event.type)).toEqual([
+            'response.output_text.delta',
+            'response.output_text.delta',
+            'response.completed',
+        ]);
+        expect(result.outputText).toBe('Hello, stream');
+        expect(result.eventCount).toBe(3);
+        expect(result.response?.id).toBe('resp-stream');
+        expect(calls[0]?.url).toContain('/llm/v1/responses?api-version=2025-04-01-preview');
+        expect(JSON.parse(String(calls[0]?.init?.body))).toMatchObject({
+            model: 'gpt-5.2',
+            input: 'Stream please',
+            stream: true,
+        });
+    });
+
+    it('should stream follow-up responses using previousResponseId convenience input', async () => {
+        const calls: Array<{ url: string; init?: RequestInit }> = [];
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: {
+                fetch: async (url, init) => {
+                    calls.push({ url, init });
+                    return createSSEResponse([
+                        { type: 'response.output_text.delta', delta: 'Follow-up' },
+                    ]);
+                },
+            },
+        });
+
+        const { result } = await collectStream(client.response.followUpStream({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue',
+        }));
+
+        expect(result.outputText).toBe('Follow-up');
+        expect(JSON.parse(String(calls[0]?.init?.body))).toMatchObject({
+            previous_response_id: 'resp-prev',
+            stream: true,
         });
     });
 
