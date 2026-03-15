@@ -45,6 +45,15 @@ describe('CLI live verification helpers', () => {
                 response: {
                     createText: async () => 'response',
                 },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
+                },
             }) as any,
         });
 
@@ -54,6 +63,7 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('Chat probe succeeded'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('File/qfile live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API live probe was skipped'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Batch live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API stream live probe was skipped'))).toBe(false);
     });
 
@@ -81,6 +91,15 @@ describe('CLI live verification helpers', () => {
                 },
                 response: {
                     createText: async () => 'response',
+                },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
                 },
             }) as any,
         });
@@ -113,6 +132,15 @@ describe('CLI live verification helpers', () => {
                 },
                 response: {
                     createText: async () => 'response',
+                },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
                 },
             }) as any,
         });
@@ -187,12 +215,65 @@ describe('CLI live verification helpers', () => {
                     createText: async () => 'response',
                     createTextStream: mockTextStream,
                 },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
+                },
             }) as any,
         });
 
         expect(result.exitCode).toBe(2);
         expect(result.checks.some((check) => check.message.includes('Response API probe succeeded: response'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API stream probe succeeded: stream-response'))).toBe(true);
+    });
+
+    it('runs the optional batch live probe when explicitly enabled', async () => {
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_BATCH: '1',
+                QINIU_LIVE_VERIFY_BATCH_INPUT_FILES_URL: 'https://example.com/input.jsonl',
+                QINIU_LIVE_VERIFY_BATCH_CANCEL: '1',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                file: {
+                    create: async () => ({ id: 'unused', status: 'ready' }),
+                    waitForReady: async () => ({ id: 'unused', status: 'ready' }),
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'unused', format: 'text/plain' },
+                    }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+                batch: {
+                    create: async () => ({
+                        id: 'batch-live-1',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(result.checks.some((check) => check.message.includes('Batch create probe succeeded: batch-live-1 (validating)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Batch cancel probe succeeded: batch-live-1 -> cancelling'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Batch cleanup succeeded: batch-live-1'))).toBe(true);
     });
 
     it('warns when node-integrations lane skips MCP live probing', async () => {

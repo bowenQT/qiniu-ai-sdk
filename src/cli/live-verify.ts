@@ -21,7 +21,7 @@ export interface LiveVerifyResult {
 export interface LiveVerifyOptions {
     lane: WorktreeLane;
     env?: NodeJS.ProcessEnv;
-    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file' | 'response'>;
+    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file' | 'response' | 'batch'>;
     createNodeClient?: (apiKey: string) => ReturnType<typeof createNodeQiniuAI>;
     createMcpTransport?: (config: MCPHttpServerConfig) => LiveVerifyMcpTransport;
 }
@@ -303,6 +303,115 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_RESPONSE_API not set. Response API live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_BATCH === '1') {
+            const batchClient = client.batch as {
+                create?: (params: {
+                    input_files_url: string;
+                    endpoint: string;
+                    completion_window?: string;
+                    metadata?: Record<string, string>;
+                }) => Promise<{
+                    id: string;
+                    status?: string;
+                    wait?: (options?: { timeoutMs?: number; intervalMs?: number }) => Promise<{ status?: string }>;
+                    cancel?: () => Promise<void>;
+                }>;
+                get?: (batchId: string) => Promise<{ status?: string }>;
+                cancel?: (batchId: string) => Promise<{ status?: string }>;
+                delete?: (batchId: string) => Promise<void>;
+            };
+
+            if (!batchClient.create) {
+                throw new Error('Batch live probe requires batch.create() support in the current SDK build');
+            }
+
+            const inputFilesUrl = env.QINIU_LIVE_VERIFY_BATCH_INPUT_FILES_URL?.trim();
+            if (!inputFilesUrl) {
+                throw new Error('QINIU_LIVE_VERIFY_BATCH_INPUT_FILES_URL is required when QINIU_LIVE_VERIFY_BATCH=1');
+            }
+
+            const batchHandle = await batchClient.create({
+                input_files_url: inputFilesUrl,
+                endpoint: env.QINIU_LIVE_VERIFY_BATCH_ENDPOINT?.trim() || '/v1/chat/completions',
+                completion_window: env.QINIU_LIVE_VERIFY_BATCH_COMPLETION_WINDOW?.trim() || '24h',
+                metadata: {
+                    source: 'qiniu-ai-sdk-live-verify',
+                    lane: options.lane,
+                },
+            });
+            const batchId = batchHandle.id;
+
+            try {
+                addCheck(
+                    checks,
+                    'ok',
+                    `Batch create probe succeeded: ${batchId}${batchHandle.status ? ` (${batchHandle.status})` : ''}`,
+                );
+
+                if (env.QINIU_LIVE_VERIFY_BATCH_WAIT === '1') {
+                    if (!batchHandle.wait) {
+                        throw new Error('Batch wait probe requires BatchTaskHandle.wait() support');
+                    }
+                    const waited = await batchHandle.wait({
+                        timeoutMs: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_BATCH_TIMEOUT_MS) ?? 120_000,
+                        intervalMs: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_BATCH_INTERVAL_MS) ?? 2_000,
+                    });
+                    addCheck(
+                        checks,
+                        'ok',
+                        `Batch wait probe succeeded: ${batchId}${waited.status ? ` -> ${waited.status}` : ''}`,
+                    );
+                }
+
+                if (env.QINIU_LIVE_VERIFY_BATCH_CANCEL === '1') {
+                    const cancelled = batchHandle.cancel
+                        ? await batchHandle.cancel().then(() => ({ status: 'cancelling' }))
+                        : batchClient.cancel
+                            ? await batchClient.cancel(batchId)
+                            : null;
+                    if (!cancelled) {
+                        throw new Error('Batch cancel probe requires handle.cancel() or batch.cancel() support');
+                    }
+                    addCheck(
+                        checks,
+                        'ok',
+                        `Batch cancel probe succeeded: ${batchId}${cancelled.status ? ` -> ${cancelled.status}` : ''}`,
+                    );
+                } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+                    addCheck(
+                        checks,
+                        'warn',
+                        'QINIU_LIVE_VERIFY_BATCH_CANCEL not set. Batch cancel live probe was skipped.',
+                    );
+                }
+            } finally {
+                if (batchClient.delete) {
+                    try {
+                        await batchClient.delete(batchId);
+                        addCheck(checks, 'ok', `Batch cleanup succeeded: ${batchId}`);
+                    } catch (error) {
+                        addCheck(
+                            checks,
+                            'warn',
+                            `Batch cleanup failed: ${batchId} (${error instanceof Error ? error.message : String(error)})`,
+                        );
+                    }
+                } else {
+                    addCheck(
+                        checks,
+                        'warn',
+                        `Batch cleanup was skipped: delete() is not available for ${batchId}`,
+                    );
+                }
+            }
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_BATCH not set. Batch live probe was skipped.',
             );
         }
     } else if (options.lane === 'runtime') {
