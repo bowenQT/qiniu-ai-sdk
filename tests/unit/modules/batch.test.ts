@@ -73,13 +73,14 @@ describe('Batch', () => {
 
         const batch = new Batch(client);
 
-        await expect(batch.list({ page: 2, page_size: 20, status: 'completed' })).resolves.toEqual({
-            object: 'list',
-            data: [
-                { id: 'batch_1', status: 'completed' },
-                { id: 'batch_2', status: 'failed' },
-            ],
-        });
+        const listed = await batch.list({ page: 2, page_size: 20, status: 'completed' });
+        expect(listed.object).toBe('list');
+        expect(listed.data).toHaveLength(2);
+        expect(listed.data[0]).toMatchObject({ id: 'batch_1', status: 'completed' });
+        expect(listed.data[1]).toMatchObject({ id: 'batch_2', status: 'failed' });
+        expect(typeof listed.data[0].get).toBe('function');
+        expect(typeof listed.data[0].wait).toBe('function');
+        expect(typeof listed.data[0].cancel).toBe('function');
         expect(client.get).toHaveBeenNthCalledWith(1, '/batches', {
             page: '2',
             page_size: '20',
@@ -92,6 +93,30 @@ describe('Batch', () => {
         });
     });
 
+    it('gets batches as handle-capable snapshots and supports chaining wait/cancel', async () => {
+        const client = createMockClient();
+        client.get
+            .mockResolvedValueOnce({ id: 'batch_1', status: 'in_progress' })
+            .mockResolvedValueOnce({ id: 'batch_1', status: 'completed' });
+        client.post.mockResolvedValue({ id: 'batch_1', status: 'cancelling' });
+
+        const batch = new Batch(client);
+        const snapshot = await batch.get('batch_1');
+
+        expect(snapshot).toMatchObject({ id: 'batch_1', status: 'in_progress' });
+        expect(typeof snapshot.get).toBe('function');
+        expect(typeof snapshot.wait).toBe('function');
+        expect(typeof snapshot.cancel).toBe('function');
+        await expect(snapshot.wait({ intervalMs: 1, timeoutMs: 100 })).resolves.toMatchObject({
+            id: 'batch_1',
+            status: 'completed',
+        });
+        await expect(snapshot.cancel()).resolves.toBeUndefined();
+
+        expect(client.get).toHaveBeenCalledWith('/batches/batch_1');
+        expect(client.post).toHaveBeenCalledWith('/batches/batch_1/cancel', {});
+    });
+
     it('gets, resumes and deletes a batch', async () => {
         const client = createMockClient();
         client.get.mockResolvedValue({ id: 'batch_1', status: 'completed' });
@@ -100,11 +125,9 @@ describe('Batch', () => {
 
         const batch = new Batch(client);
 
-        await expect(batch.get('batch_1')).resolves.toMatchObject({ id: 'batch_1' });
         await expect(batch.resume('batch_1')).resolves.toMatchObject({ status: 'in_progress' });
         await expect(batch.delete('batch_1')).resolves.toBeUndefined();
 
-        expect(client.get).toHaveBeenCalledWith('/batches/batch_1');
         expect(client.post).toHaveBeenCalledWith('/batches/batch_1/resume', {});
         expect(client.delete).toHaveBeenCalledWith('/batches/batch_1');
     });
@@ -136,5 +159,15 @@ describe('Batch', () => {
             input_files_url: 'https://example.com/input.jsonl',
             endpoint: '/v1/chat/completions',
         })).rejects.toThrow('Batch create failed: no batch id returned');
+    });
+
+    it('throws when get does not return a batch id', async () => {
+        const client = createMockClient();
+        client.get.mockResolvedValue({ status: 'completed' });
+        const batch = new Batch(client);
+
+        await expect(batch.get('batch_1')).rejects.toThrow(
+            'Batch get failed: no batch id returned for batch_1',
+        );
     });
 });

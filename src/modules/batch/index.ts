@@ -58,14 +58,24 @@ export interface BatchResponse {
     [key: string]: unknown;
 }
 
+export interface BatchTaskSnapshot
+    extends BatchResponse,
+        TaskHandle<BatchTaskSnapshot, BatchTaskSnapshot, BatchWaitOptions> {
+    id: string;
+}
+
 export interface BatchListResponse {
-    data: BatchResponse[];
+    data: BatchTaskSnapshot[];
     object?: string;
     page?: number;
     page_size?: number;
     total?: number;
     has_more?: boolean;
     [key: string]: unknown;
+}
+
+interface BatchListRawResponse extends Omit<BatchListResponse, 'data'> {
+    data: BatchResponse[];
 }
 
 export interface BatchListOptions {
@@ -89,9 +99,7 @@ export interface BatchCancelResponse {
     [key: string]: unknown;
 }
 
-export interface BatchTaskHandle extends TaskHandle<BatchResponse, BatchResponse, BatchWaitOptions> {
-    id: string;
-}
+export interface BatchTaskHandle extends BatchTaskSnapshot {}
 
 const TERMINAL_BATCH_STATUSES: BatchStatus[] = [
     'completed',
@@ -100,7 +108,7 @@ const TERMINAL_BATCH_STATUSES: BatchStatus[] = [
     'cancelled',
 ];
 
-function createBatchHandle(batch: Batch, response: BatchResponse): BatchTaskHandle {
+function createBatchSnapshot(batch: Batch, response: BatchResponse): BatchTaskSnapshot {
     return {
         ...response,
         id: response.id,
@@ -108,6 +116,10 @@ function createBatchHandle(batch: Batch, response: BatchResponse): BatchTaskHand
         wait: (options?: BatchWaitOptions) => batch.waitForCompletion(response.id, options),
         cancel: () => batch.cancel(response.id).then(() => undefined),
     };
+}
+
+function createBatchHandle(batch: Batch, response: BatchResponse): BatchTaskHandle {
+    return createBatchSnapshot(batch, response);
 }
 
 export class Batch {
@@ -125,8 +137,12 @@ export class Batch {
         return createBatchHandle(this, response);
     }
 
-    async get(batchId: string): Promise<BatchResponse> {
-        return this.client.get<BatchResponse>(`/batches/${encodeURIComponent(batchId)}`);
+    async get(batchId: string): Promise<BatchTaskSnapshot> {
+        const response = await this.client.get<BatchResponse>(`/batches/${encodeURIComponent(batchId)}`);
+        if (!response?.id) {
+            throw new Error(`Batch get failed: no batch id returned for ${batchId}`);
+        }
+        return createBatchSnapshot(this, response);
     }
 
     async list(options?: BatchListOptions): Promise<BatchListResponse> {
@@ -135,14 +151,16 @@ export class Batch {
         if (options?.page_size !== undefined) params.page_size = String(options.page_size);
         if (options?.status) params.status = options.status;
 
-        const response = await this.client.get<BatchListResponse>(
+        const response = await this.client.get<BatchListRawResponse>(
             '/batches',
             Object.keys(params).length ? params : undefined,
         );
 
         return {
             ...response,
-            data: Array.isArray(response.data) ? response.data : [],
+            data: Array.isArray(response.data)
+                ? response.data.filter((item) => Boolean(item?.id)).map((item) => createBatchSnapshot(this, item))
+                : [],
         };
     }
 
@@ -158,7 +176,7 @@ export class Batch {
         return this.client.post<BatchCancelResponse>(`/batches/${encodeURIComponent(batchId)}/resume`, {});
     }
 
-    async waitForCompletion(batchId: string, options: BatchWaitOptions = {}): Promise<BatchResponse> {
+    async waitForCompletion(batchId: string, options: BatchWaitOptions = {}): Promise<BatchTaskSnapshot> {
         const logger = this.client.getLogger();
         const { result } = await pollUntilComplete(batchId, {
             intervalMs: options.intervalMs ?? 2000,
@@ -171,6 +189,6 @@ export class Batch {
             getStatus: (id) => this.get(id),
         });
 
-        return result;
+        return createBatchSnapshot(this, result);
     }
 }
