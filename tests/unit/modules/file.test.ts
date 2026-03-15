@@ -198,6 +198,30 @@ describe('Phase 2: File Module', () => {
         });
     });
 
+    it('should build a qfile user message from an uploaded file reference', () => {
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: createStaticMockFetch({ status: 200, body: {} }).adapter,
+        });
+
+        expect(client.file.toUserMessage('这段视频里发生了什么？', {
+            id: 'qfile-video',
+            file_name: 'clip.mp4',
+        })).toEqual({
+            role: 'user',
+            content: [
+                { type: 'text', text: '这段视频里发生了什么？' },
+                {
+                    type: 'file',
+                    file: {
+                        file_id: 'qfile-video',
+                        format: 'video/mp4',
+                    },
+                },
+            ],
+        });
+    });
+
     it('should wait until a file becomes ready', async () => {
         const mockFetch = createMockFetch([
             {
@@ -309,6 +333,61 @@ describe('Phase 2: File Module', () => {
                 file_id: 'qfile-uploaded',
                 format: 'video/mp4',
             },
+        });
+    });
+
+    it('should upload, wait, and build a qfile user message in one step', async () => {
+        const mockFetch = createMockFetch([
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-user-message',
+                    object: 'file',
+                    status: 'uploading',
+                    created_at: 1,
+                    file_name: 'clip.mp4',
+                },
+            },
+            {
+                status: 200,
+                body: {
+                    id: 'qfile-user-message',
+                    object: 'file',
+                    status: 'ready',
+                    created_at: 1,
+                    synced_at: 2,
+                    expires_at: 3,
+                    file_name: 'clip.mp4',
+                    content_type: 'video/mp4',
+                },
+            },
+        ]);
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const message = await client.file.createUserMessage('分析这个视频', {
+            file: 'SGVsbG8=',
+            filename: 'clip.mp4',
+            purpose: 'assistants',
+        }, {
+            intervalMs: 1,
+            timeoutMs: 100,
+        });
+
+        expect(message).toEqual({
+            role: 'user',
+            content: [
+                { type: 'text', text: '分析这个视频' },
+                {
+                    type: 'file',
+                    file: {
+                        file_id: 'qfile-user-message',
+                        format: 'video/mp4',
+                    },
+                },
+            ],
         });
     });
 });

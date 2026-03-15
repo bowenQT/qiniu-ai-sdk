@@ -1,4 +1,4 @@
-import { IQiniuClient, type FileContentPart } from '../../lib/types';
+import { IQiniuClient, type ChatMessage, type FileContentPart } from '../../lib/types';
 import { pollUntilComplete, type PollerOptions } from '../../lib/poller';
 
 // ============================================================================
@@ -79,6 +79,10 @@ export interface FileWaitOptions {
 }
 
 export interface FileReferenceCreateOptions extends FileWaitOptions, FileContentPartOptions {}
+
+export interface FileUserMessageOptions extends FileContentPartOptions {}
+
+export interface FileReferenceUserMessageOptions extends FileReferenceCreateOptions {}
 
 // ============================================================================
 // File Class
@@ -175,6 +179,42 @@ export class File {
             ? created
             : await this.waitForReady(created, options);
         return this.toContentPart(ready, { format: options.format });
+    }
+
+    /**
+     * Build a user message that references an uploaded file.
+     * Useful for the documented qfile workflow in chat/response requests.
+     */
+    toUserMessage(
+        text: string,
+        file: FileReferenceInput,
+        options: FileUserMessageOptions = {},
+    ): ChatMessage {
+        return {
+            role: 'user',
+            content: [
+                { type: 'text', text },
+                this.toContentPart(file, options),
+            ],
+        };
+    }
+
+    /**
+     * Upload a file, wait until it is ready, then build a user message that references the qfile.
+     */
+    async createUserMessage(
+        text: string,
+        params: FileCreateRequest,
+        options: FileReferenceUserMessageOptions = {},
+    ): Promise<ChatMessage> {
+        const part = await this.createContentPart(params, options);
+        return {
+            role: 'user',
+            content: [
+                { type: 'text', text },
+                part,
+            ],
+        };
     }
 }
 
