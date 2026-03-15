@@ -262,6 +262,7 @@ export { Batch } from './modules/batch';
 export type {
     BatchCreateRequest,
     BatchResponse,
+    BatchTaskSnapshot,
     BatchListResponse,
     BatchListOptions,
     BatchWaitOptions,
