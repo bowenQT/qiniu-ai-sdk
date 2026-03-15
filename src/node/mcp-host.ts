@@ -48,6 +48,13 @@ export interface NodeMCPHostProbeResult {
     result: MCPProbeResult;
 }
 
+export interface NodeMCPHostToolInfo {
+    serverName: string;
+    name: string;
+    description?: string;
+    inputSchema?: Record<string, unknown>;
+}
+
 // ============================================================================
 // NodeMCPHost
 // ============================================================================
@@ -202,6 +209,35 @@ export class NodeMCPHost implements MCPHostProvider {
         }).join('\n');
     }
 
+    async listServerTools(serverName: string): Promise<NodeMCPHostToolInfo[]> {
+        const client = this.clients.get(serverName);
+        if (!client) {
+            throw new Error(`MCP server "${serverName}" not found`);
+        }
+
+        const result = await client.listTools();
+        return result.tools.map((tool) => ({
+            serverName,
+            name: tool.name,
+            description: tool.description,
+            inputSchema: (tool.inputSchema as Record<string, unknown> | undefined),
+        }));
+    }
+
+    async executeServerTool(
+        serverName: string,
+        toolName: string,
+        args: Record<string, unknown> = {},
+        context?: RegisteredToolContext,
+    ): Promise<string> {
+        const client = this.clients.get(serverName);
+        if (!client) {
+            throw new Error(`MCP server "${serverName}" not found`);
+        }
+
+        return this.executeClientTool(serverName, client, toolName, args, context);
+    }
+
     async dispose(): Promise<void> {
         for (const [, client] of this.clients) {
             try {
@@ -283,7 +319,6 @@ export class NodeMCPHost implements MCPHostProvider {
 
         for (const [serverName, client] of this.clients) {
             try {
-                const policy = this.getPolicyForServer(serverName);
                 const result = await client.listTools();
                 for (const t of result.tools) {
                     allTools.push({
@@ -291,45 +326,9 @@ export class NodeMCPHost implements MCPHostProvider {
                         description: t.description ?? '',
                         parameters: (t.inputSchema as any) ?? { type: 'object' as const, properties: {} },
                         source: { type: 'mcp' as const, namespace: serverName },
-                        requiresApproval: policy.requiresApproval ?? false,
+                        requiresApproval: this.getPolicyForServer(serverName).requiresApproval ?? false,
                         execute: async (args: Record<string, unknown>, _context?: RegisteredToolContext) => {
-                            const maxLen = policy.maxOutputLength ?? 1_048_576;
-
-                            // SDK-native timeout/cancel via RequestOptions
-                            const requestOptions: Record<string, unknown> = {
-                                timeout: policy.timeout ?? 30000,
-                                resetTimeoutOnProgress: policy.resetTimeoutOnProgress ?? false,
-                            };
-                            if (policy.maxTotalTimeout != null) {
-                                requestOptions.maxTotalTimeout = policy.maxTotalTimeout;
-                            }
-                            // Bridge context.abortSignal to MCP SDK RequestOptions
-                            if (_context?.abortSignal) {
-                                requestOptions.signal = _context.abortSignal;
-                            }
-
-                            const callResult = await client.callTool(
-                                { name: t.name, arguments: args as Record<string, unknown> },
-                                undefined,
-                                requestOptions as any,
-                            );
-
-                            // Extract text from content array
-                            let output: string;
-                            if (Array.isArray(callResult.content)) {
-                                output = callResult.content
-                                    .map((c: any) => c.text ?? JSON.stringify(c))
-                                    .join('\n');
-                            } else {
-                                output = JSON.stringify(callResult.content);
-                            }
-
-                            // Host-layer output truncation
-                            if (output.length > maxLen) {
-                                output = output.slice(0, maxLen) + `\n[TRUNCATED: exceeded ${maxLen} chars]`;
-                            }
-
-                            return output;
+                            return this.executeClientTool(serverName, client, t.name, args, _context);
                         },
                     });
                 }
@@ -352,6 +351,49 @@ export class NodeMCPHost implements MCPHostProvider {
     private getPolicyForServer(serverName: string): MCPToolPolicy {
         const serverConfig = this.config.servers.find(s => s.name === serverName);
         return serverConfig?.toolPolicy ?? {};
+    }
+
+    private async executeClientTool(
+        serverName: string,
+        client: Client,
+        toolName: string,
+        args: Record<string, unknown>,
+        context?: RegisteredToolContext,
+    ): Promise<string> {
+        const policy = this.getPolicyForServer(serverName);
+        const maxLen = policy.maxOutputLength ?? 1_048_576;
+
+        const requestOptions: Record<string, unknown> = {
+            timeout: policy.timeout ?? 30000,
+            resetTimeoutOnProgress: policy.resetTimeoutOnProgress ?? false,
+        };
+        if (policy.maxTotalTimeout != null) {
+            requestOptions.maxTotalTimeout = policy.maxTotalTimeout;
+        }
+        if (context?.abortSignal) {
+            requestOptions.signal = context.abortSignal;
+        }
+
+        const callResult = await client.callTool(
+            { name: toolName, arguments: args as Record<string, unknown> },
+            undefined,
+            requestOptions as any,
+        );
+
+        let output: string;
+        if (Array.isArray(callResult.content)) {
+            output = callResult.content
+                .map((c: any) => c.text ?? JSON.stringify(c))
+                .join('\n');
+        } else {
+            output = JSON.stringify(callResult.content);
+        }
+
+        if (output.length > maxLen) {
+            output = output.slice(0, maxLen) + `\n[TRUNCATED: exceeded ${maxLen} chars]`;
+        }
+
+        return output;
     }
 }
 

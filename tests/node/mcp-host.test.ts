@@ -199,6 +199,47 @@ describe('NodeMCPHost', () => {
         expect(result).toBe('search result');
     });
 
+    it('listServerTools() returns tools for one connected server', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+
+        const host = new NodeMCPHost({
+            servers: [{ name: 'web', transport: 'stdio', command: 'mcp-web' }],
+        });
+
+        await host.connect();
+        await expect(host.listServerTools('web')).resolves.toEqual([
+            {
+                serverName: 'web',
+                name: 'search',
+                description: 'Search the web',
+                inputSchema: {
+                    type: 'object',
+                    properties: { query: { type: 'string' } },
+                    required: ['query'],
+                },
+            },
+        ]);
+    });
+
+    it('executeServerTool() calls one connected server tool directly', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+
+        const host = new NodeMCPHost({
+            servers: [{ name: 'web', transport: 'stdio', command: 'mcp-web' }],
+        });
+
+        await host.connect();
+        await expect(host.executeServerTool('web', 'search', { query: 'hello' })).resolves.toBe('search result');
+        expect(mockClientInstance.callTool).toHaveBeenCalledWith(
+            { name: 'search', arguments: { query: 'hello' } },
+            undefined,
+            expect.objectContaining({
+                timeout: 30000,
+                resetTimeoutOnProgress: false,
+            }),
+        );
+    });
+
     it('listResources() returns resources from all servers', async () => {
         const { NodeMCPHost } = await import('../../src/node/mcp-host');
 
@@ -367,5 +408,18 @@ describe('NodeMCPHost', () => {
             'MCP server "stdio-a" does not use HTTP transport and cannot be probed',
         );
         expect(hostProbeMock).not.toHaveBeenCalled();
+    });
+
+    it('listServerTools() and executeServerTool() reject unknown server names', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+
+        const host = new NodeMCPHost({
+            servers: [{ name: 'web', transport: 'stdio', command: 'mcp-web' }],
+        });
+
+        await host.connect();
+
+        await expect(host.listServerTools('missing')).rejects.toThrow('MCP server "missing" not found');
+        await expect(host.executeServerTool('missing', 'search')).rejects.toThrow('MCP server "missing" not found');
     });
 });
