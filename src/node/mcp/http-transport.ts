@@ -31,6 +31,35 @@ export class MCPHttpTransportError extends Error {
 /** OAuth token provider function */
 export type TokenProvider = () => Promise<string | undefined>;
 
+export interface MCPProbeOptions {
+    listTools?: boolean;
+    executeTool?: {
+        name: string;
+        args?: Record<string, unknown>;
+    };
+    eventStream?: {
+        lastEventId?: string;
+    } | boolean;
+    oauthMetadata?: {
+        challengeHeader?: string;
+    } | boolean;
+    terminateSession?: boolean;
+}
+
+export interface MCPProbeResult {
+    tools?: MCPToolDefinition[];
+    toolResult?: MCPToolResult;
+    eventStream?: {
+        status: number;
+        contentType: string | null;
+    };
+    oauthMetadata?: {
+        protectedResource: ProtectedResourceMetadata;
+        authorizationServer: AuthorizationServerMetadata | null;
+    };
+    terminated?: boolean;
+}
+
 function buildHttpHeaders(config: MCPHttpServerConfig, token?: string): Record<string, string> {
     const headers: Record<string, string> = {
         Accept: config.accept ?? DEFAULT_MCP_CONFIG.accept,
@@ -252,6 +281,60 @@ export class MCPHttpTransport {
                 'OAuth metadata discovery',
             ),
         });
+    }
+
+    /**
+     * Probe MCP server capabilities using the current transport configuration.
+     * Useful for live verification and structured interoperability checks.
+     */
+    async probe(options: MCPProbeOptions = {}): Promise<MCPProbeResult> {
+        const result: MCPProbeResult = {};
+        let terminated = false;
+        const needsClient = options.listTools || options.executeTool;
+
+        try {
+            if (needsClient) {
+                await this.connect();
+            }
+
+            if (options.listTools) {
+                result.tools = await this.listTools();
+            }
+
+            if (options.executeTool) {
+                result.toolResult = await this.executeTool(
+                    options.executeTool.name,
+                    options.executeTool.args ?? {},
+                );
+            }
+
+            if (options.eventStream) {
+                const response = await this.openEventStream(
+                    typeof options.eventStream === 'object' ? options.eventStream.lastEventId : undefined,
+                );
+                result.eventStream = {
+                    status: response.status,
+                    contentType: response.headers.get('content-type'),
+                };
+            }
+
+            if (options.oauthMetadata) {
+                result.oauthMetadata = await this.discoverOAuthMetadata(
+                    typeof options.oauthMetadata === 'object' ? options.oauthMetadata.challengeHeader : undefined,
+                );
+            }
+
+            if (options.terminateSession) {
+                result.terminated = await this.terminateSession();
+                terminated = result.terminated === true;
+            }
+
+            return result;
+        } finally {
+            if (needsClient && !terminated) {
+                await this.disconnect();
+            }
+        }
     }
 
     /**
