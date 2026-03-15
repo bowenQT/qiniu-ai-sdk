@@ -22,7 +22,7 @@ const RESPONSE_API_VERSION = '2025-04-01-preview';
  */
 export interface ResponseCreateRequest {
     model: string;
-    input: string | ResponseInputMessage[];
+    input: string | ResponseInputMessage[] | ChatMessage[];
     reasoning?: {
         effort?: 'low' | 'medium' | 'high';
         summary?: 'auto' | 'concise' | 'detailed';
@@ -68,6 +68,7 @@ export interface ResponseInputMessage {
 }
 
 export type ResponseInputContentPart = ContentPartWithCacheControl;
+export type ResponseInputLikeMessage = ResponseInputMessage | ChatMessage;
 
 export interface ResponseOutput {
     type: string;
@@ -1153,10 +1154,36 @@ async function normalizeResponseRequest(params: ResponseCreateRequest): Promise<
 
     return {
         ...params,
-        input: await Promise.all(params.input.map(async (message) => ({
-            ...message,
-            content: await normalizeContentAsync(message.content),
-        }))),
+        input: await Promise.all(params.input.map((message) => normalizeResponseInputMessage(message))),
+    };
+}
+
+async function normalizeResponseInputMessage(message: ResponseInputLikeMessage): Promise<ResponseInputMessage> {
+    if (
+        'tool_calls' in message
+        || 'tool_call_id' in message
+        || 'name' in message
+        || 'reasoning_content' in message
+        || 'thinking_blocks' in message
+        || 'images' in message
+    ) {
+        throw new Error('Response API array input only supports role/content message fields');
+    }
+
+    if (
+        message.role !== 'user'
+        && message.role !== 'assistant'
+        && message.role !== 'system'
+        && message.role !== 'developer'
+    ) {
+        throw new Error(`Response API array input does not support role "${message.role}"`);
+    }
+
+    return {
+        role: message.role,
+        content: typeof message.content === 'string'
+            ? message.content
+            : await normalizeContentAsync(message.content),
     };
 }
 
