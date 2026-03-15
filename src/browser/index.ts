@@ -374,6 +374,18 @@ export type { TtsRequest, TtsResponse, TtsEncoding, TtsStreamOptions, Voice } fr
 export type { UsageQuery, UsageResponse, UsageModelStat, UsageItem, UsageCategory, UsageValue } from '../modules/account';
 export type { CreateKeysRequest, ApiKey } from '../modules/admin';
 
+export { Batch } from '../modules/batch';
+export type {
+    BatchCreateRequest,
+    BatchResponse,
+    BatchListResponse,
+    BatchListOptions,
+    BatchWaitOptions,
+    BatchCancelResponse,
+    BatchTaskHandle,
+    BatchStatus,
+} from '../modules/batch';
+
 // ============================================================================
 // EXPLICITLY EXCLUDED (Node.js only):
 // - SkillLoader (requires fs, path)
