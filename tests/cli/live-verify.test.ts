@@ -65,6 +65,9 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('censor: BETA (unit, validated 2026-03-15)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('account: BETA (unit'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('log: GA (unit'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('ocr: GA (unit, validated 2026-03-14)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('asr: GA (unit, validated 2026-03-14)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('tts: GA (unit, validated 2026-03-14)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('ResponseAPI: EXPERIMENTAL (unit, validated 2026-03-15)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Chat probe succeeded'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('File/qfile live probe was skipped'))).toBe(true);
@@ -75,6 +78,9 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('Account usage live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Admin live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Log export live probe was skipped'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('OCR live probe was skipped'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('ASR live probe was skipped'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('TTS live probe was skipped'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API stream live probe was skipped'))).toBe(false);
     });
 
@@ -547,6 +553,77 @@ describe('CLI live verification helpers', () => {
         expect(result.exitCode).toBe(2);
         expect(result.checks.some((check) => check.message.includes('Admin listKeys probe succeeded: 1 keys (live-key)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Admin getKey probe succeeded: live-key (active)'))).toBe(true);
+    });
+
+    it('runs the optional ocr/asr/tts live probes when explicitly enabled', async () => {
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_OCR: '1',
+                QINIU_LIVE_VERIFY_OCR_URI: 'https://example.com/ocr.png',
+                QINIU_LIVE_VERIFY_ASR: '1',
+                QINIU_LIVE_VERIFY_ASR_URI: 'https://example.com/audio.mp3',
+                QINIU_LIVE_VERIFY_ASR_FORMAT: 'mp3',
+                QINIU_LIVE_VERIFY_ASR_LANGUAGE: 'zh',
+                QINIU_LIVE_VERIFY_TTS: '1',
+                QINIU_LIVE_VERIFY_TTS_VOICE_TYPE: 'qiniu_zh_female_tmjxxy',
+                QINIU_LIVE_VERIFY_TTS_TEXT: '你好，世界。',
+                QINIU_LIVE_VERIFY_TTS_ENCODING: 'mp3',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                file: {
+                    create: async () => ({ id: 'unused', status: 'ready' }),
+                    waitForReady: async () => ({ id: 'unused', status: 'ready' }),
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'unused', format: 'text/plain' },
+                    }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
+                },
+                ocr: {
+                    detect: async () => ({
+                        text: 'hello world',
+                        blocks: [{ text: 'hello' }, { text: 'world' }],
+                    }),
+                },
+                asr: {
+                    transcribe: async () => ({
+                        text: '你好世界',
+                        duration: 2300,
+                        language: 'zh',
+                    }),
+                },
+                tts: {
+                    synthesize: async () => ({
+                        audio: 'ZmFrZS1hdWRpbw==',
+                        duration: 1400,
+                        format: 'mp3',
+                    }),
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(result.checks.some((check) => check.message.includes('OCR probe succeeded: hello world (2 blocks)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('ASR probe succeeded: 你好世界 (2300ms) [zh]'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('TTS probe succeeded: mp3 (1400ms) [audio:16]'))).toBe(true);
     });
 
     it('warns when node-integrations lane skips MCP live probing', async () => {

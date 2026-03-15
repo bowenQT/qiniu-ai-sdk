@@ -21,7 +21,7 @@ export interface LiveVerifyResult {
 export interface LiveVerifyOptions {
     lane: WorktreeLane;
     env?: NodeJS.ProcessEnv;
-    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file' | 'response' | 'batch' | 'censor' | 'account' | 'admin' | 'log'>;
+    createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'file' | 'response' | 'batch' | 'censor' | 'account' | 'admin' | 'log' | 'ocr' | 'asr' | 'tts'>;
     createNodeClient?: (apiKey: string) => ReturnType<typeof createNodeQiniuAI>;
     createMcpTransport?: (config: MCPHttpServerConfig) => LiveVerifyMcpTransport;
 }
@@ -115,7 +115,7 @@ function parseOptionalJsonStringRecord(value: string | undefined, envName: strin
 
 const LANE_MODULES: Record<Exclude<WorktreeLane, 'integration'>, string[]> = {
     foundation: ['chat'],
-    'cloud-surface': ['chat', 'file', 'batch', 'admin', 'censor', 'account', 'log', 'ResponseAPI'],
+    'cloud-surface': ['chat', 'file', 'ocr', 'asr', 'tts', 'batch', 'admin', 'censor', 'account', 'log', 'ResponseAPI'],
     runtime: ['generateText', 'createAgent', 'memory', 'guardrails'],
     'node-integrations': ['NodeMCPHost', 'sandbox', 'skills', 'auditLogger'],
     'dx-validation': ['chat', 'file', 'generateText'],
@@ -785,6 +785,123 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_LOG_EXPORT not set. Log export live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_OCR === '1') {
+            const ocrClient = client.ocr as {
+                detect?: (params: {
+                    url?: string;
+                    image?: string;
+                    model?: string;
+                }) => Promise<{ text?: string; blocks?: Array<{ text: string }> }>;
+            };
+            if (!ocrClient.detect) {
+                throw new Error('OCR live probe requires ocr.detect() support in the current SDK build');
+            }
+
+            const ocrUri = env.QINIU_LIVE_VERIFY_OCR_URI?.trim();
+            if (!ocrUri) {
+                throw new Error('QINIU_LIVE_VERIFY_OCR_URI is required when QINIU_LIVE_VERIFY_OCR=1');
+            }
+
+            const ocrResult = await ocrClient.detect({
+                url: ocrUri,
+                model: env.QINIU_LIVE_VERIFY_OCR_MODEL?.trim() || undefined,
+            });
+
+            addCheck(
+                checks,
+                'ok',
+                `OCR probe succeeded: ${ocrResult.text ?? '[no-text]'}${ocrResult.blocks?.length ? ` (${ocrResult.blocks.length} blocks)` : ''}`,
+            );
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_OCR not set. OCR live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_ASR === '1') {
+            const asrClient = client.asr as {
+                transcribe?: (params: {
+                    model?: string;
+                    language?: string;
+                    audio: {
+                        format: string;
+                        url?: string;
+                    };
+                }) => Promise<{ text?: string; duration?: number; language?: string }>;
+            };
+            if (!asrClient.transcribe) {
+                throw new Error('ASR live probe requires asr.transcribe() support in the current SDK build');
+            }
+
+            const asrUri = env.QINIU_LIVE_VERIFY_ASR_URI?.trim();
+            if (!asrUri) {
+                throw new Error('QINIU_LIVE_VERIFY_ASR_URI is required when QINIU_LIVE_VERIFY_ASR=1');
+            }
+
+            const asrResult = await asrClient.transcribe({
+                model: env.QINIU_LIVE_VERIFY_ASR_MODEL?.trim() || undefined,
+                language: env.QINIU_LIVE_VERIFY_ASR_LANGUAGE?.trim() || undefined,
+                audio: {
+                    format: env.QINIU_LIVE_VERIFY_ASR_FORMAT?.trim() || 'mp3',
+                    url: asrUri,
+                },
+            });
+
+            addCheck(
+                checks,
+                'ok',
+                `ASR probe succeeded: ${asrResult.text ?? '[no-text]'}${asrResult.duration ? ` (${asrResult.duration}ms)` : ''}${
+                    asrResult.language ? ` [${asrResult.language}]` : ''
+                }`,
+            );
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_ASR not set. ASR live probe was skipped.',
+            );
+        }
+
+        if (env.QINIU_LIVE_VERIFY_TTS === '1') {
+            const ttsClient = client.tts as {
+                synthesize?: (params: {
+                    text: string;
+                    voice_type: string;
+                    encoding?: 'mp3' | 'wav' | 'pcm';
+                }) => Promise<{ audio?: string; duration?: number; format?: string }>;
+            };
+            if (!ttsClient.synthesize) {
+                throw new Error('TTS live probe requires tts.synthesize() support in the current SDK build');
+            }
+
+            const voiceType = env.QINIU_LIVE_VERIFY_TTS_VOICE_TYPE?.trim();
+            if (!voiceType) {
+                throw new Error('QINIU_LIVE_VERIFY_TTS_VOICE_TYPE is required when QINIU_LIVE_VERIFY_TTS=1');
+            }
+
+            const ttsResult = await ttsClient.synthesize({
+                text: env.QINIU_LIVE_VERIFY_TTS_TEXT?.trim() || '你好，世界。',
+                voice_type: voiceType,
+                encoding: (env.QINIU_LIVE_VERIFY_TTS_ENCODING?.trim() as 'mp3' | 'wav' | 'pcm' | undefined) || 'mp3',
+            });
+
+            addCheck(
+                checks,
+                'ok',
+                `TTS probe succeeded: ${ttsResult.format ?? 'unknown'}${ttsResult.duration ? ` (${ttsResult.duration}ms)` : ''}${
+                    ttsResult.audio ? ` [audio:${ttsResult.audio.length}]` : ''
+                }`,
+            );
+        } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
+            addCheck(
+                checks,
+                'warn',
+                'QINIU_LIVE_VERIFY_TTS not set. TTS live probe was skipped.',
             );
         }
     } else if (options.lane === 'runtime') {
