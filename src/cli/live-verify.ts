@@ -31,17 +31,27 @@ interface LiveVerifyMcpTransport {
     listTools?(): Promise<Array<{ name: string }>>;
     listResources?(): Promise<Array<{ uri: string }>>;
     listPrompts?(): Promise<Array<{ name: string }>>;
+    readResource?(uri: string): Promise<string>;
+    getPrompt?(name: string, args?: Record<string, string>): Promise<string>;
     executeTool?(toolName: string, args: Record<string, unknown>): Promise<{
         content?: Array<{ type: string; text?: string }>;
     }>;
     probe?(options: {
         listTools?: boolean;
+        listResources?: boolean;
+        listPrompts?: boolean;
+        readResource?: { uri: string };
+        getPrompt?: { name: string; args?: Record<string, string> };
         executeTool?: { name: string; args?: Record<string, unknown> };
         eventStream?: boolean;
         oauthMetadata?: { challengeHeader?: string } | boolean;
         terminateSession?: boolean;
     }): Promise<{
         tools?: Array<{ name: string }>;
+        resources?: Array<{ uri: string }>;
+        prompts?: Array<{ name: string }>;
+        resourceText?: string;
+        promptText?: string;
         toolResult?: { content?: Array<{ type: string; text?: string }> };
         eventStream?: { status: number; contentType: string | null };
         oauthMetadata?: {
@@ -86,6 +96,17 @@ function parseOptionalJsonObject(value: string | undefined): Record<string, unkn
         throw new Error('QINIU_LIVE_VERIFY_MCP_TOOL_ARGS_JSON must be a JSON object');
     }
     return parsed as Record<string, unknown>;
+}
+
+function parseOptionalJsonStringRecord(value: string | undefined, envName: string): Record<string, string> | undefined {
+    if (!value) return undefined;
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(`${envName} must be a JSON object`);
+    }
+    return Object.fromEntries(
+        Object.entries(parsed as Record<string, unknown>).map(([key, entry]) => [key, String(entry)]),
+    );
 }
 
 const LANE_MODULES: Record<Exclude<WorktreeLane, 'integration'>, string[]> = {
@@ -293,10 +314,20 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
             });
             const toolName = env.QINIU_LIVE_VERIFY_MCP_TOOL_NAME?.trim();
             const toolArgs = parseOptionalJsonObject(env.QINIU_LIVE_VERIFY_MCP_TOOL_ARGS_JSON) ?? {};
+            const promptName = env.QINIU_LIVE_VERIFY_MCP_GET_PROMPT_NAME?.trim();
+            const promptArgs = parseOptionalJsonStringRecord(
+                env.QINIU_LIVE_VERIFY_MCP_GET_PROMPT_ARGS_JSON,
+                'QINIU_LIVE_VERIFY_MCP_GET_PROMPT_ARGS_JSON',
+            );
+            const resourceUri = env.QINIU_LIVE_VERIFY_MCP_READ_RESOURCE_URI?.trim();
 
             if (transport.probe) {
                 const probeResult = await transport.probe({
                     listTools: env.QINIU_LIVE_VERIFY_MCP_LIST_TOOLS === '1',
+                    listResources: env.QINIU_LIVE_VERIFY_MCP_LIST_RESOURCES === '1',
+                    listPrompts: env.QINIU_LIVE_VERIFY_MCP_LIST_PROMPTS === '1',
+                    readResource: resourceUri ? { uri: resourceUri } : undefined,
+                    getPrompt: promptName ? { name: promptName, args: promptArgs } : undefined,
                     executeTool: toolName
                         ? { name: toolName, args: toolArgs }
                         : undefined,
@@ -317,6 +348,14 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
 
                 if (probeResult.prompts) {
                     addCheck(checks, 'ok', `MCP prompt listing probe succeeded: ${probeResult.prompts.length} prompts`);
+                }
+
+                if (typeof probeResult.resourceText === 'string') {
+                    addCheck(checks, 'ok', `MCP resource read probe succeeded: ${probeResult.resourceText}`);
+                }
+
+                if (typeof probeResult.promptText === 'string') {
+                    addCheck(checks, 'ok', `MCP prompt get probe succeeded: ${probeResult.promptText}`);
                 }
 
                 if (toolName && probeResult.toolResult) {
@@ -383,6 +422,24 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                         await transport.connect();
                         const prompts = await transport.listPrompts();
                         addCheck(checks, 'ok', `MCP prompt listing probe succeeded: ${prompts.length} prompts`);
+                    }
+
+                    if (resourceUri) {
+                        if (!transport.connect || !transport.readResource) {
+                            throw new Error('MCP resource read probe requires connect() and readResource() support');
+                        }
+                        await transport.connect();
+                        const resourceText = await transport.readResource(resourceUri);
+                        addCheck(checks, 'ok', `MCP resource read probe succeeded: ${resourceText}`);
+                    }
+
+                    if (promptName) {
+                        if (!transport.connect || !transport.getPrompt) {
+                            throw new Error('MCP prompt get probe requires connect() and getPrompt() support');
+                        }
+                        await transport.connect();
+                        const promptText = await transport.getPrompt(promptName, promptArgs);
+                        addCheck(checks, 'ok', `MCP prompt get probe succeeded: ${promptText}`);
                     }
 
                     if (toolName) {
