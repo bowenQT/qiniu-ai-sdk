@@ -118,6 +118,26 @@ describe('Phase 2: File Module', () => {
         expect(result.data).toHaveLength(2);
     });
 
+    it('should delete a file by id', async () => {
+        const mockResponse = {
+            id: 'file-delete-1',
+            object: 'file.deleted',
+            deleted: true,
+        };
+
+        const mockFetch = createStaticMockFetch({ status: 200, body: mockResponse });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const result = await client.file.delete('file-delete-1');
+
+        expect(result).toEqual(mockResponse);
+        expect(mockFetch.calls[0]?.url).toContain('/files/file-delete-1');
+        expect(mockFetch.calls[0]?.init?.method).toBe('DELETE');
+    });
+
     it('should build a file content part from an uploaded file id', () => {
         const client = new QiniuAI({
             apiKey: 'sk-test',
