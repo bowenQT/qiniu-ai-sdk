@@ -67,7 +67,9 @@ export interface MCPProbeResult {
     tools?: MCPToolDefinition[];
     resources?: MCPResourceDefinition[];
     prompts?: MCPPromptDefinition[];
+    resourceContents?: MCPResourceContent[];
     resourceText?: string;
+    promptMessages?: MCPPromptMessage[];
     promptText?: string;
     toolResult?: MCPToolResult;
     eventStream?: {
@@ -336,14 +338,29 @@ export class MCPHttpTransport {
             }
 
             if (options.readResource) {
-                result.resourceText = await this.readResource(options.readResource.uri);
+                result.resourceContents = await this.readResourceContents(options.readResource.uri);
+                result.resourceText = result.resourceContents
+                    .map((content) => (typeof content.text === 'string' ? content.text : JSON.stringify(content)))
+                    .join('\n');
             }
 
             if (options.getPrompt) {
-                result.promptText = await this.getPrompt(
+                result.promptMessages = await this.getPromptMessages(
                     options.getPrompt.name,
                     options.getPrompt.args,
                 );
+                result.promptText = result.promptMessages
+                    .map((message) => {
+                        const content = message.content;
+                        if (typeof content === 'string') {
+                            return content;
+                        }
+                        if (content && typeof content === 'object' && 'text' in content && typeof content.text === 'string') {
+                            return content.text;
+                        }
+                        return JSON.stringify(content);
+                    })
+                    .join('\n');
             }
 
             if (options.executeTool) {

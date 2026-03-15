@@ -312,7 +312,13 @@ describe('MCPHttpTransport', () => {
             description: 'Summarize text',
             arguments: [{ name: 'text', required: true }],
         });
+        expect(result.resourceContents).toEqual([
+            { text: '# Hello from MCP' },
+        ]);
         expect(result.resourceText).toBe('# Hello from MCP');
+        expect(result.promptMessages).toEqual([
+            { role: 'user', content: { type: 'text', text: 'Please summarize hello' } },
+        ]);
         expect(result.promptText).toBe('Please summarize hello');
         expect(result.toolResult?.content?.[0]).toEqual({ type: 'text', text: 'pong' });
         expect(result.eventStream).toEqual({

@@ -31,7 +31,9 @@ interface LiveVerifyMcpTransport {
     listTools?(): Promise<Array<{ name: string }>>;
     listResources?(): Promise<Array<{ uri: string }>>;
     listPrompts?(): Promise<Array<{ name: string }>>;
+    readResourceContents?(uri: string): Promise<Array<{ text?: string; mimeType?: string }>>;
     readResource?(uri: string): Promise<string>;
+    getPromptMessages?(name: string, args?: Record<string, string>): Promise<Array<{ role?: string; content: unknown }>>;
     getPrompt?(name: string, args?: Record<string, string>): Promise<string>;
     executeTool?(toolName: string, args: Record<string, unknown>): Promise<{
         content?: Array<{ type: string; text?: string }>;
@@ -50,7 +52,9 @@ interface LiveVerifyMcpTransport {
         tools?: Array<{ name: string }>;
         resources?: Array<{ uri: string }>;
         prompts?: Array<{ name: string }>;
+        resourceContents?: Array<{ text?: string; mimeType?: string }>;
         resourceText?: string;
+        promptMessages?: Array<{ role?: string; content: unknown }>;
         promptText?: string;
         toolResult?: { content?: Array<{ type: string; text?: string }> };
         eventStream?: { status: number; contentType: string | null };
@@ -353,9 +357,15 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 if (typeof probeResult.resourceText === 'string') {
                     addCheck(checks, 'ok', `MCP resource read probe succeeded: ${probeResult.resourceText}`);
                 }
+                if (probeResult.resourceContents) {
+                    addCheck(checks, 'ok', `MCP structured resource read probe succeeded: ${probeResult.resourceContents.length} contents`);
+                }
 
                 if (typeof probeResult.promptText === 'string') {
                     addCheck(checks, 'ok', `MCP prompt get probe succeeded: ${probeResult.promptText}`);
+                }
+                if (probeResult.promptMessages) {
+                    addCheck(checks, 'ok', `MCP structured prompt get probe succeeded: ${probeResult.promptMessages.length} messages`);
                 }
 
                 if (toolName && probeResult.toolResult) {
@@ -425,20 +435,47 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     }
 
                     if (resourceUri) {
-                        if (!transport.connect || !transport.readResource) {
-                            throw new Error('MCP resource read probe requires connect() and readResource() support');
+                        if (!transport.connect || (!transport.readResource && !transport.readResourceContents)) {
+                            throw new Error('MCP resource read probe requires connect() and readResource() or readResourceContents() support');
                         }
                         await transport.connect();
-                        const resourceText = await transport.readResource(resourceUri);
+                        const resourceContents = transport.readResourceContents
+                            ? await transport.readResourceContents(resourceUri)
+                            : undefined;
+                        if (resourceContents) {
+                            addCheck(checks, 'ok', `MCP structured resource read probe succeeded: ${resourceContents.length} contents`);
+                        }
+                        const resourceText = transport.readResource
+                            ? await transport.readResource(resourceUri)
+                            : (resourceContents ?? []).map((content: { text?: string; mimeType?: string }) =>
+                                typeof content.text === 'string' ? content.text : JSON.stringify(content),
+                            ).join('\n');
                         addCheck(checks, 'ok', `MCP resource read probe succeeded: ${resourceText}`);
                     }
 
                     if (promptName) {
-                        if (!transport.connect || !transport.getPrompt) {
-                            throw new Error('MCP prompt get probe requires connect() and getPrompt() support');
+                        if (!transport.connect || (!transport.getPrompt && !transport.getPromptMessages)) {
+                            throw new Error('MCP prompt get probe requires connect() and getPrompt() or getPromptMessages() support');
                         }
                         await transport.connect();
-                        const promptText = await transport.getPrompt(promptName, promptArgs);
+                        const promptMessages = transport.getPromptMessages
+                            ? await transport.getPromptMessages(promptName, promptArgs)
+                            : undefined;
+                        if (promptMessages) {
+                            addCheck(checks, 'ok', `MCP structured prompt get probe succeeded: ${promptMessages.length} messages`);
+                        }
+                        const promptText = transport.getPrompt
+                            ? await transport.getPrompt(promptName, promptArgs)
+                            : (promptMessages ?? []).map((message: { role?: string; content: unknown }) => {
+                                const content = message.content;
+                                if (typeof content === 'string') {
+                                    return content;
+                                }
+                                if (content && typeof content === 'object' && 'text' in content && typeof content.text === 'string') {
+                                    return content.text;
+                                }
+                                return JSON.stringify(content);
+                            }).join('\n');
                         addCheck(checks, 'ok', `MCP prompt get probe succeeded: ${promptText}`);
                     }
 
