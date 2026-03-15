@@ -80,6 +80,43 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         expect(result.output_text).toBe('Server projection');
     });
 
+    it('should create a follow-up response using previousResponseId convenience input', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-follow-up',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: 'Follow-up answer' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const result = await client.response.followUp({
+            previousResponseId: 'resp-prev',
+            model: 'gpt-5.2',
+            input: 'Continue the earlier answer.',
+            store: true,
+        });
+
+        expect(result.id).toBe('resp-follow-up');
+        expect(result.output_text).toBe('Follow-up answer');
+        expect(JSON.parse(String(mockFetch.calls[0].init?.body))).toMatchObject({
+            model: 'gpt-5.2',
+            input: 'Continue the earlier answer.',
+            previous_response_id: 'resp-prev',
+            store: true,
+        });
+    });
+
     it('should accept multimodal response input messages', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,
