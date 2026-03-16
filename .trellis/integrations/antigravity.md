@@ -23,3 +23,5 @@
   - evidence generation
   - focused verification before integration
 - Antigravity should prefer tracked package briefs, review packets, and verification artifacts over raw transcript replay.
+- Current review checkpoint:
+  - [`2026-03-16-phase2-batch1-review-handoff.md`](./2026-03-16-phase2-batch1-review-handoff.md)
