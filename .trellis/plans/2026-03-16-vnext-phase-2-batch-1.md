@@ -8,6 +8,14 @@ package-first operating model.
 Turn the new Phase 2 governance layer into an immediately usable execution queue without reopening
 Phase 1 style unbounded continuation.
 
+## Execution Status
+
+- Packages 1 and 2 were completed and reviewed in the first Batch 1 checkpoint:
+  [`../integrations/2026-03-16-phase2-batch1-review-handoff.md`](../integrations/2026-03-16-phase2-batch1-review-handoff.md)
+- Packages 3, 4, and 5 are now implemented, landed on a clean checkpoint branch, and rerun through
+  a fresh full gate:
+  [`../integrations/2026-03-16-phase2-batch1-packages-3-5-review-handoff.md`](../integrations/2026-03-16-phase2-batch1-packages-3-5-review-handoff.md)
+
 ## Package Queue
 
 ### 1. `phase2/dx-validation/live-verify-hard-gate`
