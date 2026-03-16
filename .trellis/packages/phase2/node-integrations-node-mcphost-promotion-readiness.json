@@ -3,6 +3,7 @@
   "packageId": "phase2/node-integrations/node-mcphost-promotion-readiness",
   "phase": "phase2",
   "ownerLane": "node-integrations",
+  "category": "promotion-sensitive",
   "topic": "node-mcphost-promotion-readiness",
   "goal": "Turn the current held-beta NodeMCPHost outcome into an explicit promotion-readiness checklist with tracked evidence boundaries and deferred risks.",
   "successCriteria": [

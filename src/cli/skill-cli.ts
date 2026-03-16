@@ -8,7 +8,7 @@
  *   qiniu-ai package <init|evidence|review|decision> [options]
  *   qiniu-ai worktree <init|spawn|status|integrate> [options]
  *   qiniu-ai verify live --lane <name>
- *   qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict]
+ *   qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--brief <path>] [--strict]
  *   qiniu-ai skill list [--dir <skills-dir>]
  *   qiniu-ai skill add <manifest-url> [--sha256 <hash>] [--auth <token>] [--allow-actions] [--dir <dir>]
  *   qiniu-ai skill verify [--fix] [--dir <dir>]
@@ -44,6 +44,7 @@ import {
     defaultReviewPacketPath,
     DEFAULT_PHASE,
     DEFAULT_PHASE_POLICY_PATH,
+    parseChangePackageCategory,
     parsePackageLane,
     readJsonFile,
     readPhasePolicy,
@@ -154,7 +155,7 @@ function printMainUsage(): void {
     console.log('  qiniu-ai package <init|evidence|review|decision> [options]');
     console.log('  qiniu-ai worktree <init|spawn|status|integrate> [options]');
     console.log('  qiniu-ai verify live --lane <name>');
-    console.log('  qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict]');
+    console.log('  qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--brief <path>] [--strict]');
     console.log('  qiniu-ai skill <list|add|verify|remove> [options]');
     console.log('');
     console.log('Top-level commands:');
@@ -197,7 +198,7 @@ function printDoctorUsage(): void {
 }
 
 function printPackageUsage(): void {
-    console.log(`Usage: qiniu-ai package init --lane <name> --topic <topic> --goal <goal> [--phase <name>] [--success <text> ...]`);
+    console.log(`Usage: qiniu-ai package init --lane <name> --topic <topic> --goal <goal> [--phase <name>] [--category <standard|promotion-sensitive>] [--success <text> ...]`);
     console.log('       qiniu-ai package evidence --brief <path> [options]');
     console.log('       qiniu-ai package review --brief <path> --evidence <path> [--out <path>] [--json]');
     console.log('       qiniu-ai package decision --brief <path> --module <name> --from <maturity> --to <maturity> --basis <text> --source <name> [options]');
@@ -208,6 +209,7 @@ function printPackageUsage(): void {
     console.log('');
     console.log('Init options:');
     console.log('  package branches should follow codex/<phase>/<lane>/<topic>');
+    console.log('  --category <type>         Package category (default: standard)');
     console.log('  --success <text>          Repeatable success criterion');
     console.log('  --surface <name>          Repeatable touched surface');
     console.log('  --evidence <name>         Repeatable required evidence item');
@@ -248,7 +250,7 @@ function printWorktreeUsage(): void {
 
 function printVerifyUsage(): void {
     console.log('Usage: qiniu-ai verify live --lane <name>');
-    console.log('       qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--profile <name>] [--policy <path>] [--strict] [--json] [--out <path>]');
+    console.log('       qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--brief <path>] [--profile <name>] [--policy <path>] [--strict] [--json] [--out <path>]');
 }
 
 function writeVerifyOutput(result: unknown, outputPath: string, cwd: string): string {
@@ -548,6 +550,7 @@ async function runPackageCommand(args: string[], options: RunCLIOptions): Promis
             const topic = getArgValue(args, '--topic');
             const goal = getArgValue(args, '--goal');
             const phase = getArgValue(args, '--phase') ?? DEFAULT_PHASE;
+            const categoryValue = getArgValue(args, '--category');
             const mergeTarget = getArgValue(args, '--merge-target');
             const outputPath = getArgValue(args, '--out');
             const successCriteria = getArgValues(args, '--success');
@@ -563,12 +566,14 @@ async function runPackageCommand(args: string[], options: RunCLIOptions): Promis
             }
 
             const lane = parsePackageLane(laneValue);
+            const category = categoryValue ? parseChangePackageCategory(categoryValue) : undefined;
             const policy = readPhasePolicy(policyPath);
             assertPhaseAllowsNewPackages(policy, phase);
 
             const changePackage = createChangePackage({
                 phase,
                 ownerLane: lane,
+                category,
                 topic,
                 goal,
                 successCriteria,
@@ -832,13 +837,25 @@ async function runVerifyCommand(args: string[], options: RunCLIOptions): Promise
         });
     } else if (subcommand === 'gate') {
         const lanesArg = getArgValue(args, '--lanes');
+        const briefPath = getArgValue(args, '--brief');
         const profile = getArgValue(args, '--profile');
         const policyPath = getArgValue(args, '--policy');
         if (process.exitCode === 1) return;
 
+        const brief = briefPath ? readJsonFile<ChangePackage>(path.resolve(cwd, briefPath)) : undefined;
+        const briefLane = brief ? ({
+            foundation: 'foundation',
+            'cloud-surface': 'cloud-surface',
+            runtime: 'runtime',
+            'runtime-hardening': 'runtime',
+            'node-integrations': 'node-integrations',
+            'dx-validation': 'dx-validation',
+        } as const)[brief.ownerLane] : undefined;
+
         result = await verifyLiveGate({
-            lanes: parseLiveVerifyGateLanes(lanesArg),
+            lanes: parseLiveVerifyGateLanes(lanesArg ?? briefLane),
             strict: args.includes('--strict'),
+            packageBriefPath: briefPath ? path.resolve(cwd, briefPath) : undefined,
             policyProfile: profile,
             policyPath,
             env: options.env,

@@ -1,10 +1,12 @@
 import {
     DEFAULT_LIVE_VERIFY_GATE_LANES,
+    resolveLiveVerifyPackageContext,
     resolveLiveVerifyPolicyProfile,
     type LiveVerifyCheck,
     type LiveVerifyGateLaneResult,
     type LiveVerifyGateOptions,
     type LiveVerifyGateResult,
+    type LiveVerifyPromotionDecisionBasis,
     type LiveVerifyProbe,
     type LiveVerifyResult,
     verifyLiveLane,
@@ -24,11 +26,19 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
     const checks: LiveVerifyCheck[] = [];
     const laneResults: LiveVerifyGateLaneResult[] = [];
     const env = options.env ?? process.env;
-    const lanes = options.lanes.length > 0 ? options.lanes : [...DEFAULT_LIVE_VERIFY_GATE_LANES];
+    const packageContext = resolveLiveVerifyPackageContext(options);
+    const lanes = options.lanes.length > 0
+        ? options.lanes
+        : packageContext.ownerLane
+            ? [packageContext.ownerLane]
+            : [...DEFAULT_LIVE_VERIFY_GATE_LANES];
+    const promotionSensitive = packageContext.packageCategory === 'promotion-sensitive';
     const strict = options.strict ?? (env.QINIU_LIVE_VERIFY_GATE_STRICT === '1' || env.QINIU_REQUIRE_LIVE_VERIFY === '1');
     const generatedAt = new Date().toISOString();
     const policyProfile = resolveLiveVerifyPolicyProfile(options);
     const blockingFailures: string[] = [];
+    const heldEvidence: string[] = [];
+    const promotionDecisionBasis = new Map<string, LiveVerifyPromotionDecisionBasis>();
     const collectGateProbes = (): LiveVerifyProbe[] => laneResults.flatMap((entry) => entry.result.probes);
 
     addGateCheck(
@@ -36,6 +46,13 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
         'ok',
         `Running live verification gate for lanes: ${lanes.join(', ')}${policyProfile ? ` (profile=${policyProfile.name})` : ''}${strict ? ' (strict)' : ''}`,
     );
+    if (packageContext.packageId) {
+        addGateCheck(
+            checks,
+            'ok',
+            `Evaluating package ${packageContext.packageId} as ${packageContext.packageCategory}`,
+        );
+    }
     if (policyProfile?.description) {
         addGateCheck(checks, 'ok', `Live verification policy profile ${policyProfile.name}: ${policyProfile.description}`);
     }
@@ -72,6 +89,13 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
         if (lanePolicy?.promotionModules.length) {
             addGateCheck(checks, 'ok', `[${lane}] Promotion modules: ${lanePolicy.promotionModules.join(', ')}`);
         }
+        if (lanePolicy?.promotionSensitiveRequiredProbes.length) {
+            addGateCheck(
+                checks,
+                'ok',
+                `[${lane}] Promotion-sensitive required probes for profile ${policyProfile?.name}: ${lanePolicy.promotionSensitiveRequiredProbes.join(', ')}`,
+            );
+        }
         if (lanePolicy?.trackedDecisionPaths.length) {
             addGateCheck(checks, 'ok', `[${lane}] Tracked decision files: ${lanePolicy.trackedDecisionPaths.join(', ')}`);
         }
@@ -87,6 +111,16 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
         }
 
         laneResults.push({ lane, result, policy: lanePolicy });
+        if (lanePolicy && (lanePolicy.promotionModules.length > 0 || lanePolicy.trackedDecisionPaths.length > 0)) {
+            promotionDecisionBasis.set(lane, {
+                lane,
+                promotionModules: [...lanePolicy.promotionModules],
+                trackedDecisionPaths: [...lanePolicy.trackedDecisionPaths],
+                requiredProbes: [...lanePolicy.requiredProbes],
+                promotionSensitiveRequiredProbes: [...lanePolicy.promotionSensitiveRequiredProbes],
+                deferredRisks: [...lanePolicy.deferredRisks],
+            });
+        }
 
         for (const check of result.checks) {
             addGateCheck(checks, check.level, `[${lane}] ${check.message}`);
@@ -95,23 +129,65 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
 
     if (policyProfile) {
         for (const lane of lanes) {
-            const required = policyProfile.requiredProbes[lane] ?? [];
-            if (required.length === 0) continue;
+            const lanePolicy = policyProfile.lanePolicies[lane];
+            const baseRequired = new Set<string>(policyProfile.requiredProbes[lane] ?? []);
+            for (const probeId of lanePolicy?.requiredProbes ?? []) {
+                baseRequired.add(probeId);
+            }
+            const promotionRequired = new Set<string>(lanePolicy?.promotionSensitiveRequiredProbes ?? []);
+            for (const probeId of baseRequired) {
+                promotionRequired.delete(probeId);
+            }
+            if (baseRequired.size === 0 && promotionRequired.size === 0) continue;
 
             const laneResult = laneResults.find((entry) => entry.lane === lane);
             const probes = laneResult?.result.probes ?? [];
-            for (const probeId of required) {
+            for (const probeId of baseRequired) {
                 const probe = probes.find((entry) => entry.id === probeId);
                 if (!probe) {
-                    const failure = `[${lane}] Missing required probe record: ${probeId}`;
-                    blockingFailures.push(failure);
-                    addGateCheck(checks, 'fail', failure);
+                    const message = `[${lane}] Missing required probe record: ${probeId}`;
+                    if (promotionSensitive) {
+                        blockingFailures.push(message);
+                        addGateCheck(checks, 'fail', message);
+                    } else {
+                        heldEvidence.push(message);
+                        addGateCheck(checks, 'warn', `${message} (held until promotion-sensitive package supplies live evidence)`);
+                    }
                     continue;
                 }
                 if (probe.status !== 'ok') {
-                    const failure = `[${lane}] Required probe ${probeId} was ${probe.status}: ${probe.message}`;
-                    blockingFailures.push(failure);
-                    addGateCheck(checks, 'fail', failure);
+                    const message = `[${lane}] Required probe ${probeId} was ${probe.status}: ${probe.message}`;
+                    if (promotionSensitive) {
+                        blockingFailures.push(message);
+                        addGateCheck(checks, 'fail', message);
+                    } else {
+                        heldEvidence.push(message);
+                        addGateCheck(checks, 'warn', `${message} (held until promotion-sensitive package supplies live evidence)`);
+                    }
+                }
+            }
+            for (const probeId of promotionRequired) {
+                const probe = probes.find((entry) => entry.id === probeId);
+                if (!probe) {
+                    const message = `[${lane}] Missing promotion-sensitive probe record: ${probeId}`;
+                    if (promotionSensitive) {
+                        blockingFailures.push(message);
+                        addGateCheck(checks, 'fail', message);
+                    } else {
+                        heldEvidence.push(message);
+                        addGateCheck(checks, 'warn', `${message} (held until promotion-sensitive package supplies live evidence)`);
+                    }
+                    continue;
+                }
+                if (probe.status !== 'ok') {
+                    const message = `[${lane}] Promotion-sensitive probe ${probeId} was ${probe.status}: ${probe.message}`;
+                    if (promotionSensitive) {
+                        blockingFailures.push(message);
+                        addGateCheck(checks, 'fail', message);
+                    } else {
+                        heldEvidence.push(message);
+                        addGateCheck(checks, 'warn', `${message} (held until promotion-sensitive package supplies live evidence)`);
+                    }
                 }
             }
         }
@@ -135,6 +211,12 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
                 policyProfile: policyProfile?.name,
                 policyPath: policyProfile?.policyPath,
                 blockingFailures,
+                packageId: packageContext.packageId,
+                packageCategory: packageContext.packageCategory,
+                promotionSensitive,
+                promotionGateStatus: 'blocking',
+                heldEvidence,
+                promotionDecisionBasis: [...promotionDecisionBasis.values()],
             };
         }
     }
@@ -155,9 +237,22 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
             policyProfile: policyProfile?.name,
             policyPath: policyProfile?.policyPath,
             blockingFailures,
+            packageId: packageContext.packageId,
+            packageCategory: packageContext.packageCategory,
+            promotionSensitive,
+            promotionGateStatus: 'blocking',
+            heldEvidence,
+            promotionDecisionBasis: [...promotionDecisionBasis.values()],
         };
     }
 
+    if (heldEvidence.length > 0) {
+        addGateCheck(
+            checks,
+            'warn',
+            'Promotion-sensitive live evidence is incomplete for at least one module; tracked decisions should remain held.',
+        );
+    }
     if (policyProfile && checks.some((check) => check.level === 'warn')) {
         addGateCheck(
             checks,
@@ -166,7 +261,7 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
         );
     }
 
-    const status = policyProfile ? (checks.some((check) => check.level === 'fail') ? 'fail' : 'ok') : summarizeGate(checks);
+    const status = policyProfile ? (blockingFailures.length > 0 ? 'fail' : 'ok') : summarizeGate(checks);
     return {
         status,
         exitCode: status === 'ok' ? 0 : status === 'warn' ? 2 : 1,
@@ -177,5 +272,11 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
         policyProfile: policyProfile?.name,
         policyPath: policyProfile?.policyPath,
         blockingFailures,
+        packageId: packageContext.packageId,
+        packageCategory: packageContext.packageCategory,
+        promotionSensitive,
+        promotionGateStatus: heldEvidence.length > 0 ? 'held' : 'clear',
+        heldEvidence,
+        promotionDecisionBasis: [...promotionDecisionBasis.values()],
     };
 }

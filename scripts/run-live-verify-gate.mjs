@@ -14,6 +14,7 @@ const strict = process.env.QINIU_LIVE_VERIFY_GATE_STRICT === '1';
 const profile = process.env.QINIU_LIVE_VERIFY_PROFILE || 'pr';
 const policyPath = process.env.QINIU_LIVE_VERIFY_POLICY_PATH;
 const outputPath = process.env.QINIU_LIVE_VERIFY_OUTPUT;
+const briefPath = process.env.QINIU_CHANGE_PACKAGE_BRIEF;
 const args = ['bin/qiniu-ai.mjs', 'verify', 'gate', '--lanes', lanes, '--profile', profile];
 
 if (strict) {
@@ -22,6 +23,10 @@ if (strict) {
 
 if (policyPath) {
   args.push('--policy', policyPath);
+}
+
+if (briefPath) {
+  args.push('--brief', briefPath);
 }
 
 if (outputPath) {

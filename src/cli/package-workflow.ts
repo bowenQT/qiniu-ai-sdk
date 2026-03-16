@@ -9,6 +9,7 @@ export type PackageLane =
     | 'runtime-hardening'
     | 'node-integrations'
     | 'dx-validation';
+export type ChangePackageCategory = 'standard' | 'promotion-sensitive';
 export type PackageDecisionMaturity = 'ga' | 'beta' | 'experimental';
 export type PhasePolicyStatus = 'planning' | 'active' | 'frozen' | 'closed';
 
@@ -20,6 +21,7 @@ const PACKAGE_LANES: PackageLane[] = [
     'node-integrations',
     'dx-validation',
 ];
+const CHANGE_PACKAGE_CATEGORIES: ChangePackageCategory[] = ['standard', 'promotion-sensitive'];
 
 export const DEFAULT_PHASE = 'phase2';
 export const DEFAULT_PHASE_POLICY_PATH = '.trellis/spec/sdk/phase-policy.json';
@@ -35,6 +37,7 @@ export interface ChangePackage {
     packageId: string;
     phase: string;
     ownerLane: PackageLane;
+    category?: ChangePackageCategory;
     topic: string;
     goal: string;
     successCriteria: string[];
@@ -111,6 +114,7 @@ export interface PhasePolicy {
 export interface CreateChangePackageOptions {
     phase?: string;
     ownerLane: PackageLane;
+    category?: ChangePackageCategory;
     topic: string;
     goal: string;
     successCriteria: string[];
@@ -140,9 +144,20 @@ export function isPackageLane(value: string): value is PackageLane {
     return PACKAGE_LANES.includes(value as PackageLane);
 }
 
+export function isChangePackageCategory(value: string): value is ChangePackageCategory {
+    return CHANGE_PACKAGE_CATEGORIES.includes(value as ChangePackageCategory);
+}
+
 export function parsePackageLane(value: string): PackageLane {
     if (!isPackageLane(value)) {
         throw new Error(`Unknown package lane: ${value}`);
+    }
+    return value;
+}
+
+export function parseChangePackageCategory(value: string): ChangePackageCategory {
+    if (!isChangePackageCategory(value)) {
+        throw new Error(`Unknown package category: ${value}`);
     }
     return value;
 }
@@ -259,6 +274,7 @@ export function createChangePackage(options: CreateChangePackageOptions): Change
         packageId: createPackageId(phase, options.ownerLane, topic),
         phase,
         ownerLane: options.ownerLane,
+        category: options.category ?? 'standard',
         topic,
         goal: options.goal,
         successCriteria: options.successCriteria,
