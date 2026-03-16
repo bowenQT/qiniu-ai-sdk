@@ -12,3 +12,14 @@
 ## Planning
 - For this repository, the canonical durable plan path is `.trellis/plans/`.
 - Runtime artifact plans can stay external unless intentionally promoted.
+
+## Phase 2 Role Split
+- Antigravity owns:
+  - package brief review
+  - review packet consumption
+  - promotion and phase-boundary decisions
+- Codex owns:
+  - bounded package execution
+  - evidence generation
+  - focused verification before integration
+- Antigravity should prefer tracked package briefs, review packets, and verification artifacts over raw transcript replay.
