@@ -30,8 +30,11 @@ export type {
 
 // Re-export NodeMCPHost (MCP Host Layer v2)
 export { NodeMCPHost } from './mcp-host';
+export { DEFAULT_MCP_INTEROP_DEFERRED_RISKS } from './mcp-host';
 export type {
     NodeMCPHostConfig,
+    NodeMCPHostInteropProbeHostResult,
+    NodeMCPHostInteropProbeResult,
     NodeMCPHostProbeResult,
     NodeMCPHostResourceInfo,
     NodeMCPHostResourceContent,

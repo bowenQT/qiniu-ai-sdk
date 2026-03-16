@@ -20,6 +20,7 @@ export interface LiveVerifyProbe {
     lane: WorktreeLane;
     status: LiveVerifyProbeStatus;
     message: string;
+    details?: Record<string, unknown>;
 }
 
 export interface LiveVerifyResult {
@@ -48,6 +49,7 @@ export interface LiveVerifyOptions {
     createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'image' | 'video' | 'file' | 'response' | 'batch' | 'censor' | 'account' | 'admin' | 'log' | 'ocr' | 'asr' | 'tts'>;
     createNodeClient?: (apiKey: string) => ReturnType<typeof createNodeQiniuAI>;
     createMcpTransport?: (config: MCPHttpServerConfig) => LiveVerifyMcpTransport;
+    createMcpHost?: (config: { servers: [MCPHttpServerConfig] }) => LiveVerifyMcpHost;
 }
 
 export interface LiveVerifyGateOptions {
@@ -60,6 +62,7 @@ export interface LiveVerifyGateOptions {
     createQiniuClient?: LiveVerifyOptions['createQiniuClient'];
     createNodeClient?: LiveVerifyOptions['createNodeClient'];
     createMcpTransport?: LiveVerifyOptions['createMcpTransport'];
+    createMcpHost?: LiveVerifyOptions['createMcpHost'];
 }
 
 export interface LiveVerifyPolicyProfile {
@@ -91,32 +94,7 @@ interface LiveVerifyMcpTransport {
     executeTool?(toolName: string, args: Record<string, unknown>): Promise<{
         content?: Array<{ type: string; text?: string }>;
     }>;
-    probe?(options: {
-        listTools?: boolean;
-        listResources?: boolean;
-        listPrompts?: boolean;
-        readResource?: { uri: string };
-        getPrompt?: { name: string; args?: Record<string, string> };
-        executeTool?: { name: string; args?: Record<string, unknown> };
-        eventStream?: boolean;
-        oauthMetadata?: { challengeHeader?: string } | boolean;
-        terminateSession?: boolean;
-    }): Promise<{
-        tools?: Array<{ name: string }>;
-        resources?: Array<{ uri: string }>;
-        prompts?: Array<{ name: string }>;
-        resourceContents?: Array<{ text?: string; mimeType?: string }>;
-        resourceText?: string;
-        promptMessages?: Array<{ role?: string; content: unknown }>;
-        promptText?: string;
-        toolResult?: { content?: Array<{ type: string; text?: string }> };
-        eventStream?: { status: number; contentType: string | null };
-        oauthMetadata?: {
-            protectedResource: { authorization_servers?: string[] };
-            authorizationServer: { issuer?: string } | null;
-        };
-        terminated?: boolean;
-    }>;
+    probe?(options: LiveVerifyMcpProbeOptions): Promise<LiveVerifyMcpProbeResult>;
     openEventStream(lastEventId?: string): Promise<Pick<Response, 'status' | 'headers'>>;
     discoverOAuthMetadata(challengeHeader?: string): Promise<{
         protectedResource: {
@@ -130,6 +108,63 @@ interface LiveVerifyMcpTransport {
     disconnect?(): Promise<void>;
 }
 
+interface LiveVerifyMcpProbeOptions {
+    listTools?: boolean;
+    listResources?: boolean;
+    listPrompts?: boolean;
+    readResource?: { uri: string };
+    getPrompt?: { name: string; args?: Record<string, string> };
+    executeTool?: { name: string; args?: Record<string, unknown> };
+    eventStream?: boolean;
+    oauthMetadata?: { challengeHeader?: string } | boolean;
+    terminateSession?: boolean;
+}
+
+interface LiveVerifyMcpProbeResult {
+    connection?: {
+        serverName: string;
+        url: string;
+        protocolVersion: string;
+        sessionId?: string;
+        lastEventId?: string;
+    };
+    tools?: Array<{ name: string }>;
+    resources?: Array<{ uri: string }>;
+    prompts?: Array<{ name: string }>;
+    resourceContents?: Array<{ text?: string; mimeType?: string }>;
+    resourceText?: string;
+    promptMessages?: Array<{ role?: string; content: unknown }>;
+    promptText?: string;
+    toolResult?: { content?: Array<{ type: string; text?: string }> };
+    eventStream?: { status: number; contentType: string | null };
+    oauthMetadata?: {
+        protectedResource: { authorization_servers?: string[] };
+        authorizationServer: { issuer?: string } | null;
+    };
+    terminated?: boolean;
+}
+
+interface LiveVerifyMcpHostInteropResult {
+    serverName: string;
+    transport?: LiveVerifyMcpProbeResult;
+    host?: {
+        tools?: Array<{ serverName: string; name: string }>;
+        resources?: Array<{ serverName: string; uri: string; name: string; mimeType?: string }>;
+        prompts?: Array<{ serverName: string; name: string; description?: string }>;
+        resourceContents?: Array<{ text?: string; mimeType?: string }>;
+        promptMessages?: Array<{ role?: string; content: unknown }>;
+        toolOutput?: string;
+    };
+    deferredRisks?: string[];
+}
+
+interface LiveVerifyMcpHost {
+    probeServerInterop?(
+        serverName: string,
+        options: LiveVerifyMcpProbeOptions,
+    ): Promise<LiveVerifyMcpHostInteropResult>;
+}
+
 function addCheck(checks: LiveVerifyCheck[], level: LiveVerifyStatus, message: string): void {
     checks.push({ level, message });
 }
@@ -140,8 +175,9 @@ function addProbe(
     id: string,
     status: LiveVerifyProbeStatus,
     message: string,
+    details?: Record<string, unknown>,
 ): void {
-    probes.push({ id, lane, status, message });
+    probes.push({ id, lane, status, message, details });
 }
 
 function summarize(checks: LiveVerifyCheck[]): LiveVerifyStatus {
@@ -208,6 +244,43 @@ function parseOptionalJsonStringRecord(value: string | undefined, envName: strin
     return Object.fromEntries(
         Object.entries(parsed as Record<string, unknown>).map(([key, entry]) => [key, String(entry)]),
     );
+}
+
+function buildMcpServerConfig(env: NodeJS.ProcessEnv, url: string): MCPHttpServerConfig {
+    return {
+        name: 'live-verify-mcp',
+        transport: 'http',
+        url,
+        token: env.QINIU_LIVE_VERIFY_MCP_TOKEN,
+        protocolVersion: env.QINIU_LIVE_VERIFY_MCP_PROTOCOL_VERSION,
+        sessionId: env.QINIU_LIVE_VERIFY_MCP_SESSION_ID,
+        lastEventId: env.QINIU_LIVE_VERIFY_MCP_LAST_EVENT_ID,
+        origin: env.QINIU_LIVE_VERIFY_MCP_ORIGIN,
+        timeout: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_MCP_TIMEOUT_MS),
+    };
+}
+
+function buildMcpProbeOptions(
+    env: NodeJS.ProcessEnv,
+    resourceUri: string | undefined,
+    promptName: string | undefined,
+    promptArgs: Record<string, string> | undefined,
+    toolName: string | undefined,
+    toolArgs: Record<string, unknown>,
+): LiveVerifyMcpProbeOptions {
+    return {
+        listTools: env.QINIU_LIVE_VERIFY_MCP_LIST_TOOLS === '1',
+        listResources: env.QINIU_LIVE_VERIFY_MCP_LIST_RESOURCES === '1',
+        listPrompts: env.QINIU_LIVE_VERIFY_MCP_LIST_PROMPTS === '1',
+        readResource: resourceUri ? { uri: resourceUri } : undefined,
+        getPrompt: promptName ? { name: promptName, args: promptArgs } : undefined,
+        executeTool: toolName ? { name: toolName, args: toolArgs } : undefined,
+        eventStream: true,
+        oauthMetadata: env.QINIU_LIVE_VERIFY_MCP_OAUTH_DISCOVERY === '1'
+            ? { challengeHeader: env.QINIU_LIVE_VERIFY_MCP_CHALLENGE }
+            : undefined,
+        terminateSession: env.QINIU_LIVE_VERIFY_MCP_TERMINATE === '1',
+    };
 }
 
 const LANE_MODULES: Record<Exclude<WorktreeLane, 'integration'>, string[]> = {
@@ -303,6 +376,10 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
     const createMcpTransport = options.createMcpTransport ?? ((config: MCPHttpServerConfig) => {
         const { MCPHttpTransport } = require('../node');
         return new MCPHttpTransport(config);
+    });
+    const createMcpHost = options.createMcpHost ?? ((config: { servers: [MCPHttpServerConfig] }) => {
+        const { NodeMCPHost } = require('../node');
+        return new NodeMCPHost(config);
     });
 
     if (options.lane === 'foundation') {
@@ -1261,17 +1338,8 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
         addCheck(checks, 'ok', `Node lane chat probe succeeded: ${result.choices[0]?.message?.content ?? ''}`);
         const mcpUrl = env.QINIU_LIVE_VERIFY_MCP_URL?.trim();
         if (mcpUrl) {
-            const transport = createMcpTransport({
-                name: 'live-verify-mcp',
-                transport: 'http',
-                url: mcpUrl,
-                token: env.QINIU_LIVE_VERIFY_MCP_TOKEN,
-                protocolVersion: env.QINIU_LIVE_VERIFY_MCP_PROTOCOL_VERSION,
-                sessionId: env.QINIU_LIVE_VERIFY_MCP_SESSION_ID,
-                lastEventId: env.QINIU_LIVE_VERIFY_MCP_LAST_EVENT_ID,
-                origin: env.QINIU_LIVE_VERIFY_MCP_ORIGIN,
-                timeout: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_MCP_TIMEOUT_MS),
-            });
+            const serverConfig = buildMcpServerConfig(env, mcpUrl);
+            const transport = createMcpTransport(serverConfig);
             const toolName = env.QINIU_LIVE_VERIFY_MCP_TOOL_NAME?.trim();
             const toolArgs = parseOptionalJsonObject(env.QINIU_LIVE_VERIFY_MCP_TOOL_ARGS_JSON) ?? {};
             const promptName = env.QINIU_LIVE_VERIFY_MCP_GET_PROMPT_NAME?.trim();
@@ -1280,24 +1348,30 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 'QINIU_LIVE_VERIFY_MCP_GET_PROMPT_ARGS_JSON',
             );
             const resourceUri = env.QINIU_LIVE_VERIFY_MCP_READ_RESOURCE_URI?.trim();
+            const probeOptions = buildMcpProbeOptions(
+                env,
+                resourceUri,
+                promptName,
+                promptArgs,
+                toolName,
+                toolArgs,
+            );
 
             if (transport.probe) {
-                const probeResult = await transport.probe({
-                    listTools: env.QINIU_LIVE_VERIFY_MCP_LIST_TOOLS === '1',
-                    listResources: env.QINIU_LIVE_VERIFY_MCP_LIST_RESOURCES === '1',
-                    listPrompts: env.QINIU_LIVE_VERIFY_MCP_LIST_PROMPTS === '1',
-                    readResource: resourceUri ? { uri: resourceUri } : undefined,
-                    getPrompt: promptName ? { name: promptName, args: promptArgs } : undefined,
-                    executeTool: toolName
-                        ? { name: toolName, args: toolArgs }
-                        : undefined,
-                    eventStream: true,
-                    oauthMetadata: env.QINIU_LIVE_VERIFY_MCP_OAUTH_DISCOVERY === '1'
-                        ? { challengeHeader: env.QINIU_LIVE_VERIFY_MCP_CHALLENGE }
-                        : undefined,
-                    terminateSession: env.QINIU_LIVE_VERIFY_MCP_TERMINATE === '1',
-                });
-                addProbe(probes, options.lane, 'mcp-connect', 'ok', `MCP transport probe connected: ${mcpUrl}`);
+                const probeResult = await transport.probe(probeOptions);
+                addProbe(
+                    probes,
+                    options.lane,
+                    'mcp-connect',
+                    'ok',
+                    `MCP transport probe connected: ${mcpUrl}`,
+                    {
+                        connection: probeResult.connection,
+                        toolCount: probeResult.tools?.length,
+                        resourceCount: probeResult.resources?.length,
+                        promptCount: probeResult.prompts?.length,
+                    },
+                );
 
                 if (probeResult.tools) {
                     addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${probeResult.tools.length} tools`);
@@ -1313,23 +1387,63 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
 
                 if (typeof probeResult.resourceText === 'string') {
                     addCheck(checks, 'ok', `MCP resource read probe succeeded: ${probeResult.resourceText}`);
-                    addProbe(probes, options.lane, 'mcp-read-resource', 'ok', `MCP resource read probe succeeded: ${resourceUri ?? '[configured-by-probe]'}`);
+                    addProbe(
+                        probes,
+                        options.lane,
+                        'mcp-read-resource',
+                        'ok',
+                        `MCP resource read probe succeeded: ${resourceUri ?? '[configured-by-probe]'}`,
+                        {
+                            uri: resourceUri,
+                            contentCount: probeResult.resourceContents?.length,
+                        },
+                    );
                 }
                 if (probeResult.resourceContents) {
                     addCheck(checks, 'ok', `MCP structured resource read probe succeeded: ${probeResult.resourceContents.length} contents`);
                     if (resourceUri) {
-                        addProbe(probes, options.lane, 'mcp-read-resource', 'ok', `MCP structured resource read probe succeeded: ${resourceUri}`);
+                        addProbe(
+                            probes,
+                            options.lane,
+                            'mcp-read-resource',
+                            'ok',
+                            `MCP structured resource read probe succeeded: ${resourceUri}`,
+                            {
+                                uri: resourceUri,
+                                contentCount: probeResult.resourceContents.length,
+                            },
+                        );
                     }
                 }
 
                 if (typeof probeResult.promptText === 'string') {
                     addCheck(checks, 'ok', `MCP prompt get probe succeeded: ${probeResult.promptText}`);
-                    addProbe(probes, options.lane, 'mcp-get-prompt', 'ok', `MCP prompt get probe succeeded: ${promptName ?? '[configured-by-probe]'}`);
+                    addProbe(
+                        probes,
+                        options.lane,
+                        'mcp-get-prompt',
+                        'ok',
+                        `MCP prompt get probe succeeded: ${promptName ?? '[configured-by-probe]'}`,
+                        {
+                            name: promptName,
+                            messageCount: probeResult.promptMessages?.length,
+                        },
+                    );
                 }
                 if (probeResult.promptMessages) {
                     addCheck(checks, 'ok', `MCP structured prompt get probe succeeded: ${probeResult.promptMessages.length} messages`);
                     if (promptName) {
-                        addProbe(probes, options.lane, 'mcp-get-prompt', 'ok', `MCP structured prompt get probe succeeded: ${promptName}`);
+                        addProbe(
+                            probes,
+                            options.lane,
+                            'mcp-get-prompt',
+                            'ok',
+                            `MCP structured prompt get probe succeeded: ${promptName}`,
+                            {
+                                name: promptName,
+                                messageCount: probeResult.promptMessages.length,
+                            },
+                        );
                     }
                 }
 
@@ -1495,6 +1609,74 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     }
                 }
             }
+            if (env.QINIU_LIVE_VERIFY_MCP_HOST === '1') {
+                const mcpHost = createMcpHost({ servers: [serverConfig] });
+                if (!mcpHost.probeServerInterop) {
+                    throw new Error('MCP host interoperability probe requires probeServerInterop() support');
+                }
+
+                const interopResult = await mcpHost.probeServerInterop(serverConfig.name, probeOptions);
+                addProbe(
+                    probes,
+                    options.lane,
+                    'mcp-host-interop',
+                    'ok',
+                    `MCP host interoperability probe succeeded: ${serverConfig.name}`,
+                    {
+                        transportConnection: interopResult.transport?.connection,
+                        hostToolCount: interopResult.host?.tools?.length,
+                        hostResourceCount: interopResult.host?.resources?.length,
+                        hostPromptCount: interopResult.host?.prompts?.length,
+                        deferredRisks: interopResult.deferredRisks,
+                    },
+                );
+
+                if (interopResult.host?.tools) {
+                    addCheck(checks, 'ok', `MCP host tool listing probe succeeded: ${interopResult.host.tools.length} tools`);
+                }
+                if (interopResult.host?.resources) {
+                    addCheck(checks, 'ok', `MCP host resource listing probe succeeded: ${interopResult.host.resources.length} resources`);
+                }
+                if (interopResult.host?.prompts) {
+                    addCheck(checks, 'ok', `MCP host prompt listing probe succeeded: ${interopResult.host.prompts.length} prompts`);
+                }
+                if (interopResult.host?.resourceContents) {
+                    addCheck(
+                        checks,
+                        'ok',
+                        `MCP host resource read probe succeeded: ${interopResult.host.resourceContents.length} contents`,
+                    );
+                }
+                if (interopResult.host?.promptMessages) {
+                    addCheck(
+                        checks,
+                        'ok',
+                        `MCP host prompt get probe succeeded: ${interopResult.host.promptMessages.length} messages`,
+                    );
+                }
+                if (toolName && typeof interopResult.host?.toolOutput === 'string') {
+                    addCheck(
+                        checks,
+                        'ok',
+                        `MCP host tool execution probe succeeded: ${toolName}${interopResult.host.toolOutput ? ` -> ${interopResult.host.toolOutput}` : ''}`,
+                    );
+                }
+                if (interopResult.deferredRisks && interopResult.deferredRisks.length > 0) {
+                    addCheck(
+                        checks,
+                        'ok',
+                        `MCP host interoperability deferred risks recorded: ${interopResult.deferredRisks.length} items`,
+                    );
+                }
+            } else {
+                addProbe(
+                    probes,
+                    options.lane,
+                    'mcp-host-interop',
+                    'skipped',
+                    'MCP host interoperability probe was skipped.',
+                );
+            }
             if (!resourceUri) {
                 addProbe(probes, options.lane, 'mcp-read-resource', 'skipped', 'MCP resource read probe was skipped.');
             }
@@ -1510,6 +1692,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
             addProbe(probes, options.lane, 'mcp-connect', 'skipped', 'MCP live probe was skipped.');
             addProbe(probes, options.lane, 'mcp-read-resource', 'skipped', 'MCP resource read probe was skipped.');
             addProbe(probes, options.lane, 'mcp-get-prompt', 'skipped', 'MCP prompt get probe was skipped.');
+            addProbe(probes, options.lane, 'mcp-host-interop', 'skipped', 'MCP host interoperability probe was skipped.');
         }
         if (!env.QINIU_ACCESS_KEY || !env.QINIU_SECRET_KEY) {
             addCheck(
@@ -1558,6 +1741,7 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
                 createQiniuClient: options.createQiniuClient,
                 createNodeClient: options.createNodeClient,
                 createMcpTransport: options.createMcpTransport,
+                createMcpHost: options.createMcpHost,
             });
         } catch (error) {
             result = {
@@ -1710,6 +1894,9 @@ export function renderLiveVerifyGateMarkdown(result: LiveVerifyGateResult): stri
             lines.push('');
             for (const probe of entry.result.probes) {
                 lines.push(`- [${probe.status}] ${probe.id}: ${probe.message}`);
+                if (probe.details) {
+                    lines.push(`  details: \`${JSON.stringify(probe.details)}\``);
+                }
             }
         }
         lines.push('');
