@@ -353,6 +353,8 @@ describe('createAgent', () => {
 
             await expect(agent.loadThread({ threadId: 'thread-replay-agent' })).resolves.toMatchObject({
                 threadId: 'thread-replay-agent',
+                source: 'session-store',
+                restoreMode: 'message-only',
                 summary: 'Earlier summary',
                 messages: [
                     { role: 'system', content: 'You are a helpful assistant.' },
@@ -499,6 +501,8 @@ describe('createAgent', () => {
                 threadId: 'thread-restore-existing',
                 record: {
                     threadId: 'snapshot-record',
+                    source: 'session-store',
+                    restoreMode: 'message-only',
                     messages: [{ role: 'user', content: 'Restored source' }],
                     summary: 'restored summary',
                     updatedAt: Date.now(),
@@ -509,6 +513,8 @@ describe('createAgent', () => {
                 threadId: 'thread-restore-existing',
                 record: {
                     threadId: 'snapshot-record',
+                    source: 'session-store',
+                    restoreMode: 'message-only',
                     messages: [{ role: 'user', content: 'Restored source' }],
                     summary: 'restored summary',
                     updatedAt: Date.now(),
@@ -648,6 +654,8 @@ describe('createAgent', () => {
 
             await expect(agent.loadThread({ threadId: 'thread-checkpoint-only' })).resolves.toMatchObject({
                 threadId: 'thread-checkpoint-only',
+                source: 'checkpointer',
+                restoreMode: 'checkpoint',
                 messages: [
                     { role: 'user', content: 'Checkpoint user turn' },
                     { role: 'assistant', content: 'Checkpoint assistant reply' },
@@ -772,6 +780,8 @@ describe('createAgent', () => {
                 threadId: 'thread-checkpoint-restored-target',
                 record: {
                     threadId: 'snapshot-record',
+                    source: 'session-store',
+                    restoreMode: 'message-only',
                     messages: [
                         { role: 'user', content: 'Restored checkpoint user turn' },
                         { role: 'assistant', content: 'Restored checkpoint assistant reply' },
@@ -922,7 +932,11 @@ describe('createAgent', () => {
             expect(interrupted.interrupted).toBe(true);
 
             const loaded = await agent.loadThread({ threadId: 'thread-backed-store' });
-            expect(loaded?.checkpoint?.metadata.status).toBe('pending_approval');
+            expect(loaded).toMatchObject({
+                source: 'checkpointer',
+                restoreMode: 'resumable',
+                checkpointStatus: 'pending_approval',
+            });
 
             const resumed = await agent.resumeThread({
                 threadId: 'thread-backed-store',
@@ -930,7 +944,11 @@ describe('createAgent', () => {
             });
 
             expect(resumed.interrupted).toBe(false);
-            expect((await agent.loadThread({ threadId: 'thread-backed-store' }))?.checkpoint?.metadata.status).toBe('completed');
+            await expect(agent.loadThread({ threadId: 'thread-backed-store' })).resolves.toMatchObject({
+                source: 'checkpointer',
+                restoreMode: 'checkpoint',
+                checkpointStatus: 'completed',
+            });
         });
 
         it('rejects resumable runs for non-checkpointer session stores', async () => {

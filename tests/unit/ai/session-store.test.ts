@@ -29,6 +29,8 @@ describe('session store', () => {
         expect(record?.checkpoint?.state.internalMessages).toHaveLength(1);
         expect(record?.messages).toEqual([{ role: 'user', content: 'hello' }]);
         expect(record?.summary).toBe('hello summary');
+        expect(record?.source).toBe('session-store');
+        expect(record?.restoreMode).toBe('checkpoint');
     });
 
     it('adapts an existing checkpointer into SessionStore', async () => {
@@ -83,6 +85,8 @@ describe('session store', () => {
         expect(record?.summary).toBe('hello summary');
         expect(record?.checkpoint?.metadata.id).toBe('ckpt-1');
         expect(record?.messages).toEqual([{ role: 'user', content: 'hello' }]);
+        expect(record?.source).toBe('checkpointer');
+        expect(record?.restoreMode).toBe('checkpoint');
     });
 
     it('persists summary through checkpoint metadata for restart scenarios', async () => {
@@ -141,6 +145,8 @@ describe('session store', () => {
         expect(record?.checkpoint?.metadata.custom).toMatchObject({
             session_summary: 'persisted summary',
         });
+        expect(record?.source).toBe('checkpointer');
+        expect(record?.restoreMode).toBe('checkpoint');
     });
 
     it('can update only the summary while keeping the existing checkpoint', async () => {
@@ -202,6 +208,8 @@ describe('session store', () => {
             existing: true,
             session_summary: 'updated summary',
         });
+        expect(record.source).toBe('checkpointer');
+        expect(record.restoreMode).toBe('checkpoint');
     });
 
     it('persists message-only sessions through CheckpointerSessionStore', async () => {
@@ -258,6 +266,44 @@ describe('session store', () => {
         expect(record?.checkpoint?.metadata.custom).toMatchObject({
             session_summary: 'message-only checkpoint summary',
         });
+        expect(record?.source).toBe('checkpointer');
+        expect(record?.restoreMode).toBe('checkpoint');
+    });
+
+    it('classifies pending-approval checkpoints as resumable records', async () => {
+        const checkpointer: Checkpointer = {
+            save: vi.fn(),
+            load: vi.fn().mockResolvedValue({
+                metadata: {
+                    id: 'ckpt-pending',
+                    threadId: 'thread-pending',
+                    createdAt: 5,
+                    stepCount: 2,
+                    status: 'pending_approval',
+                },
+                state: {
+                    internalMessages: [{ role: 'assistant', content: 'Waiting for approval' }],
+                    stepCount: 2,
+                    maxSteps: 4,
+                    done: false,
+                    output: '',
+                    reasoning: '',
+                    finishReason: null,
+                },
+            }),
+            list: vi.fn().mockResolvedValue([]),
+            delete: vi.fn().mockResolvedValue(true),
+            clear: vi.fn().mockResolvedValue(0),
+        };
+
+        const store = new CheckpointerSessionStore(checkpointer);
+        const record = await store.load('thread-pending');
+
+        expect(record).toMatchObject({
+            source: 'checkpointer',
+            restoreMode: 'resumable',
+            checkpointStatus: 'pending_approval',
+        });
     });
 
     it('replays stored thread messages without exposing checkpoint internals', async () => {
@@ -304,6 +350,8 @@ describe('session store', () => {
 
         expect(record?.checkpoint).toBeUndefined();
         expect(record?.summary).toBe('message-only summary');
+        expect(record?.source).toBe('session-store');
+        expect(record?.restoreMode).toBe('message-only');
         expect(record?.messages).toEqual([
             { role: 'system', content: 'You are helpful.' },
             { role: 'user', content: 'Hello from message-only session' },
