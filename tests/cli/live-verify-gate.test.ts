@@ -160,6 +160,59 @@ describe('CLI live verification gate', () => {
         expect(result.checks.some((check) => check.message.includes('[node-integrations] Tracked decision files:'))).toBe(true);
     });
 
+    it('keeps optional MCP host interop failures non-blocking under the PR policy', async () => {
+        const result = await verifyLiveGate({
+            lanes: ['node-integrations'],
+            policy: {
+                version: 1,
+                profiles: {
+                    pr: {
+                        description: 'PR blocking profile',
+                        requiredProbes: {},
+                        lanePolicies: {
+                            'node-integrations': {
+                                optionalProbes: ['mcp-host-interop'],
+                            },
+                        },
+                    },
+                },
+            },
+            policyProfile: 'pr',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_MCP_URL: 'https://example.com/mcp',
+                QINIU_LIVE_VERIFY_MCP_HOST: '1',
+            },
+            createNodeClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'node' } }],
+                    }),
+                },
+            }) as any,
+            createMcpTransport: () => ({
+                probe: async () => ({
+                    connection: {
+                        serverName: 'live-verify-mcp',
+                        url: 'https://example.com/mcp',
+                        protocolVersion: '2025-11-25',
+                    },
+                }),
+            }) as any,
+            createMcpHost: () => ({
+                probeServerInterop: async () => {
+                    throw new Error('host interop unavailable');
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(0);
+        expect(result.status).toBe('ok');
+        expect(result.lanes[0]?.result.exitCode).toBe(2);
+        expect(result.lanes[0]?.result.probes.find((probe) => probe.id === 'mcp-host-interop')?.status).toBe('fail');
+        expect(result.checks.some((check) => check.message.includes('non-blocking by active policy'))).toBe(true);
+    });
+
     it('upgrades warnings to a failing gate in strict mode', async () => {
         const result = await verifyLiveGate({
             lanes: ['foundation'],

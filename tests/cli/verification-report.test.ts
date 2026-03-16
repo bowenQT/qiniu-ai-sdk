@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { renderVerificationReport } from '../../src/cli/verification-report';
+import {
+    renderPromotionDecisionSummary,
+    renderReviewPacketFallback,
+    renderVerificationReport,
+} from '../../src/cli/verification-report';
 
 describe('verification report renderer', () => {
     it('combines the capability scorecard and live verification summary', () => {
@@ -48,5 +52,33 @@ describe('verification report renderer', () => {
         expect(output).toContain('Live verification artifact was not produced for this run.');
         expect(output).toContain('Review packet artifact was not produced for this run.');
         expect(output).toContain('Promotion decision artifact was not produced for this run.');
+    });
+
+    it('renders tracked review handoffs as a review-packet fallback artifact', () => {
+        const output = renderReviewPacketFallback({
+            handoffPath: '.trellis/integrations/2026-03-16-phase2-batch2-review-handoff.md',
+            handoffContent: '# Phase 2 Batch 2 Review Handoff\n\nCheckpoint summary.\n',
+        });
+
+        expect(output).toContain('# Phase 2 Batch 2 Review Handoff');
+        expect(output).toContain('Checkpoint summary.');
+    });
+
+    it('renders tracked promotion decisions when no package-scoped decision input exists', () => {
+        const output = renderPromotionDecisionSummary([
+            {
+                module: 'NodeMCPHost',
+                oldMaturity: 'beta',
+                newMaturity: 'beta',
+                trackedPath: '.trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json',
+                decisionSource: 'antigravity',
+                decisionAt: '2026-03-16T13:30:00.000Z',
+            },
+        ]);
+
+        expect(output).toContain('# Promotion Decisions');
+        expect(output).toContain('## NodeMCPHost');
+        expect(output).toContain('beta (held)');
+        expect(output).toContain('antigravity');
     });
 });

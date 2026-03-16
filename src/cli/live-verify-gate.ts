@@ -25,7 +25,7 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
     const laneResults: LiveVerifyGateLaneResult[] = [];
     const env = options.env ?? process.env;
     const lanes = options.lanes.length > 0 ? options.lanes : [...DEFAULT_LIVE_VERIFY_GATE_LANES];
-    const strict = options.strict ?? env.QINIU_REQUIRE_LIVE_VERIFY === '1';
+    const strict = options.strict ?? (env.QINIU_LIVE_VERIFY_GATE_STRICT === '1' || env.QINIU_REQUIRE_LIVE_VERIFY === '1');
     const generatedAt = new Date().toISOString();
     const policyProfile = resolveLiveVerifyPolicyProfile(options);
     const blockingFailures: string[] = [];
@@ -41,11 +41,13 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
     }
 
     for (const lane of lanes) {
+        const lanePolicy = policyProfile?.lanePolicies[lane];
         let result: LiveVerifyResult;
         try {
             result = await verifyLiveLane({
                 lane,
                 env,
+                nonBlockingProbeIds: lanePolicy?.optionalProbes,
                 createQiniuClient: options.createQiniuClient,
                 createNodeClient: options.createNodeClient,
                 createMcpTransport: options.createMcpTransport,
@@ -64,8 +66,6 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
                 probes: [],
             };
         }
-        const lanePolicy = policyProfile?.lanePolicies[lane];
-
         if (lanePolicy?.description) {
             addGateCheck(checks, 'ok', `[${lane}] Policy: ${lanePolicy.description}`);
         }

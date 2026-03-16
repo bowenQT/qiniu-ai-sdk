@@ -47,6 +47,7 @@ export interface LiveVerifyGateResult extends LiveVerifyResult {
 export interface LiveVerifyOptions {
     lane: WorktreeLane;
     env?: NodeJS.ProcessEnv;
+    nonBlockingProbeIds?: string[];
     createQiniuClient?: (apiKey: string) => Pick<QiniuAI, 'chat' | 'image' | 'video' | 'file' | 'response' | 'batch' | 'censor' | 'account' | 'admin' | 'log' | 'ocr' | 'asr' | 'tts'>;
     createNodeClient?: (apiKey: string) => ReturnType<typeof createNodeQiniuAI>;
     createMcpTransport?: (config: MCPHttpServerConfig) => LiveVerifyMcpTransport;
@@ -205,6 +206,21 @@ function summarize(checks: LiveVerifyCheck[]): LiveVerifyStatus {
     if (checks.some((check) => check.level === 'fail')) return 'fail';
     if (checks.some((check) => check.level === 'warn')) return 'warn';
     return 'ok';
+}
+
+function describeLiveVerifyProbe(id: string): string {
+    switch (id) {
+        case 'mcp-connect':
+            return 'MCP transport probe';
+        case 'mcp-read-resource':
+            return 'MCP resource read probe';
+        case 'mcp-get-prompt':
+            return 'MCP prompt get probe';
+        case 'mcp-host-interop':
+            return 'MCP host interoperability probe';
+        default:
+            return id;
+    }
 }
 
 function readLiveVerifyPolicy(policyPath: string): LiveVerifyPolicy {
@@ -427,6 +443,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
     const probes: LiveVerifyProbe[] = [];
     const env = options.env ?? process.env;
     const apiKey = env.QINIU_API_KEY;
+    const nonBlockingProbeIds = new Set(options.nonBlockingProbeIds ?? []);
     const createQiniuClient = options.createQiniuClient ?? ((nextApiKey: string) => new QiniuAI({ apiKey: nextApiKey }));
     const createNodeClient = options.createNodeClient ?? ((nextApiKey: string) => createNodeQiniuAI({ apiKey: nextApiKey }));
     const createMcpTransport = options.createMcpTransport ?? ((config: MCPHttpServerConfig) => {
@@ -437,6 +454,29 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
         const { NodeMCPHost } = require('../node');
         return new NodeMCPHost(config);
     });
+    const recordProbeFailure = (
+        probeId: string,
+        error: unknown,
+        details?: Record<string, unknown>,
+    ): boolean => {
+        const message = error instanceof Error ? error.message : String(error);
+        const label = describeLiveVerifyProbe(probeId);
+        const nonBlocking = nonBlockingProbeIds.has(probeId);
+        addCheck(
+            checks,
+            nonBlocking ? 'warn' : 'fail',
+            `${label} failed: ${message}${nonBlocking ? ' (recorded as non-blocking by active policy)' : ''}`,
+        );
+        addProbe(
+            probes,
+            options.lane,
+            probeId,
+            'fail',
+            `${label} failed: ${message}`,
+            details,
+        );
+        return nonBlocking;
+    };
 
     if (options.lane === 'foundation') {
         addCheck(
@@ -1414,129 +1454,139 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
             );
 
             if (transport.probe) {
-                const probeResult = await transport.probe(probeOptions);
-                addProbe(
-                    probes,
-                    options.lane,
-                    'mcp-connect',
-                    'ok',
-                    `MCP transport probe connected: ${mcpUrl}`,
-                    {
-                        connection: probeResult.connection,
-                        toolCount: probeResult.tools?.length,
-                        resourceCount: probeResult.resources?.length,
-                        promptCount: probeResult.prompts?.length,
-                    },
-                );
-
-                if (probeResult.tools) {
-                    addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${probeResult.tools.length} tools`);
-                }
-
-                if (probeResult.resources) {
-                    addCheck(checks, 'ok', `MCP resource listing probe succeeded: ${probeResult.resources.length} resources`);
-                }
-
-                if (probeResult.prompts) {
-                    addCheck(checks, 'ok', `MCP prompt listing probe succeeded: ${probeResult.prompts.length} prompts`);
-                }
-
-                if (typeof probeResult.resourceText === 'string') {
-                    addCheck(checks, 'ok', `MCP resource read probe succeeded: ${probeResult.resourceText}`);
+                try {
+                    const probeResult = await transport.probe(probeOptions);
                     addProbe(
                         probes,
                         options.lane,
-                        'mcp-read-resource',
+                        'mcp-connect',
                         'ok',
-                        `MCP resource read probe succeeded: ${resourceUri ?? '[configured-by-probe]'}`,
+                        `MCP transport probe connected: ${mcpUrl}`,
                         {
-                            uri: resourceUri,
-                            contentCount: probeResult.resourceContents?.length,
+                            connection: probeResult.connection,
+                            toolCount: probeResult.tools?.length,
+                            resourceCount: probeResult.resources?.length,
+                            promptCount: probeResult.prompts?.length,
                         },
                     );
-                }
-                if (probeResult.resourceContents) {
-                    addCheck(checks, 'ok', `MCP structured resource read probe succeeded: ${probeResult.resourceContents.length} contents`);
-                    if (resourceUri) {
+
+                    if (probeResult.tools) {
+                        addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${probeResult.tools.length} tools`);
+                    }
+
+                    if (probeResult.resources) {
+                        addCheck(checks, 'ok', `MCP resource listing probe succeeded: ${probeResult.resources.length} resources`);
+                    }
+
+                    if (probeResult.prompts) {
+                        addCheck(checks, 'ok', `MCP prompt listing probe succeeded: ${probeResult.prompts.length} prompts`);
+                    }
+
+                    if (typeof probeResult.resourceText === 'string') {
+                        addCheck(checks, 'ok', `MCP resource read probe succeeded: ${probeResult.resourceText}`);
                         addProbe(
                             probes,
                             options.lane,
                             'mcp-read-resource',
                             'ok',
-                            `MCP structured resource read probe succeeded: ${resourceUri}`,
+                            `MCP resource read probe succeeded: ${resourceUri ?? '[configured-by-probe]'}`,
                             {
                                 uri: resourceUri,
-                                contentCount: probeResult.resourceContents.length,
+                                contentCount: probeResult.resourceContents?.length,
                             },
                         );
                     }
-                }
+                    if (probeResult.resourceContents) {
+                        addCheck(checks, 'ok', `MCP structured resource read probe succeeded: ${probeResult.resourceContents.length} contents`);
+                        if (resourceUri) {
+                            addProbe(
+                                probes,
+                                options.lane,
+                                'mcp-read-resource',
+                                'ok',
+                                `MCP structured resource read probe succeeded: ${resourceUri}`,
+                                {
+                                    uri: resourceUri,
+                                    contentCount: probeResult.resourceContents.length,
+                                },
+                            );
+                        }
+                    }
 
-                if (typeof probeResult.promptText === 'string') {
-                    addCheck(checks, 'ok', `MCP prompt get probe succeeded: ${probeResult.promptText}`);
-                    addProbe(
-                        probes,
-                        options.lane,
-                        'mcp-get-prompt',
-                        'ok',
-                        `MCP prompt get probe succeeded: ${promptName ?? '[configured-by-probe]'}`,
-                        {
-                            name: promptName,
-                            messageCount: probeResult.promptMessages?.length,
-                        },
-                    );
-                }
-                if (probeResult.promptMessages) {
-                    addCheck(checks, 'ok', `MCP structured prompt get probe succeeded: ${probeResult.promptMessages.length} messages`);
-                    if (promptName) {
+                    if (typeof probeResult.promptText === 'string') {
+                        addCheck(checks, 'ok', `MCP prompt get probe succeeded: ${probeResult.promptText}`);
                         addProbe(
                             probes,
                             options.lane,
                             'mcp-get-prompt',
                             'ok',
-                            `MCP structured prompt get probe succeeded: ${promptName}`,
+                            `MCP prompt get probe succeeded: ${promptName ?? '[configured-by-probe]'}`,
                             {
                                 name: promptName,
-                                messageCount: probeResult.promptMessages.length,
+                                messageCount: probeResult.promptMessages?.length,
                             },
                         );
                     }
-                }
+                    if (probeResult.promptMessages) {
+                        addCheck(checks, 'ok', `MCP structured prompt get probe succeeded: ${probeResult.promptMessages.length} messages`);
+                        if (promptName) {
+                            addProbe(
+                                probes,
+                                options.lane,
+                                'mcp-get-prompt',
+                                'ok',
+                                `MCP structured prompt get probe succeeded: ${promptName}`,
+                                {
+                                    name: promptName,
+                                    messageCount: probeResult.promptMessages.length,
+                                },
+                            );
+                        }
+                    }
 
-                if (toolName && probeResult.toolResult) {
-                    const firstText = probeResult.toolResult.content?.find(
-                        (item: { type: string; text?: string }) => item.type === 'text',
-                    )?.text;
-                    addCheck(
-                        checks,
-                        'ok',
-                        `MCP tool call probe succeeded: ${toolName}${firstText ? ` -> ${firstText}` : ''}`,
-                    );
-                }
+                    if (toolName && probeResult.toolResult) {
+                        const firstText = probeResult.toolResult.content?.find(
+                            (item: { type: string; text?: string }) => item.type === 'text',
+                        )?.text;
+                        addCheck(
+                            checks,
+                            'ok',
+                            `MCP tool call probe succeeded: ${toolName}${firstText ? ` -> ${firstText}` : ''}`,
+                        );
+                    }
 
-                if (probeResult.eventStream) {
-                    addCheck(
-                        checks,
-                        'ok',
-                        `MCP event stream probe succeeded: ${probeResult.eventStream.status}${probeResult.eventStream.contentType ? ` (${probeResult.eventStream.contentType})` : ''}`,
-                    );
-                }
+                    if (probeResult.eventStream) {
+                        addCheck(
+                            checks,
+                            'ok',
+                            `MCP event stream probe succeeded: ${probeResult.eventStream.status}${probeResult.eventStream.contentType ? ` (${probeResult.eventStream.contentType})` : ''}`,
+                        );
+                    }
 
-                if (probeResult.oauthMetadata) {
-                    const issuer = probeResult.oauthMetadata.authorizationServer?.issuer
-                        ?? probeResult.oauthMetadata.protectedResource.authorization_servers?.[0]
-                        ?? 'unadvertised';
-                    addCheck(checks, 'ok', `MCP OAuth metadata probe succeeded: ${issuer}`);
-                }
+                    if (probeResult.oauthMetadata) {
+                        const issuer = probeResult.oauthMetadata.authorizationServer?.issuer
+                            ?? probeResult.oauthMetadata.protectedResource.authorization_servers?.[0]
+                            ?? 'unadvertised';
+                        addCheck(checks, 'ok', `MCP OAuth metadata probe succeeded: ${issuer}`);
+                    }
 
-                if (env.QINIU_LIVE_VERIFY_MCP_TERMINATE === '1') {
-                    addCheck(
-                        checks,
-                        probeResult.terminated ? 'ok' : 'warn',
-                        probeResult.terminated
-                            ? 'MCP DELETE terminate probe succeeded.'
-                            : 'MCP DELETE terminate probe is not supported by the server.',
-                    );
+                    if (env.QINIU_LIVE_VERIFY_MCP_TERMINATE === '1') {
+                        addCheck(
+                            checks,
+                            probeResult.terminated ? 'ok' : 'warn',
+                            probeResult.terminated
+                                ? 'MCP DELETE terminate probe succeeded.'
+                                : 'MCP DELETE terminate probe is not supported by the server.',
+                        );
+                    }
+                } catch (error) {
+                    const downgraded =
+                        recordProbeFailure('mcp-connect', error, { url: mcpUrl })
+                        && (!resourceUri || recordProbeFailure('mcp-read-resource', error, { uri: resourceUri }))
+                        && (!promptName || recordProbeFailure('mcp-get-prompt', error, { name: promptName }));
+                    if (!downgraded) {
+                        throw error;
+                    }
                 }
             } else {
                 let terminated = false;
@@ -1547,9 +1597,9 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                             throw new Error('MCP tool listing probe requires connect() and listTools() support');
                         }
                         await transport.connect();
-                    const tools = await transport.listTools();
-                    addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${tools.length} tools`);
-                }
+                        const tools = await transport.listTools();
+                        addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${tools.length} tools`);
+                    }
 
                     if (env.QINIU_LIVE_VERIFY_MCP_LIST_RESOURCES === '1') {
                         if (!transport.connect || !transport.listResources) {
@@ -1659,6 +1709,14 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                                 : 'MCP DELETE terminate probe is not supported by the server.',
                         );
                     }
+                } catch (error) {
+                    const downgraded =
+                        recordProbeFailure('mcp-connect', error, { url: mcpUrl })
+                        && (!resourceUri || recordProbeFailure('mcp-read-resource', error, { uri: resourceUri }))
+                        && (!promptName || recordProbeFailure('mcp-get-prompt', error, { name: promptName }));
+                    if (!downgraded) {
+                        throw error;
+                    }
                 } finally {
                     if (!terminated) {
                         await transport.disconnect?.();
@@ -1666,63 +1724,69 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 }
             }
             if (env.QINIU_LIVE_VERIFY_MCP_HOST === '1') {
-                const mcpHost = createMcpHost({ servers: [serverConfig] });
-                if (!mcpHost.probeServerInterop) {
-                    throw new Error('MCP host interoperability probe requires probeServerInterop() support');
-                }
+                try {
+                    const mcpHost = createMcpHost({ servers: [serverConfig] });
+                    if (!mcpHost.probeServerInterop) {
+                        throw new Error('MCP host interoperability probe requires probeServerInterop() support');
+                    }
 
-                const interopResult = await mcpHost.probeServerInterop(serverConfig.name, probeOptions);
-                addProbe(
-                    probes,
-                    options.lane,
-                    'mcp-host-interop',
-                    'ok',
-                    `MCP host interoperability probe succeeded: ${serverConfig.name}`,
-                    {
-                        transportConnection: interopResult.transport?.connection,
-                        hostToolCount: interopResult.host?.tools?.length,
-                        hostResourceCount: interopResult.host?.resources?.length,
-                        hostPromptCount: interopResult.host?.prompts?.length,
-                        deferredRisks: interopResult.deferredRisks,
-                    },
-                );
+                    const interopResult = await mcpHost.probeServerInterop(serverConfig.name, probeOptions);
+                    addProbe(
+                        probes,
+                        options.lane,
+                        'mcp-host-interop',
+                        'ok',
+                        `MCP host interoperability probe succeeded: ${serverConfig.name}`,
+                        {
+                            transportConnection: interopResult.transport?.connection,
+                            hostToolCount: interopResult.host?.tools?.length,
+                            hostResourceCount: interopResult.host?.resources?.length,
+                            hostPromptCount: interopResult.host?.prompts?.length,
+                            deferredRisks: interopResult.deferredRisks,
+                        },
+                    );
 
-                if (interopResult.host?.tools) {
-                    addCheck(checks, 'ok', `MCP host tool listing probe succeeded: ${interopResult.host.tools.length} tools`);
-                }
-                if (interopResult.host?.resources) {
-                    addCheck(checks, 'ok', `MCP host resource listing probe succeeded: ${interopResult.host.resources.length} resources`);
-                }
-                if (interopResult.host?.prompts) {
-                    addCheck(checks, 'ok', `MCP host prompt listing probe succeeded: ${interopResult.host.prompts.length} prompts`);
-                }
-                if (interopResult.host?.resourceContents) {
-                    addCheck(
-                        checks,
-                        'ok',
-                        `MCP host resource read probe succeeded: ${interopResult.host.resourceContents.length} contents`,
-                    );
-                }
-                if (interopResult.host?.promptMessages) {
-                    addCheck(
-                        checks,
-                        'ok',
-                        `MCP host prompt get probe succeeded: ${interopResult.host.promptMessages.length} messages`,
-                    );
-                }
-                if (toolName && typeof interopResult.host?.toolOutput === 'string') {
-                    addCheck(
-                        checks,
-                        'ok',
-                        `MCP host tool execution probe succeeded: ${toolName}${interopResult.host.toolOutput ? ` -> ${interopResult.host.toolOutput}` : ''}`,
-                    );
-                }
-                if (interopResult.deferredRisks && interopResult.deferredRisks.length > 0) {
-                    addCheck(
-                        checks,
-                        'ok',
-                        `MCP host interoperability deferred risks recorded: ${interopResult.deferredRisks.length} items`,
-                    );
+                    if (interopResult.host?.tools) {
+                        addCheck(checks, 'ok', `MCP host tool listing probe succeeded: ${interopResult.host.tools.length} tools`);
+                    }
+                    if (interopResult.host?.resources) {
+                        addCheck(checks, 'ok', `MCP host resource listing probe succeeded: ${interopResult.host.resources.length} resources`);
+                    }
+                    if (interopResult.host?.prompts) {
+                        addCheck(checks, 'ok', `MCP host prompt listing probe succeeded: ${interopResult.host.prompts.length} prompts`);
+                    }
+                    if (interopResult.host?.resourceContents) {
+                        addCheck(
+                            checks,
+                            'ok',
+                            `MCP host resource read probe succeeded: ${interopResult.host.resourceContents.length} contents`,
+                        );
+                    }
+                    if (interopResult.host?.promptMessages) {
+                        addCheck(
+                            checks,
+                            'ok',
+                            `MCP host prompt get probe succeeded: ${interopResult.host.promptMessages.length} messages`,
+                        );
+                    }
+                    if (toolName && typeof interopResult.host?.toolOutput === 'string') {
+                        addCheck(
+                            checks,
+                            'ok',
+                            `MCP host tool execution probe succeeded: ${toolName}${interopResult.host.toolOutput ? ` -> ${interopResult.host.toolOutput}` : ''}`,
+                        );
+                    }
+                    if (interopResult.deferredRisks && interopResult.deferredRisks.length > 0) {
+                        addCheck(
+                            checks,
+                            'ok',
+                            `MCP host interoperability deferred risks recorded: ${interopResult.deferredRisks.length} items`,
+                        );
+                    }
+                } catch (error) {
+                    if (!recordProbeFailure('mcp-host-interop', error, { serverName: serverConfig.name })) {
+                        throw error;
+                    }
                 }
             } else {
                 addProbe(

@@ -11,9 +11,72 @@ export interface VerificationReportInput {
     promotionDecisionsAvailable?: boolean;
 }
 
+export interface PromotionDecisionSummaryEntry {
+    module: string;
+    oldMaturity: string;
+    newMaturity: string;
+    trackedPath?: string;
+    decisionSource?: string;
+    decisionAt?: string;
+}
+
 function trimEmbeddedHeading(content: string): string {
     const trimmed = content.trim();
     return trimmed.replace(/^# .+\n+/, '');
+}
+
+export function renderReviewPacketFallback(options?: {
+    handoffPath?: string;
+    handoffContent?: string;
+}): string {
+    const handoffContent = options?.handoffContent?.trim();
+    if (handoffContent) {
+        return handoffContent.endsWith('\n') ? handoffContent : `${handoffContent}\n`;
+    }
+    if (options?.handoffPath) {
+        return [
+            '# Review Packet',
+            '',
+            `Tracked review handoff: ${options.handoffPath}`,
+            '',
+        ].join('\n');
+    }
+    return [
+        '# Review Packet',
+        '',
+        'No package-scoped review packet inputs were provided for this run.',
+        '',
+    ].join('\n');
+}
+
+export function renderPromotionDecisionSummary(
+    decisions: PromotionDecisionSummaryEntry[],
+): string {
+    const lines = ['# Promotion Decisions', ''];
+    if (decisions.length === 0) {
+        lines.push('No promotion decisions recorded.', '');
+        return lines.join('\n');
+    }
+    for (const decision of decisions) {
+        lines.push(`## ${decision.module}`);
+        lines.push('');
+        lines.push(
+            decision.oldMaturity === decision.newMaturity
+                ? `- Maturity: ${decision.newMaturity} (held)`
+                : `- Maturity: ${decision.oldMaturity} -> ${decision.newMaturity}`,
+        );
+        if (decision.decisionSource) {
+            lines.push(`- Source: ${decision.decisionSource}`);
+        }
+        if (decision.decisionAt) {
+            lines.push(`- Decision at: ${decision.decisionAt}`);
+        }
+        if (decision.trackedPath) {
+            lines.push(`- Tracked file: ${decision.trackedPath}`);
+        }
+        lines.push('');
+    }
+    return lines.join('\n');
 }
 
 export function renderVerificationReport(input: VerificationReportInput): string {

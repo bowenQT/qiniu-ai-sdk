@@ -6,30 +6,42 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const inputPath = process.argv[2] || process.env.QINIU_PROMOTION_DECISIONS_INPUT;
+const capabilityEvidencePath = resolve(
+  process.cwd(),
+  process.env.QINIU_CAPABILITY_EVIDENCE_PATH || '.trellis/spec/sdk/capability-evidence.json',
+);
 const outputPath = resolve(
   process.cwd(),
   process.argv[3] || process.env.QINIU_PROMOTION_DECISIONS_OUTPUT || 'artifacts/promotion-decisions.md',
 );
-
-if (!inputPath) {
-  console.log('Skipping promotion decision render. Set QINIU_PROMOTION_DECISIONS_INPUT.');
-  process.exit(0);
+const packageWorkflowDistEntry = resolve(repoRoot, 'dist', 'cli', 'package-workflow.mjs');
+const verificationReportDistEntry = resolve(repoRoot, 'dist', 'cli', 'verification-report.mjs');
+if (!existsSync(packageWorkflowDistEntry) || !existsSync(verificationReportDistEntry)) {
+  throw new Error(
+    `Missing build artifacts. Run "npm run build" before rendering promotion decisions.`,
+  );
 }
 
-const resolvedInputPath = resolve(process.cwd(), inputPath);
-if (!existsSync(resolvedInputPath)) {
-  console.log(`Skipping promotion decision render. Missing input: ${resolvedInputPath}`);
-  process.exit(0);
+const { renderPromotionDecisionSummary } = await import(pathToFileURL(verificationReportDistEntry).href);
+
+let rendered;
+if (inputPath) {
+  const resolvedInputPath = resolve(process.cwd(), inputPath);
+  if (existsSync(resolvedInputPath)) {
+    const { renderPromotionDecisionMarkdown } = await import(pathToFileURL(packageWorkflowDistEntry).href);
+    const payload = JSON.parse(readFileSync(resolvedInputPath, 'utf8'));
+    rendered = renderPromotionDecisionMarkdown(payload);
+  }
 }
 
-const distEntry = resolve(repoRoot, 'dist', 'cli', 'package-workflow.mjs');
-if (!existsSync(distEntry)) {
-  throw new Error(`Missing build artifact: ${distEntry}. Run "npm run build" before rendering promotion decisions.`);
+if (!rendered) {
+  const capabilityEvidence = existsSync(capabilityEvidencePath)
+    ? JSON.parse(readFileSync(capabilityEvidencePath, 'utf8'))
+    : { promotionDecisions: [] };
+  rendered = renderPromotionDecisionSummary(
+    Array.isArray(capabilityEvidence.promotionDecisions) ? capabilityEvidence.promotionDecisions : [],
+  );
 }
-
-const { renderPromotionDecisionMarkdown } = await import(pathToFileURL(distEntry).href);
-const payload = JSON.parse(readFileSync(resolvedInputPath, 'utf8'));
-const rendered = renderPromotionDecisionMarkdown(payload);
 
 mkdirSync(dirname(outputPath), { recursive: true });
 writeFileSync(outputPath, rendered, 'utf8');
