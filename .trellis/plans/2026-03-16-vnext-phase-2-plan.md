@@ -3,6 +3,9 @@
 Phase 2 starts from the stable Phase 1 baseline and moves the repository to a package-first
 operating model.
 
+The first execution queue for this phase is tracked in
+[2026-03-16-vnext-phase-2-batch-1.md](./2026-03-16-vnext-phase-2-batch-1.md).
+
 ## Phase Goal
 
 Make bounded change packages, deterministic evidence flow, and tracked phase boundaries the default

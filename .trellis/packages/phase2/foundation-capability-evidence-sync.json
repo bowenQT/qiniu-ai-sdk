@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "packageId": "phase2/foundation/capability-evidence-sync",
+  "phase": "phase2",
+  "ownerLane": "foundation",
+  "topic": "capability-evidence-sync",
+  "goal": "Make capability truth updates flow from tracked evidence artifacts instead of ad hoc manual sync.",
+  "successCriteria": [
+    "Capability scorecard and verification report consume the same evidence snapshot.",
+    "Promotion decisions can update maturity metadata through a deterministic tracked path.",
+    "Manual overrides remain explicit instead of masquerading as primary truth."
+  ],
+  "touchedSurfaces": [
+    "src/lib/capability-source.ts",
+    "scripts/render-capability-scorecard.mjs",
+    "src/cli/verification-report.ts",
+    "docs/capability-scorecard.md"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Full automatic scraping of the external docs site.",
+    "Changing product maturity levels without explicit promotion decisions."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/foundation/capability-evidence-sync",
+  "branch": "main",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk",
+  "createdAt": "2026-03-16T05:33:33.946Z"
+}

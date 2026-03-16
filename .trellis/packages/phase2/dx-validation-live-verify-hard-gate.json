@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "packageId": "phase2/dx-validation/live-verify-hard-gate",
+  "phase": "phase2",
+  "ownerLane": "dx-validation",
+  "topic": "live-verify-hard-gate",
+  "goal": "Promote live verify from optional evidence to a policy-enforced repository gate.",
+  "successCriteria": [
+    "PR-blocking versus nightly-only probes are explicitly separated.",
+    "verify gate can fail deterministically when required live evidence is missing.",
+    "verification report can reference gate outcomes without manual patch-up."
+  ],
+  "touchedSurfaces": [
+    ".github/workflows/verify.yml",
+    "scripts/run-live-verify-gate.mjs",
+    "src/cli/live-verify.ts",
+    ".trellis/spec/sdk/verification-matrix.md"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Adding brand-new cloud probes beyond the current validated matrix.",
+    "Adopting a merge queue implementation in the same package."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/dx-validation/live-verify-hard-gate",
+  "branch": "main",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk",
+  "createdAt": "2026-03-16T05:33:28.076Z"
+}
