@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { QiniuAI } from '../../../src/client';
 import {
+    RESPONSE_API_HELPER_CONTRACT,
     extractResponseOutputMessage,
     extractResponseOutputMessages,
     extractResponseOutputText,
@@ -99,6 +100,25 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         });
 
         expect(result.output_text).toBe('Server projection');
+    });
+
+    it('exposes explicit ResponseAPI helper promotion and deferred boundaries', () => {
+        expect(RESPONSE_API_HELPER_CONTRACT.promotionCandidates).toEqual(expect.arrayContaining([
+            'createTextResult/followUpTextResult',
+            'createJsonResult/followUpJsonResult',
+            'createChatCompletionStream/followUpChatCompletionStream',
+        ]));
+        expect(RESPONSE_API_HELPER_CONTRACT.deferredGaps).toEqual(expect.arrayContaining([
+            'Tool-call and function-role Response API array inputs remain explicitly unsupported.',
+            'Maturity promotion stays deferred until tracked promotion decisions and live evidence approve it.',
+        ]));
+        expect(RESPONSE_API_HELPER_CONTRACT.defaultBehaviors).toEqual(expect.arrayContaining([
+            'JSON helpers default text.format.type=json_object unless the caller already sets text.format.',
+            'createMessageStream returns the latest assistant output message at stream completion.',
+        ]));
+        expect(RESPONSE_API_HELPER_CONTRACT.verificationEvidence).toContain(
+            'tests/unit/modules/response.test.ts',
+        );
     });
 
     it('should return structured reasoning payloads via createReasoningResult()', async () => {

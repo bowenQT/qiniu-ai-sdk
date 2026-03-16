@@ -224,6 +224,70 @@ export interface ResponseJsonStreamResult<T = unknown> extends ResponseStreamRes
     json?: T;
 }
 
+export interface ResponseHelperContract {
+    helperSurface: string[];
+    promotionCandidates: string[];
+    deferredGaps: string[];
+    verificationEvidence: string[];
+    defaultBehaviors: string[];
+}
+
+export const RESPONSE_API_HELPER_CONTRACT: ResponseHelperContract = Object.freeze({
+    helperSurface: [
+        'create',
+        'followUp',
+        'createStream',
+        'followUpStream',
+        'createText',
+        'followUpText',
+        'createTextResult',
+        'followUpTextResult',
+        'createMessageStream',
+        'followUpMessageStream',
+        'createMessagesStream',
+        'followUpMessagesStream',
+        'createJson',
+        'followUpJson',
+        'createJsonResult',
+        'followUpJsonResult',
+        'createJsonStream',
+        'followUpJsonStream',
+        'createChatCompletion',
+        'followUpChatCompletion',
+        'createChatCompletionResult',
+        'followUpChatCompletionResult',
+        'createChatCompletionStream',
+        'followUpChatCompletionStream',
+        'createReasoningResult',
+        'followUpReasoningResult',
+    ],
+    promotionCandidates: [
+        'createTextResult/followUpTextResult',
+        'createJsonResult/followUpJsonResult',
+        'createMessagesResult/followUpMessagesResult',
+        'createChatCompletionResult/followUpChatCompletionResult',
+        'createReasoningResult/followUpReasoningResult',
+        'createTextStream/followUpTextStream',
+        'createJsonStream/followUpJsonStream',
+        'createChatCompletionStream/followUpChatCompletionStream',
+    ],
+    deferredGaps: [
+        'Tool-call and function-role Response API array inputs remain explicitly unsupported.',
+        'Projection helpers continue to depend on provider-specific experimental event shapes.',
+        'Maturity promotion stays deferred until tracked promotion decisions and live evidence approve it.',
+    ],
+    verificationEvidence: [
+        'tests/unit/modules/response.test.ts',
+        'qiniu-ai verify gate --lanes cloud-surface --strict',
+        'docs/capability-scorecard.md',
+    ],
+    defaultBehaviors: [
+        'JSON helpers default text.format.type=json_object unless the caller already sets text.format.',
+        'ChatMessage[] input accepts only role/content fields and rejects tool/function-role payloads.',
+        'createMessageStream returns the latest assistant output message at stream completion.',
+    ],
+});
+
 // ============================================================================
 // ResponseAPI Class
 // ============================================================================

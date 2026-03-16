@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Batch } from '../../../src/modules/batch';
+import { Batch, BATCH_HELPER_CONTRACT } from '../../../src/modules/batch';
 
 function createMockClient() {
     return {
@@ -16,6 +16,24 @@ function createMockClient() {
 }
 
 describe('Batch', () => {
+    it('exposes explicit batch helper promotion and deferred boundaries', () => {
+        expect(BATCH_HELPER_CONTRACT.promotionCandidates).toEqual(expect.arrayContaining([
+            'BatchTaskSnapshot lifecycle helpers',
+            'waitForCompletion',
+        ]));
+        expect(BATCH_HELPER_CONTRACT.deferredGaps).toEqual(expect.arrayContaining([
+            'Mutating batch lifecycle probes remain env-gated and are not yet part of the default PR profile.',
+            'Public maturity changes remain deferred until a tracked promotion decision artifact is recorded.',
+        ]));
+        expect(BATCH_HELPER_CONTRACT.defaultBehaviors).toEqual(expect.arrayContaining([
+            'list() normalizes missing data arrays to [] so helper chaining remains predictable.',
+            'waitForCompletion defaults to 2000ms polling and a 300000ms timeout unless overridden.',
+        ]));
+        expect(BATCH_HELPER_CONTRACT.verificationEvidence).toContain(
+            'tests/unit/modules/batch.test.ts',
+        );
+    });
+
     it('creates a batch task handle and reuses it for get/wait/cancel/resume/delete', async () => {
         const client = createMockClient();
         client.post.mockResolvedValueOnce({
