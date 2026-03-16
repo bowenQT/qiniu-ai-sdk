@@ -216,6 +216,15 @@ function readLiveVerifyPolicy(policyPath: string): LiveVerifyPolicy {
     return payload;
 }
 
+function normalizeStringList(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    return value
+        .map((entry) => String(entry).trim())
+        .filter(Boolean);
+}
+
 export function resolveLiveVerifyPolicyProfile(options: LiveVerifyGateOptions): ResolvedLiveVerifyPolicyProfile | undefined {
     const env = options.env ?? process.env;
     const profileName = options.policyProfile ?? env.QINIU_LIVE_VERIFY_PROFILE?.trim();

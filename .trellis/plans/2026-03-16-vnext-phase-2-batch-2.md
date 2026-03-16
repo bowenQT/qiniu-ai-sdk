@@ -19,6 +19,14 @@ Turn the Batch 1 checkpoint into a more durable operating baseline by:
 - Batch 1 package review handoff:
   [`../integrations/2026-03-16-phase2-batch1-packages-3-5-review-handoff.md`](../integrations/2026-03-16-phase2-batch1-packages-3-5-review-handoff.md)
 
+## Current Status
+
+- Package 1 completed on `b8e8daf`
+- Package 2 completed on `8b8da18`
+- Package 3 completed on `9d35545`
+- Batch 2 checkpoint handoff:
+  [`../integrations/2026-03-16-phase2-batch2-review-handoff.md`](../integrations/2026-03-16-phase2-batch2-review-handoff.md)
+
 ## Package Queue
 
 ### 1. `phase2/node-integrations/mcp-interop-evidence-policy`
