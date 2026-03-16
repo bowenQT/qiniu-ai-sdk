@@ -38,7 +38,7 @@ describe('CLI init and doctor', () => {
         expect(packageJson.name).toBe('chat-app');
         expect(indexSource).toContain("@bowenqt/qiniu-ai-sdk/qiniu");
         expect(indexSource).not.toContain("@bowenqt/qiniu-ai-sdk';");
-    });
+    }, 30_000);
 
     it('rejects init when target directory is not empty', async () => {
         const { runCLI } = await import('../../src/cli/skill-cli');

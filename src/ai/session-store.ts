@@ -2,6 +2,7 @@ import type { AgentState } from './internal-types';
 import type {
     Checkpoint,
     CheckpointMetadata,
+    CheckpointStatus,
     Checkpointer,
     SerializedAgentState,
 } from './graph/checkpointer';
@@ -10,8 +11,14 @@ import { deserializeCheckpoint, serializeState } from './graph/checkpointer';
 
 const SESSION_SUMMARY_KEY = 'session_summary';
 
+export type SessionRecordSource = 'session-store' | 'checkpointer';
+export type SessionRestoreMode = 'message-only' | 'checkpoint' | 'resumable';
+
 export interface SessionRecord {
     threadId: string;
+    source: SessionRecordSource;
+    restoreMode: SessionRestoreMode;
+    checkpointStatus?: CheckpointStatus;
     checkpoint?: Checkpoint;
     messages?: ChatMessage[];
     summary?: string;
@@ -64,6 +71,18 @@ function extractPersistedSummary(checkpoint?: Checkpoint | null): string | undef
     return typeof value === 'string' ? value : undefined;
 }
 
+function classifySessionRecord(
+    checkpoint: Checkpoint | null | undefined,
+    source: SessionRecordSource,
+): Pick<SessionRecord, 'source' | 'restoreMode' | 'checkpointStatus'> {
+    const checkpointStatus = checkpoint?.metadata.status;
+    return {
+        source,
+        restoreMode: checkpointStatus === 'pending_approval' ? 'resumable' : (checkpoint ? 'checkpoint' : 'message-only'),
+        checkpointStatus,
+    };
+}
+
 export function extractSessionMessages(
     source?: SessionRecord | Checkpoint | null,
 ): ChatMessage[] {
@@ -87,6 +106,24 @@ export async function replaySession(
     threadId: string,
 ): Promise<ChatMessage[]> {
     return extractSessionMessages(await store.load(threadId));
+}
+
+export function buildSessionRecord(params: {
+    threadId: string;
+    source: SessionRecordSource;
+    checkpoint?: Checkpoint | null;
+    messages?: ChatMessage[];
+    summary?: string;
+    updatedAt?: number;
+}): SessionRecord {
+    return {
+        threadId: params.threadId,
+        ...classifySessionRecord(params.checkpoint, params.source),
+        checkpoint: params.checkpoint ?? undefined,
+        messages: params.messages ?? extractSessionMessages(params.checkpoint),
+        summary: params.summary,
+        updatedAt: params.updatedAt ?? params.checkpoint?.metadata.createdAt ?? Date.now(),
+    };
 }
 
 export function forkSessionSaveInput(
@@ -174,13 +211,14 @@ export class MemorySessionStore implements SessionStore {
         const checkpoint = buildCheckpoint(input.threadId, input) ?? previous?.checkpoint;
         const messages = input.messages
             ?? (checkpoint ? extractSessionMessages(checkpoint) : previous?.messages ?? []);
-        const record: SessionRecord = {
+        const record = buildSessionRecord({
             threadId: input.threadId,
+            source: 'session-store',
             checkpoint,
             messages,
             summary: input.summary ?? previous?.summary,
             updatedAt: Date.now(),
-        };
+        });
         this.sessions.set(input.threadId, record);
         return record;
     }
@@ -209,13 +247,12 @@ export class CheckpointerSessionStore implements SessionStore {
         if (!checkpoint && !summary) {
             return null;
         }
-        return {
+        return buildSessionRecord({
             threadId,
-            checkpoint: checkpoint ?? undefined,
-            messages: extractSessionMessages(checkpoint),
+            source: 'checkpointer',
+            checkpoint,
             summary,
-            updatedAt: checkpoint?.metadata.createdAt ?? Date.now(),
-        };
+        });
     }
 
     async save(input: SessionSaveInput): Promise<SessionRecord> {
@@ -287,13 +324,13 @@ export class CheckpointerSessionStore implements SessionStore {
             this.summaries.set(input.threadId, resolvedSummary);
         }
 
-        return {
+        return buildSessionRecord({
             threadId: input.threadId,
+            source: 'checkpointer',
             checkpoint,
-            messages: input.messages ?? extractSessionMessages(checkpoint),
+            messages: input.messages,
             summary: this.summaries.get(input.threadId) ?? extractPersistedSummary(checkpoint),
-            updatedAt: checkpoint?.metadata.createdAt ?? Date.now(),
-        };
+        });
     }
 
     async clear(threadId: string): Promise<void> {
