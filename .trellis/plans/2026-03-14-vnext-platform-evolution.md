@@ -25,6 +25,12 @@ Lane briefs: `.trellis/plans/2026-03-14-vnext-lane-briefs.md`
 - public metadata APIs expose model capabilities and module maturity
 - repo-tracked workflows document multi-agent product evolution
 
+## Phase Status
+
+- Phase 1 status: complete on `codex/vnext-integration`
+- Phase 1 closeout: `.trellis/plans/2026-03-16-vnext-phase-1-closeout.md`
+- Phase 2 seed: `.trellis/plans/2026-03-16-vnext-phase-2-plan.md`
+
 ## Release Gate
 
 - `npm run build`
