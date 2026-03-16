@@ -7,6 +7,28 @@
         "cloud-surface": [
           "chat"
         ]
+      },
+      "lanePolicies": {
+        "node-integrations": {
+          "description": "PR policy records MCP interop evidence boundaries without blocking on host-level interop yet.",
+          "optionalProbes": [
+            "mcp-connect",
+            "mcp-read-resource",
+            "mcp-get-prompt",
+            "mcp-host-interop"
+          ],
+          "promotionModules": [
+            "NodeMCPHost"
+          ],
+          "trackedDecisionPaths": [
+            ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
+          ],
+          "deferredRisks": [
+            "Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.",
+            "OAuth discovery covers metadata endpoints only; token acquisition flows remain out of scope for this package.",
+            "HTTP interop evidence is collected per server; multi-server routing remains a higher-level integration concern."
+          ]
+        }
       }
     },
     "nightly": {
@@ -25,6 +47,30 @@
           "mcp-read-resource",
           "mcp-get-prompt"
         ]
+      },
+      "lanePolicies": {
+        "node-integrations": {
+          "description": "Nightly policy requires transport-level MCP interop evidence while holding host-level interop at beta until a later promotion package approves stricter gating.",
+          "requiredProbes": [
+            "mcp-connect",
+            "mcp-read-resource",
+            "mcp-get-prompt"
+          ],
+          "optionalProbes": [
+            "mcp-host-interop"
+          ],
+          "promotionModules": [
+            "NodeMCPHost"
+          ],
+          "trackedDecisionPaths": [
+            ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
+          ],
+          "deferredRisks": [
+            "Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.",
+            "OAuth discovery covers metadata endpoints only; token acquisition flows remain out of scope for this package.",
+            "HTTP interop evidence is collected per server; multi-server routing remains a higher-level integration concern."
+          ]
+        }
       }
     }
   }

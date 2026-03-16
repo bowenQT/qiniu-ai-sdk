@@ -1,8 +1,25 @@
 import type { ModuleMaturityInfo } from './capability-types';
 
-export const CAPABILITY_EVIDENCE_GENERATED_AT = "2026-03-15T00:00:00.000Z";
-export const CAPABILITY_EVIDENCE_DECISION_FILES = [] as const;
-export const TRACKED_PROMOTION_DECISIONS = [] as const;
+export const CAPABILITY_EVIDENCE_GENERATED_AT = "2026-03-16T13:30:00.000Z";
+export const CAPABILITY_EVIDENCE_DECISION_FILES = [
+  ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
+] as const;
+export const TRACKED_PROMOTION_DECISIONS = [
+  {
+    "packageId": "phase2/node-integrations/mcp-interop-evidence-policy",
+    "module": "NodeMCPHost",
+    "oldMaturity": "beta",
+    "newMaturity": "beta",
+    "evidenceBasis": [
+      ".trellis/spec/sdk/live-verify-policy.json#profiles.pr.lanePolicies.node-integrations",
+      ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.node-integrations",
+      ".trellis/integrations/2026-03-16-phase2-batch1-packages-3-5-review-handoff.md"
+    ],
+    "decisionSource": "antigravity",
+    "decisionAt": "2026-03-16T13:30:00.000Z",
+    "trackedPath": ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
+  }
+] as const;
 export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
   {
     "name": "chat",

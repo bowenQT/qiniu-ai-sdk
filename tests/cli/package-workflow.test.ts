@@ -298,4 +298,50 @@ describe('CLI package workflow', () => {
         expect(markdown).toContain('response');
         expect(markdown).toContain('experimental -> beta');
     });
+
+    it('renders held promotion decisions clearly when maturity stays unchanged', async () => {
+        const briefPath = path.join(tmpDir, 'brief.json');
+        fs.writeFileSync(briefPath, JSON.stringify({
+            version: 1,
+            packageId: 'phase2/node-integrations/mcp-policy',
+            phase: 'phase2',
+            ownerLane: 'node-integrations',
+            topic: 'mcp-policy',
+            goal: 'Record a hold decision for MCP interop policy',
+            successCriteria: ['Tracked policy decisions stay machine-readable'],
+            touchedSurfaces: ['src/cli/live-verify.ts'],
+            requiredEvidence: ['verification-report'],
+            explicitlyOutOfScope: [],
+            expectedMergeTarget: 'main',
+            expectedBranch: 'codex/phase2/node-integrations/mcp-policy',
+            branch: 'codex/phase2/node-integrations/mcp-policy',
+            worktreePath: tmpDir,
+            createdAt: '2026-03-16T00:00:00.000Z',
+        }, null, 2) + '\n', 'utf8');
+
+        await runCLI(
+            [
+                'package',
+                'decision',
+                '--brief',
+                briefPath,
+                '--module',
+                'NodeMCPHost',
+                '--from',
+                'beta',
+                '--to',
+                'beta',
+                '--basis',
+                '.trellis/spec/sdk/live-verify-policy.json',
+                '--source',
+                'antigravity',
+            ],
+            { cwd: tmpDir },
+        );
+
+        const markdownPath = path.join(tmpDir, 'artifacts', 'phase2-node-integrations-mcp-policy-promotion-decisions.md');
+        const markdown = fs.readFileSync(markdownPath, 'utf8');
+        expect(markdown).toContain('NodeMCPHost');
+        expect(markdown).toContain('beta (held)');
+    });
 });

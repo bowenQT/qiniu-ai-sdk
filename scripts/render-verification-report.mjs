@@ -45,12 +45,35 @@ const capabilityEvidenceAvailable = existsSync(capabilityEvidencePath);
 const capabilityEvidenceSummary = capabilityEvidenceAvailable
   ? (() => {
       const snapshot = JSON.parse(readFileSync(capabilityEvidencePath, 'utf8'));
+      const decisionFiles = Array.isArray(snapshot.decisionFiles) ? snapshot.decisionFiles : [];
+      const promotionDecisions = Array.isArray(snapshot.promotionDecisions) ? snapshot.promotionDecisions : [];
       return [
         '# Capability Evidence Snapshot',
         '',
         `Generated at: ${snapshot.generatedAt ?? 'unknown'}`,
-        `Tracked decision files: ${Array.isArray(snapshot.decisionFiles) ? snapshot.decisionFiles.length : 0}`,
-        `Tracked promotion decisions: ${Array.isArray(snapshot.promotionDecisions) ? snapshot.promotionDecisions.length : 0}`,
+        `Tracked decision files: ${decisionFiles.length}`,
+        ...(decisionFiles.length > 0
+          ? [
+              '',
+              'Decision files:',
+              ...decisionFiles.map((filePath) => `- ${filePath}`),
+            ]
+          : []),
+        '',
+        `Tracked promotion decisions: ${promotionDecisions.length}`,
+        ...(promotionDecisions.length > 0
+          ? [
+              '',
+              'Decision records:',
+              ...promotionDecisions.map((decision) => {
+                const maturity =
+                  decision.oldMaturity === decision.newMaturity
+                    ? `${decision.newMaturity} (held)`
+                    : `${decision.oldMaturity} -> ${decision.newMaturity}`;
+                return `- ${decision.module}: ${maturity} [${decision.trackedPath ?? 'untracked'}]`;
+              }),
+            ]
+          : []),
         '',
       ].join('\n');
     })()

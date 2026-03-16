@@ -387,7 +387,9 @@ export function renderPromotionDecisionMarkdown(set: PromotionDecisionSet): stri
             .map((decision) => [
                 `### ${decision.module}`,
                 '',
-                `- Maturity: ${decision.oldMaturity} -> ${decision.newMaturity}`,
+                decision.oldMaturity === decision.newMaturity
+                    ? `- Maturity: ${decision.newMaturity} (held)`
+                    : `- Maturity: ${decision.oldMaturity} -> ${decision.newMaturity}`,
                 `- Source: ${decision.decisionSource}`,
                 `- Decision at: ${decision.decisionAt}`,
                 `- Evidence: ${decision.evidenceBasis.join('; ')}`,

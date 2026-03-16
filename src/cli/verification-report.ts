@@ -32,7 +32,7 @@ export function renderVerificationReport(input: VerificationReportInput): string
         '',
         `Generated at: ${input.generatedAt}`,
         '',
-        'This artifact combines tracked capability truth, package review artifacts, promotion decisions, and the latest live verification evidence produced in CI.',
+        'This artifact combines tracked capability truth, package review artifacts, tracked promotion decisions, and the latest live verification evidence and policy boundaries produced in CI.',
         '',
         '## Capability Scorecard',
         '',

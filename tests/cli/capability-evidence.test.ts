@@ -69,4 +69,45 @@ describe('capability evidence helpers', () => {
             },
         ], [])).toThrow('UnknownModule');
     });
+
+    it('keeps tracked hold decisions even when maturity does not change', () => {
+        const decisions = collectPromotionDecisions(
+            ['/repo/.trellis/decisions/phase2/phase2-node-integrations-mcp-policy.json'],
+            {
+                readJsonFile: () => ({
+                    version: 1,
+                    packageId: 'phase2/node-integrations/mcp-policy',
+                    generatedAt: '2026-03-16T00:00:00.000Z',
+                    decisions: [
+                        {
+                            module: 'NodeMCPHost',
+                            oldMaturity: 'beta',
+                            newMaturity: 'beta',
+                            evidenceBasis: ['artifacts/verification-report.md'],
+                            decisionSource: 'antigravity',
+                            decisionAt: '2026-03-16T10:00:00.000Z',
+                        },
+                    ],
+                }),
+                relativeToRoot: (value: string) => value.replace('/repo/', ''),
+            },
+        );
+
+        const snapshot = buildCapabilityEvidenceSnapshot({
+            version: 1,
+            modules: [
+                {
+                    name: 'NodeMCPHost',
+                    maturity: 'beta',
+                    docsUrl: 'https://modelcontextprotocol.io/specification/2025-11-25/basic/transports',
+                    sourceUpdatedAt: '2026-03-14',
+                    validationLevel: 'unit',
+                },
+            ],
+        }, decisions, ['.trellis/decisions/phase2/phase2-node-integrations-mcp-policy.json']);
+
+        expect(snapshot.modules[0]?.maturity).toBe('beta');
+        expect(snapshot.promotionDecisions).toHaveLength(1);
+        expect(snapshot.promotionDecisions[0]?.trackedPath).toContain('phase2-node-integrations-mcp-policy.json');
+    });
 });

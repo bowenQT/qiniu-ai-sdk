@@ -33,6 +33,7 @@ export interface LiveVerifyResult {
 export interface LiveVerifyGateLaneResult {
     lane: WorktreeLane;
     result: LiveVerifyResult;
+    policy?: LiveVerifyLanePolicySummary;
 }
 
 export interface LiveVerifyGateResult extends LiveVerifyResult {
@@ -68,6 +69,7 @@ export interface LiveVerifyGateOptions {
 export interface LiveVerifyPolicyProfile {
     description?: string;
     requiredProbes?: Partial<Record<WorktreeLane, string[]>>;
+    lanePolicies?: Partial<Record<WorktreeLane, LiveVerifyLanePolicy>>;
 }
 
 export interface LiveVerifyPolicy {
@@ -75,11 +77,30 @@ export interface LiveVerifyPolicy {
     profiles: Record<string, LiveVerifyPolicyProfile>;
 }
 
+export interface LiveVerifyLanePolicy {
+    description?: string;
+    requiredProbes?: string[];
+    optionalProbes?: string[];
+    trackedDecisionPaths?: string[];
+    promotionModules?: string[];
+    deferredRisks?: string[];
+}
+
+export interface LiveVerifyLanePolicySummary {
+    description?: string;
+    requiredProbes: string[];
+    optionalProbes: string[];
+    trackedDecisionPaths: string[];
+    promotionModules: string[];
+    deferredRisks: string[];
+}
+
 interface ResolvedLiveVerifyPolicyProfile {
     name: string;
     policyPath?: string;
     description?: string;
     requiredProbes: Partial<Record<WorktreeLane, string[]>>;
+    lanePolicies: Partial<Record<WorktreeLane, LiveVerifyLanePolicySummary>>;
 }
 
 interface LiveVerifyMcpTransport {
@@ -195,6 +216,15 @@ function readLiveVerifyPolicy(policyPath: string): LiveVerifyPolicy {
     return payload;
 }
 
+function normalizeStringList(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    return value
+        .map((entry) => String(entry).trim())
+        .filter(Boolean);
+}
+
 function resolveLiveVerifyPolicyProfile(options: LiveVerifyGateOptions): ResolvedLiveVerifyPolicyProfile | undefined {
     const env = options.env ?? process.env;
     const profileName = options.policyProfile ?? env.QINIU_LIVE_VERIFY_PROFILE?.trim();
@@ -212,11 +242,37 @@ function resolveLiveVerifyPolicyProfile(options: LiveVerifyGateOptions): Resolve
         throw new Error(`Live verify policy does not define profile "${profileName}"`);
     }
 
+    const legacyRequiredProbes = profile.requiredProbes ?? {};
+    const lanePolicies: Partial<Record<WorktreeLane, LiveVerifyLanePolicySummary>> = {};
+    const lanes = new Set<WorktreeLane>();
+
+    for (const lane of Object.keys(legacyRequiredProbes) as WorktreeLane[]) {
+        lanes.add(lane);
+    }
+    for (const lane of Object.keys(profile.lanePolicies ?? {}) as WorktreeLane[]) {
+        lanes.add(lane);
+    }
+
+    for (const lane of lanes) {
+        const lanePolicy = profile.lanePolicies?.[lane];
+        lanePolicies[lane] = {
+            description: lanePolicy?.description,
+            requiredProbes: normalizeStringList(lanePolicy?.requiredProbes ?? legacyRequiredProbes[lane]),
+            optionalProbes: normalizeStringList(lanePolicy?.optionalProbes),
+            trackedDecisionPaths: normalizeStringList(lanePolicy?.trackedDecisionPaths),
+            promotionModules: normalizeStringList(lanePolicy?.promotionModules),
+            deferredRisks: normalizeStringList(lanePolicy?.deferredRisks),
+        };
+    }
+
     return {
         name: profileName,
         policyPath,
         description: profile.description,
-        requiredProbes: profile.requiredProbes ?? {},
+        requiredProbes: Object.fromEntries(
+            Object.entries(lanePolicies).map(([lane, lanePolicy]) => [lane, lanePolicy.requiredProbes]),
+        ) as Partial<Record<WorktreeLane, string[]>>,
+        lanePolicies,
     };
 }
 
@@ -1756,7 +1812,29 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
                 probes: [],
             };
         }
-        laneResults.push({ lane, result });
+        const lanePolicy = policyProfile?.lanePolicies[lane];
+
+        if (lanePolicy?.description) {
+            addCheck(checks, 'ok', `[${lane}] Policy: ${lanePolicy.description}`);
+        }
+        if (lanePolicy?.promotionModules.length) {
+            addCheck(checks, 'ok', `[${lane}] Promotion modules: ${lanePolicy.promotionModules.join(', ')}`);
+        }
+        if (lanePolicy?.trackedDecisionPaths.length) {
+            addCheck(checks, 'ok', `[${lane}] Tracked decision files: ${lanePolicy.trackedDecisionPaths.join(', ')}`);
+        }
+        if (lanePolicy?.optionalProbes.length) {
+            addCheck(
+                checks,
+                'ok',
+                `[${lane}] Optional probes for profile ${policyProfile?.name}: ${lanePolicy.optionalProbes.join(', ')}`,
+            );
+        }
+        if (lanePolicy?.deferredRisks.length) {
+            addCheck(checks, 'ok', `[${lane}] Deferred policy risks tracked: ${lanePolicy.deferredRisks.length}`);
+        }
+
+        laneResults.push({ lane, result, policy: lanePolicy });
 
         for (const check of result.checks) {
             addCheck(checks, check.level, `[${lane}] ${check.message}`);
@@ -1885,6 +1963,29 @@ export function renderLiveVerifyGateMarkdown(result: LiveVerifyGateResult): stri
             lines.push(`- Probes: ${entry.result.probes.length}`);
         }
         lines.push('');
+        if (entry.policy) {
+            lines.push('#### Policy');
+            lines.push('');
+            if (entry.policy.description) {
+                lines.push(`- Description: ${entry.policy.description}`);
+            }
+            if (entry.policy.requiredProbes.length > 0) {
+                lines.push(`- Required probes: ${entry.policy.requiredProbes.join(', ')}`);
+            }
+            if (entry.policy.optionalProbes.length > 0) {
+                lines.push(`- Optional probes: ${entry.policy.optionalProbes.join(', ')}`);
+            }
+            if (entry.policy.promotionModules.length > 0) {
+                lines.push(`- Promotion modules: ${entry.policy.promotionModules.join(', ')}`);
+            }
+            if (entry.policy.trackedDecisionPaths.length > 0) {
+                lines.push(`- Tracked decision files: ${entry.policy.trackedDecisionPaths.join(', ')}`);
+            }
+            if (entry.policy.deferredRisks.length > 0) {
+                lines.push(`- Deferred risks: ${entry.policy.deferredRisks.join(' | ')}`);
+            }
+            lines.push('');
+        }
         for (const check of entry.result.checks) {
             lines.push(`- [${check.level}] ${check.message}`);
         }

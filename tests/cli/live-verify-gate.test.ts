@@ -128,6 +128,38 @@ describe('CLI live verification gate', () => {
         expect(result.blockingFailures).toContain('[cloud-surface] Required probe response-api was skipped: Response API live probe was skipped.');
     });
 
+    it('surfaces lane policy metadata for MCP interop boundaries', async () => {
+        const result = await verifyLiveGate({
+            lanes: ['node-integrations'],
+            policy: {
+                version: 1,
+                profiles: {
+                    pr: {
+                        description: 'PR blocking profile',
+                        requiredProbes: {},
+                        lanePolicies: {
+                            'node-integrations': {
+                                description: 'PR keeps MCP interop evidence non-blocking until promotion approves stricter gating.',
+                                optionalProbes: ['mcp-connect', 'mcp-host-interop'],
+                                promotionModules: ['NodeMCPHost'],
+                                trackedDecisionPaths: ['.trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json'],
+                                deferredRisks: ['notifications remain unit-only'],
+                            },
+                        },
+                    },
+                },
+            },
+            policyProfile: 'pr',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+            },
+        });
+
+        expect(result.lanes[0]?.policy?.promotionModules).toEqual(['NodeMCPHost']);
+        expect(result.lanes[0]?.policy?.trackedDecisionPaths[0]).toContain('phase2-node-integrations-mcp-interop-evidence-policy.json');
+        expect(result.checks.some((check) => check.message.includes('[node-integrations] Tracked decision files:'))).toBe(true);
+    });
+
     it('upgrades warnings to a failing gate in strict mode', async () => {
         const result = await verifyLiveGate({
             lanes: ['foundation'],
@@ -221,6 +253,43 @@ describe('CLI live verification gate', () => {
         expect(markdown).toContain('mcp-host-interop');
         expect(markdown).toContain('"hostToolCount":1');
         expect(markdown).toContain('"deferredRisks":["notifications are still unit-only"]');
+    });
+
+    it('renders lane policy metadata in markdown when available', () => {
+        const markdown = renderLiveVerifyGateMarkdown({
+            generatedAt: '2026-03-16T09:00:00.000Z',
+            status: 'ok',
+            exitCode: 0,
+            checks: [],
+            probes: [],
+            lanes: [
+                {
+                    lane: 'node-integrations',
+                    policy: {
+                        description: 'PR keeps MCP host interop non-blocking.',
+                        requiredProbes: ['mcp-connect'],
+                        optionalProbes: ['mcp-host-interop'],
+                        promotionModules: ['NodeMCPHost'],
+                        trackedDecisionPaths: ['.trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json'],
+                        deferredRisks: ['notifications are still unit-only'],
+                    },
+                    result: {
+                        status: 'warn',
+                        exitCode: 2,
+                        checks: [],
+                        probes: [],
+                    },
+                },
+            ],
+            blockingFailures: [],
+        });
+
+        expect(markdown).toContain('#### Policy');
+        expect(markdown).toContain('Required probes: mcp-connect');
+        expect(markdown).toContain('Optional probes: mcp-host-interop');
+        expect(markdown).toContain('Promotion modules: NodeMCPHost');
+        expect(markdown).toContain('Tracked decision files: .trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json');
+        expect(markdown).toContain('Deferred risks: notifications are still unit-only');
     });
 
     it('wires the verify gate CLI command through runCLI', async () => {
