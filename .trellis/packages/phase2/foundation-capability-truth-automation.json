@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "packageId": "phase2/foundation/capability-truth-automation",
+  "phase": "phase2",
+  "ownerLane": "foundation",
+  "topic": "capability-truth-automation",
+  "goal": "Compile capability truth from tracked baseline, promotion decisions, and latest gate evidence so scorecard drift becomes a deterministic CI failure instead of a manual follow-up.",
+  "successCriteria": [
+    "Capability evidence snapshot consumes baseline, tracked decisions, and latest gate artifact deterministically.",
+    "Generated truth source, capability-evidence snapshot, and capability scorecard stay in lockstep under CI drift checks.",
+    "Verification report can cite the same compiled truth snapshot without transcript-only reasoning."
+  ],
+  "touchedSurfaces": [
+    ".trellis/spec/sdk/capability-evidence-baseline.json",
+    ".trellis/spec/sdk/capability-evidence.json",
+    "src/lib/capability-evidence.generated.ts",
+    "docs/capability-scorecard.md",
+    "scripts/render-capability-evidence-snapshot.mjs",
+    "scripts/render-capability-scorecard.mjs",
+    "src/cli/verification-report.ts"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Promoting module maturity directly inside the truth compiler package.",
+    "Turning external docs scraping into the primary truth source."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/foundation/capability-truth-automation",
+  "branch": "codex/phase2/foundation/capability-truth-automation",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase2-truth-automation",
+  "createdAt": "2026-03-17T10:00:00.000Z"
+}

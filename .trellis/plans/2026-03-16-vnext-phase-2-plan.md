@@ -6,8 +6,11 @@ operating model.
 Batch 1 is closed on the current `main` baseline:
 [2026-03-16-vnext-phase-2-batch-1.md](./2026-03-16-vnext-phase-2-batch-1.md)
 
-The next execution queue for this phase is tracked in:
+Batch 2 is closed on the current `main` baseline:
 [2026-03-16-vnext-phase-2-batch-2.md](./2026-03-16-vnext-phase-2-batch-2.md)
+
+The next execution queue for this phase is tracked in:
+[2026-03-17-vnext-phase-2-batch-3.md](./2026-03-17-vnext-phase-2-batch-3.md)
 
 ## Phase Goal
 
