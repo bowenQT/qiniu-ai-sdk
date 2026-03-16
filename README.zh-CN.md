@@ -216,8 +216,6 @@ console.log(responseApi?.maturity); // experimental
 console.log(gemini?.capabilities);
 ```
 
-当前已验证模型子集与模块成熟度矩阵，统一见生成产物 [Capability Scorecard](docs/capability-scorecard.md)。
-
 ### Worktree 交付流
 
 ```bash
