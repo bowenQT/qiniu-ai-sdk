@@ -11,7 +11,7 @@ describe('verification report renderer', () => {
             generatedAt: '2026-03-16T00:00:00.000Z',
             capabilityScorecard: '# Capability Scorecard\n\nTracked capability truth.\n',
             capabilityEvidenceAvailable: true,
-            capabilityEvidenceSummary: '# Capability Evidence Snapshot\n\nTracked promotion decisions: 1.\n',
+            capabilityEvidenceSummary: '# Capability Evidence Snapshot\n\nTracked promotion decisions: 1.\n\nLatest gate artifact:\n- Path: artifacts/live-verify-gate.json\n- Status: ok\n- Promotion gate: held\n',
             liveVerifyAvailable: true,
             liveVerifySummary: '# Live Verification Gate\n\nLatest live evidence.\n',
             reviewPacketAvailable: true,
@@ -26,6 +26,7 @@ describe('verification report renderer', () => {
         expect(output).toContain('Tracked capability truth.');
         expect(output).toContain('## Capability Evidence Snapshot');
         expect(output).toContain('Tracked promotion decisions: 1.');
+        expect(output).toContain('Latest gate artifact:');
         expect(output).toContain('## Live Verification');
         expect(output).toContain('Latest live evidence.');
         expect(output).toContain('## Review Packet');

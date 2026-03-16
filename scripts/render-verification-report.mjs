@@ -47,6 +47,9 @@ const capabilityEvidenceSummary = capabilityEvidenceAvailable
       const snapshot = JSON.parse(readFileSync(capabilityEvidencePath, 'utf8'));
       const decisionFiles = Array.isArray(snapshot.decisionFiles) ? snapshot.decisionFiles : [];
       const promotionDecisions = Array.isArray(snapshot.promotionDecisions) ? snapshot.promotionDecisions : [];
+      const latestGate = snapshot.latestLiveVerifyGate && typeof snapshot.latestLiveVerifyGate === 'object'
+        ? snapshot.latestLiveVerifyGate
+        : undefined;
       return [
         '# Capability Evidence Snapshot',
         '',
@@ -72,6 +75,16 @@ const capabilityEvidenceSummary = capabilityEvidenceAvailable
                     : `${decision.oldMaturity} -> ${decision.newMaturity}`;
                 return `- ${decision.module}: ${maturity} [${decision.trackedPath ?? 'untracked'}]`;
               }),
+            ]
+          : []),
+        ...(latestGate
+          ? [
+              '',
+              'Latest gate artifact:',
+              `- Path: ${latestGate.path ?? 'unknown'}`,
+              `- Status: ${latestGate.status ?? 'unknown'}`,
+              `- Promotion gate: ${latestGate.promotionGateStatus ?? 'unknown'}`,
+              ...(latestGate.packageId ? [`- Package: ${latestGate.packageId}`] : []),
             ]
           : []),
         '',

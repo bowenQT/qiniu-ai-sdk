@@ -4,6 +4,30 @@ export type ModuleMaturity = 'ga' | 'beta' | 'experimental';
 export type ValidationLevel = 'static' | 'unit' | 'contract' | 'live';
 export type CapabilityType = 'chat' | 'image' | 'video';
 
+export interface TrackedPromotionDecisionInfo {
+    packageId: string;
+    module: string;
+    oldMaturity: ModuleMaturity;
+    newMaturity: ModuleMaturity;
+    evidenceBasis: readonly string[];
+    decisionSource: string;
+    decisionAt: string;
+    trackedPath?: string;
+}
+
+export interface LiveVerifyGateEvidenceInfo {
+    path?: string;
+    generatedAt?: string;
+    status?: 'ok' | 'warn' | 'fail';
+    exitCode?: 0 | 1 | 2;
+    policyProfile?: string;
+    packageId?: string;
+    packageCategory?: 'standard' | 'promotion-sensitive';
+    promotionGateStatus?: 'clear' | 'held' | 'blocking';
+    blockingFailuresCount?: number;
+    heldEvidenceCount?: number;
+}
+
 export interface ModelCapabilityInfo extends ModelInfo {
     docsUrl: string;
     sourceUpdatedAt: string;
@@ -20,6 +44,7 @@ export interface ModuleMaturityInfo {
     validatedAt?: string;
     validationLevel: ValidationLevel;
     notes?: string;
+    trackedDecision?: TrackedPromotionDecisionInfo;
 }
 
 export interface ListModelsOptions {

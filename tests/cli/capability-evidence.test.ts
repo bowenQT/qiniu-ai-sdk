@@ -41,13 +41,20 @@ describe('capability evidence helpers', () => {
                     validationLevel: 'unit',
                 },
             ],
-        }, decisions, ['.trellis/decisions/phase2/phase2-foundation-response.json']);
+        }, decisions, ['.trellis/decisions/phase2/phase2-foundation-response.json'], {
+            path: 'artifacts/live-verify-gate.json',
+            status: 'ok',
+            promotionGateStatus: 'held',
+        });
 
         expect(snapshot.generatedAt).toBe('2026-03-16T09:00:00.000Z');
         expect(snapshot.modules[0]?.maturity).toBe('beta');
+        expect(snapshot.modules[0]?.trackedDecision?.module).toBe('ResponseAPI');
         expect(snapshot.promotionDecisions).toHaveLength(1);
+        expect(snapshot.latestLiveVerifyGate?.promotionGateStatus).toBe('held');
 
         const generatedModule = renderCapabilityEvidenceGeneratedModule(snapshot);
+        expect(generatedModule).toContain('LATEST_LIVE_VERIFY_GATE');
         expect(generatedModule).toContain('export const MODULE_MATURITY_SOURCE');
         expect(generatedModule).toContain('"maturity": "beta"');
     });
@@ -107,6 +114,7 @@ describe('capability evidence helpers', () => {
         }, decisions, ['.trellis/decisions/phase2/phase2-node-integrations-mcp-policy.json']);
 
         expect(snapshot.modules[0]?.maturity).toBe('beta');
+        expect(snapshot.modules[0]?.trackedDecision?.newMaturity).toBe('beta');
         expect(snapshot.promotionDecisions).toHaveLength(1);
         expect(snapshot.promotionDecisions[0]?.trackedPath).toContain('phase2-node-integrations-mcp-policy.json');
     });

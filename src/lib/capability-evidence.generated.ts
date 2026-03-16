@@ -4,6 +4,7 @@ export const CAPABILITY_EVIDENCE_GENERATED_AT = "2026-03-16T13:30:00.000Z";
 export const CAPABILITY_EVIDENCE_DECISION_FILES = [
   ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
 ] as const;
+export const LATEST_LIVE_VERIFY_GATE = null;
 export const TRACKED_PROMOTION_DECISIONS = [
   {
     "packageId": "phase2/node-integrations/mcp-interop-evidence-policy",
@@ -179,7 +180,21 @@ export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
     "maturity": "beta",
     "docsUrl": "https://modelcontextprotocol.io/specification/2025-11-25/basic/transports",
     "sourceUpdatedAt": "2026-03-14",
-    "validationLevel": "unit"
+    "validationLevel": "unit",
+    "trackedDecision": {
+      "packageId": "phase2/node-integrations/mcp-interop-evidence-policy",
+      "module": "NodeMCPHost",
+      "oldMaturity": "beta",
+      "newMaturity": "beta",
+      "evidenceBasis": [
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.pr.lanePolicies.node-integrations",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.node-integrations",
+        ".trellis/integrations/2026-03-16-phase2-batch1-packages-3-5-review-handoff.md"
+      ],
+      "decisionSource": "antigravity",
+      "decisionAt": "2026-03-16T13:30:00.000Z",
+      "trackedPath": ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
+    }
   },
   {
     "name": "sandbox",
