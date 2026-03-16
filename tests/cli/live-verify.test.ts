@@ -725,6 +725,7 @@ describe('CLI live verification helpers', () => {
         expect(result.exitCode).toBe(2);
         expect(result.checks.some((check) => check.message.includes('Node lane chat probe succeeded: node'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP live probe was skipped'))).toBe(true);
+        expect(result.probes.some((probe) => probe.id === 'mcp-host-interop' && probe.status === 'skipped')).toBe(true);
     });
 
     it('runs the optional MCP live probe for node-integrations lane', async () => {
@@ -791,6 +792,7 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('MCP event stream probe succeeded: 200 (text/event-stream)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP OAuth metadata probe succeeded: https://auth.example.com'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP DELETE terminate probe succeeded.'))).toBe(true);
+        expect(result.probes.some((probe) => probe.id === 'mcp-host-interop' && probe.status === 'skipped')).toBe(true);
     });
 
     it('prefers transport.probe() when the MCP transport exposes it', async () => {
@@ -865,5 +867,109 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('MCP event stream probe succeeded: 200 (text/event-stream)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP OAuth metadata probe succeeded: https://auth.example.com'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP DELETE terminate probe succeeded.'))).toBe(true);
+        expect(result.probes.some((probe) => probe.id === 'mcp-host-interop' && probe.status === 'skipped')).toBe(true);
+    });
+
+    it('runs the optional MCP host interoperability probe when explicitly enabled', async () => {
+        const result = await verifyLiveLane({
+            lane: 'node-integrations',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_ACCESS_KEY: 'ak-test',
+                QINIU_SECRET_KEY: 'secret-test',
+                QINIU_LIVE_VERIFY_MCP_URL: 'https://mcp.example.com/mcp',
+                QINIU_LIVE_VERIFY_MCP_LIST_TOOLS: '1',
+                QINIU_LIVE_VERIFY_MCP_LIST_RESOURCES: '1',
+                QINIU_LIVE_VERIFY_MCP_LIST_PROMPTS: '1',
+                QINIU_LIVE_VERIFY_MCP_READ_RESOURCE_URI: 'file:///readme.md',
+                QINIU_LIVE_VERIFY_MCP_GET_PROMPT_NAME: 'summarize',
+                QINIU_LIVE_VERIFY_MCP_GET_PROMPT_ARGS_JSON: '{"text":"hello"}',
+                QINIU_LIVE_VERIFY_MCP_TOOL_NAME: 'ping',
+                QINIU_LIVE_VERIFY_MCP_TOOL_ARGS_JSON: '{"echo":"pong"}',
+                QINIU_LIVE_VERIFY_MCP_HOST: '1',
+            },
+            createNodeClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'node' } }],
+                    }),
+                },
+            }) as any,
+            createMcpTransport: () => ({
+                probe: async () => ({
+                    connection: {
+                        serverName: 'live-verify-mcp',
+                        url: 'https://mcp.example.com/mcp',
+                        protocolVersion: '2025-11-25',
+                    },
+                    tools: [{ name: 'ping' }],
+                    resources: [{ uri: 'file:///readme.md' }],
+                    prompts: [{ name: 'summarize' }],
+                    resourceContents: [{ text: '# Hello', mimeType: 'text/markdown' }],
+                    resourceText: '# Hello',
+                    promptMessages: [{ role: 'user', content: { type: 'text', text: 'Please summarize hello' } }],
+                    promptText: 'Please summarize hello',
+                    toolResult: {
+                        content: [{ type: 'text', text: 'pong' }],
+                    },
+                    eventStream: {
+                        status: 200,
+                        contentType: 'text/event-stream',
+                    },
+                }),
+                openEventStream: async () => new Response('event: unused\n\n', {
+                    status: 200,
+                    headers: { 'Content-Type': 'text/event-stream' },
+                }),
+                discoverOAuthMetadata: async () => ({
+                    protectedResource: { authorization_servers: ['https://unused.example.com'] },
+                    authorizationServer: { issuer: 'https://unused.example.com' },
+                }),
+                terminateSession: async () => false,
+            }),
+            createMcpHost: () => ({
+                probeServerInterop: async () => ({
+                    serverName: 'live-verify-mcp',
+                    transport: {
+                        connection: {
+                            serverName: 'live-verify-mcp',
+                            url: 'https://mcp.example.com/mcp',
+                            protocolVersion: '2025-11-25',
+                        },
+                    },
+                    host: {
+                        tools: [{ serverName: 'live-verify-mcp', name: 'ping' }],
+                        resources: [{ serverName: 'live-verify-mcp', uri: 'file:///readme.md', name: 'readme' }],
+                        prompts: [{ serverName: 'live-verify-mcp', name: 'summarize' }],
+                        resourceContents: [{ text: '# Hello', mimeType: 'text/markdown' }],
+                        promptMessages: [{ role: 'user', content: { type: 'text', text: 'Please summarize hello' } }],
+                        toolOutput: 'pong',
+                    },
+                    deferredRisks: ['notifications are still unit-only'],
+                }),
+            }),
+        });
+
+        expect(result.exitCode).toBe(0);
+        expect(result.checks.some((check) => check.message.includes('MCP host tool listing probe succeeded: 1 tools'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP host resource listing probe succeeded: 1 resources'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP host prompt listing probe succeeded: 1 prompts'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP host resource read probe succeeded: 1 contents'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP host prompt get probe succeeded: 1 messages'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP host tool execution probe succeeded: ping -> pong'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP host interoperability deferred risks recorded: 1 items'))).toBe(true);
+        const hostProbe = result.probes.find((probe) => probe.id === 'mcp-host-interop');
+        expect(hostProbe?.status).toBe('ok');
+        expect(hostProbe?.details).toEqual({
+            transportConnection: {
+                serverName: 'live-verify-mcp',
+                url: 'https://mcp.example.com/mcp',
+                protocolVersion: '2025-11-25',
+            },
+            hostToolCount: 1,
+            hostResourceCount: 1,
+            hostPromptCount: 1,
+            deferredRisks: ['notifications are still unit-only'],
+        });
     });
 });

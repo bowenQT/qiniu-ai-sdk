@@ -186,6 +186,43 @@ describe('CLI live verification gate', () => {
         expect(markdown).toContain('[ok] chat: Chat probe succeeded: pong');
     });
 
+    it('renders structured probe details in markdown when available', () => {
+        const markdown = renderLiveVerifyGateMarkdown({
+            generatedAt: '2026-03-16T09:00:00.000Z',
+            status: 'ok',
+            exitCode: 0,
+            checks: [],
+            probes: [],
+            lanes: [
+                {
+                    lane: 'node-integrations',
+                    result: {
+                        status: 'ok',
+                        exitCode: 0,
+                        checks: [],
+                        probes: [
+                            {
+                                id: 'mcp-host-interop',
+                                lane: 'node-integrations',
+                                status: 'ok',
+                                message: 'MCP host interoperability probe succeeded: live-verify-mcp',
+                                details: {
+                                    hostToolCount: 1,
+                                    deferredRisks: ['notifications are still unit-only'],
+                                },
+                            },
+                        ],
+                    },
+                },
+            ],
+            blockingFailures: [],
+        });
+
+        expect(markdown).toContain('mcp-host-interop');
+        expect(markdown).toContain('"hostToolCount":1');
+        expect(markdown).toContain('"deferredRisks":["notifications are still unit-only"]');
+    });
+
     it('wires the verify gate CLI command through runCLI', async () => {
         await runCLI(
             ['verify', 'gate', '--lanes', 'foundation', '--strict'],

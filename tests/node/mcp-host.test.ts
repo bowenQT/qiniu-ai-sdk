@@ -488,6 +488,74 @@ describe('NodeMCPHost', () => {
         expect(hostProbeMock).not.toHaveBeenCalled();
     });
 
+    it('probeServerInterop() combines transport and host evidence for one HTTP server', async () => {
+        const { NodeMCPHost, DEFAULT_MCP_INTEROP_DEFERRED_RISKS } = await import('../../src/node/mcp-host');
+        hostProbeMock.mockResolvedValue({
+            connection: {
+                serverName: 'http-b',
+                url: 'https://b.example.com/mcp',
+                protocolVersion: '2025-11-25',
+            },
+            tools: [{ name: 'ping', description: 'Ping', inputSchema: { type: 'object', properties: {} } }],
+            resources: [{ uri: 'file:///readme.md', name: 'readme' }],
+            prompts: [{ name: 'summarize', description: 'Summarize text' }],
+        });
+
+        const host = new NodeMCPHost({
+            servers: [
+                { name: 'http-b', transport: 'http', url: 'https://b.example.com/mcp' },
+            ],
+        });
+
+        const result = await host.probeServerInterop('http-b', {
+            listTools: true,
+            listResources: true,
+            listPrompts: true,
+            readResource: { uri: 'file:///readme.md' },
+            getPrompt: { name: 'summarize', args: { text: 'hello' } },
+            executeTool: { name: 'search', args: { query: 'hello' } },
+        });
+
+        expect(result.transport?.connection?.url).toBe('https://b.example.com/mcp');
+        expect(result.host?.tools?.[0]).toEqual({
+            serverName: 'http-b',
+            name: 'search',
+            description: 'Search the web',
+            inputSchema: {
+                type: 'object',
+                properties: { query: { type: 'string' } },
+                required: ['query'],
+            },
+        });
+        expect(result.host?.resources?.[0]).toEqual({
+            serverName: 'http-b',
+            uri: 'file:///readme.md',
+            name: 'readme',
+            mimeType: undefined,
+        });
+        expect(result.host?.prompts?.[0]).toEqual({
+            serverName: 'http-b',
+            name: 'summarize',
+            description: 'Summarize text',
+            arguments: undefined,
+        });
+        expect(result.host?.resourceContents).toEqual([{ text: '# Hello' }]);
+        expect(result.host?.promptMessages).toEqual([
+            { role: 'user', content: { type: 'text', text: 'Please summarize: hello' } },
+        ]);
+        expect(result.host?.toolOutput).toBe('search result');
+        expect(result.deferredRisks).toEqual([...DEFAULT_MCP_INTEROP_DEFERRED_RISKS]);
+        expect(hostProbeMock).toHaveBeenCalledTimes(1);
+        expect(hostProbeMock).toHaveBeenCalledWith({
+            listTools: true,
+            listResources: true,
+            listPrompts: true,
+            readResource: { uri: 'file:///readme.md' },
+            getPrompt: { name: 'summarize', args: { text: 'hello' } },
+            executeTool: { name: 'search', args: { query: 'hello' } },
+        });
+    });
+
     it('listServerTools() and executeServerTool() reject unknown server names', async () => {
         const { NodeMCPHost } = await import('../../src/node/mcp-host');
 
