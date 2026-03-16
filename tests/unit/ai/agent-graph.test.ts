@@ -229,6 +229,46 @@ describe('AgentGraph', () => {
                 expect(msg._meta).toBeUndefined();
             }
         });
+
+        it('should normalize Blob image inputs before AgentGraph prediction', async () => {
+            const invokedMessages: any[] = [];
+            const mockClient = {
+                chat: {
+                    async *createStream(request: any) {
+                        invokedMessages.push(...request.messages);
+                        return {
+                            content: 'Done',
+                            reasoningContent: '',
+                            toolCalls: [],
+                            finishReason: 'stop',
+                            usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+                        };
+                    },
+                },
+            } as any;
+
+            const graph = new AgentGraph({
+                client: mockClient,
+                model: 'test-model',
+            });
+
+            await graph.invoke([
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'image',
+                            image: new Blob([Uint8Array.from([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }),
+                        } as any,
+                    ],
+                },
+            ]);
+
+            expect(invokedMessages[0].content[0]).toEqual({
+                type: 'image_url',
+                image_url: { url: 'data:image/png;base64,iVBORw==' },
+            });
+        });
     });
 
     describe('Step Limit', () => {

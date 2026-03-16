@@ -11,6 +11,7 @@ async function main() {
 
     assert.ok(root.QiniuAI, 'root entry should export QiniuAI');
     assert.ok(root.createAgent, 'root entry should export createAgent');
+    assert.ok(root.listModels, 'root entry should export listModels');
     assert.ok(!('ResponseAPI' in root), 'root entry must not export ResponseAPI');
     assert.ok(!('auditLogger' in root), 'root entry must not export auditLogger');
     assert.ok(!('KodoCheckpointer' in root), 'root entry must not export KodoCheckpointer');
@@ -20,6 +21,7 @@ async function main() {
     assert.ok(!('auditLogger' in core), 'core entry must not export auditLogger');
 
     assert.ok(qiniu.QiniuAI, 'qiniu entry should export QiniuAI');
+    assert.ok(qiniu.getModelCapabilities, 'qiniu entry should export getModelCapabilities');
     assert.ok(qiniu.ResponseAPI, 'qiniu entry should export ResponseAPI');
     assert.ok(!('createAgent' in qiniu), 'qiniu entry must not export createAgent');
 
@@ -29,6 +31,7 @@ async function main() {
     assert.ok(node.MCPHttpTransport, 'node entry should export MCPHttpTransport');
 
     assert.ok(browser.createAgent, 'browser entry should export createAgent');
+    assert.ok(browser.listModels, 'browser entry should export listModels');
     assert.ok(!('createNodeQiniuAI' in browser), 'browser entry must not export createNodeQiniuAI');
     assert.ok(!('MCPHttpTransport' in browser), 'browser entry must not export MCPHttpTransport');
 

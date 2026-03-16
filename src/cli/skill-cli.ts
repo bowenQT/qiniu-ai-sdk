@@ -1,30 +1,41 @@
 #!/usr/bin/env node
 /**
- * qiniu-ai CLI — Skill management and SDK utility commands.
+ * qiniu-ai CLI — project initialization, diagnostics, and skill management.
  *
  * Usage:
+ *   qiniu-ai init --template <chat|agent|node-agent> [--dir <target-dir>] [--name <project-name>]
+ *   qiniu-ai doctor [--template <chat|agent|node-agent>] [--lane <name>] [--dir <project-dir>]
+ *   qiniu-ai worktree <init|spawn|status|integrate> [options]
+ *   qiniu-ai verify live --lane <name>
+ *   qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict]
  *   qiniu-ai skill list [--dir <skills-dir>]
  *   qiniu-ai skill add <manifest-url> [--sha256 <hash>] [--auth <token>] [--allow-actions] [--dir <dir>]
- *   qiniu-ai skill verify [--fix] [--dir <skills-dir>]
- *   qiniu-ai skill remove <name> [--dir <skills-dir>]
+ *   qiniu-ai skill verify [--fix] [--dir <dir>]
+ *   qiniu-ai skill remove <name> [--dir <dir>]
  *
  * @module
  */
 
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import {
-    SkillValidator,
-    DEFAULT_CONTENT_EXTENSIONS,
     DEFAULT_ACTION_EXTENSIONS,
+    DEFAULT_CONTENT_EXTENSIONS,
+    SkillRegistry,
+    SkillValidator,
 } from '../node/skills';
-import { SkillRegistry } from '../node/skills';
 import type { RemoteSkillSource } from '../node/skills';
-
-// ============================================================================
-// Lockfile helpers (re-import to keep CLI standalone-ish)
-// ============================================================================
+import { doctorProject } from './doctor';
+import type { WorktreeLane } from './doctor';
+import { initStarterProject, parseStarterTemplate } from './init';
+import { parseLiveVerifyGateLanes, verifyLiveGate, verifyLiveLane } from './live-verify';
+import {
+    initWorktreeWorkspace,
+    integrateLaneWorktree,
+    listWorktrees,
+    spawnLaneWorktree,
+} from './worktree';
 
 interface SkillLockEntry {
     name: string;
@@ -38,6 +49,13 @@ interface SkillLockEntry {
 interface LockfileData {
     version: 1;
     skills: SkillLockEntry[];
+}
+
+export interface RunCLIOptions {
+    packageRoot?: string;
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+    nodeVersion?: string;
 }
 
 function readLockfileSafe(lockPath: string): SkillLockEntry[] {
@@ -55,55 +73,140 @@ function writeLockfileSafe(lockPath: string, entries: SkillLockEntry[]): void {
     fs.writeFileSync(lockPath, JSON.stringify(data, null, 2) + '\n', 'utf-8');
 }
 
-// ============================================================================
-// CLI Commands
-// ============================================================================
-
-export function resolveSkillsDir(args: string[]): string {
+export function resolveSkillsDir(args: string[], cwd: string = process.cwd()): string {
     const dirIdx = args.indexOf('--dir');
     if (dirIdx >= 0 && args[dirIdx + 1]) {
-        return path.resolve(args[dirIdx + 1]);
+        return path.resolve(cwd, args[dirIdx + 1]);
     }
-    return path.resolve('.agent/skills');
+    return path.resolve(cwd, '.agent/skills');
 }
 
-/** skill list — Lists installed skills from lockfile. */
+function resolveProjectDir(args: string[], cwd: string = process.cwd()): string {
+    const dirIdx = args.indexOf('--dir');
+    if (dirIdx >= 0 && args[dirIdx + 1]) {
+        return path.resolve(cwd, args[dirIdx + 1]);
+    }
+    return cwd;
+}
+
+function getArgValue(args: string[], key: string): string | undefined {
+    const idx = args.indexOf(key);
+    if (idx === -1 || idx >= args.length - 1) return undefined;
+    const value = args[idx + 1];
+    if (value.startsWith('--')) {
+        console.error(`Error: ${key} requires a value, got "${value}"`);
+        process.exitCode = 1;
+        return undefined;
+    }
+    return value;
+}
+
+function printMainUsage(): void {
+    console.log('qiniu-ai CLI');
+    console.log('');
+    console.log('Usage:');
+    console.log('  qiniu-ai init --template <chat|agent|node-agent> [--dir <target-dir>] [--name <project-name>]');
+    console.log('  qiniu-ai doctor [--template <chat|agent|node-agent>] [--lane <name>] [--dir <project-dir>]');
+    console.log('  qiniu-ai worktree <init|spawn|status|integrate> [options]');
+    console.log('  qiniu-ai verify live --lane <name>');
+    console.log('  qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict]');
+    console.log('  qiniu-ai skill <list|add|verify|remove> [options]');
+    console.log('');
+    console.log('Top-level commands:');
+    console.log('  init              Scaffold a starter project');
+    console.log('  doctor            Validate environment, peer deps, and import choices');
+    console.log('  worktree          Create and manage codex/vnext worktree lanes');
+    console.log('  verify            Run lane-level verification helpers');
+    console.log('  skill             Manage local and remote skills');
+    console.log('');
+    console.log('Skill shortcuts:');
+    console.log('  qiniu-ai skill list');
+    console.log('  qiniu-ai skill add <url>');
+    console.log('  qiniu-ai skill verify [--fix]');
+    console.log('  qiniu-ai skill remove <name>');
+}
+
+function printSkillUsage(): void {
+    console.log('Usage: qiniu-ai skill <list|add|verify|remove> [options]');
+    console.log('');
+    console.log('Commands:');
+    console.log('  list              List installed skills');
+    console.log('  add <url>         Install a remote skill from manifest URL');
+    console.log('  verify [--fix]    Verify integrity / reconstruct lockfile');
+    console.log('  remove <name>     Remove an installed skill');
+    console.log('');
+    console.log('Options:');
+    console.log('  --dir <path>      Skills directory (default: .agent/skills)');
+    console.log('  --sha256 <hash>   Verify manifest integrity (for add)');
+    console.log('  --auth <token>    Authorization header (for add)');
+    console.log('  --allow-actions   Allow installing skill actions (for add)');
+}
+
+function printInitUsage(): void {
+    console.log('Usage: qiniu-ai init --template <chat|agent|node-agent> [--dir <target-dir>] [--name <project-name>]');
+}
+
+function printDoctorUsage(): void {
+    console.log('Usage: qiniu-ai doctor [--template <chat|agent|node-agent>] [--lane <name>] [--dir <project-dir>]');
+}
+
+function printWorktreeUsage(): void {
+    console.log('Usage: qiniu-ai worktree <init|spawn|status|integrate> [options]');
+    console.log('');
+    console.log('Commands:');
+    console.log('  init                      Create .worktrees/, add ignore rule, and create integration worktree');
+    console.log('  spawn --lane <name>       Create a lane worktree from codex/vnext-integration');
+    console.log('  status                    List worktrees, branches, and inferred lanes');
+    console.log('  integrate --lane <name>   Merge a lane branch into codex/vnext-integration');
+    console.log('');
+    console.log('Options:');
+    console.log('  --dir <path>              Repository root / project directory (default: cwd)');
+    console.log('  --root <path>             Worktree directory root (default: .worktrees)');
+    console.log('  --base <branch>           Base branch for init (default: current branch)');
+    console.log('  --integration <branch>    Integration branch name (default: codex/vnext-integration)');
+}
+
+function printVerifyUsage(): void {
+    console.log('Usage: qiniu-ai verify live --lane <name>');
+    console.log('       qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict] [--json] [--out <path>]');
+}
+
+function writeVerifyOutput(result: unknown, outputPath: string, cwd: string): string {
+    const resolved = path.resolve(cwd, outputPath);
+    fs.mkdirSync(path.dirname(resolved), { recursive: true });
+    fs.writeFileSync(resolved, JSON.stringify(result, null, 2) + '\n', 'utf8');
+    return resolved;
+}
+
 export function commandList(skillsDir: string): string[] {
     const lockPath = path.join(skillsDir, 'skill-lock.json');
     const entries = readLockfileSafe(lockPath);
 
     if (entries.length === 0) {
-        // Degraded: lockfile missing or empty — check directories
         if (fs.existsSync(skillsDir)) {
             const dirs = fs.readdirSync(skillsDir, { withFileTypes: true })
-                .filter(d => d.isDirectory() && !d.name.startsWith('.'))
-                .map(d => d.name);
+                .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
+                .map((d) => d.name);
             if (dirs.length > 0) {
-                console.warn('⚠ No lockfile found. Showing directory scan. Run `skill verify --fix` to reconstruct.');
-                return dirs.map(d => `${d} (untracked)`);
+                console.warn('No lockfile found. Showing directory scan. Run `skill verify --fix` to reconstruct.');
+                return dirs.map((d) => `${d} (untracked)`);
             }
         }
         return [];
     }
 
-    const lines: string[] = [];
-    for (const entry of entries) {
-        // Check if directory actually exists
+    return entries.map((entry) => {
         const dirExists = fs.existsSync(path.join(skillsDir, entry.name));
-        const status = dirExists ? '' : ' ⚠ MISSING';
-        lines.push(`${entry.name}@${entry.version}${status}`);
-    }
-    return lines;
+        return `${entry.name}@${entry.version}${dirExists ? '' : ' MISSING'}`;
+    });
 }
 
-/** skill verify — Validates installed skills against lockfile. */
 export function commandVerify(skillsDir: string, fix: boolean = false): { valid: boolean; messages: string[] } {
     const lockPath = path.join(skillsDir, 'skill-lock.json');
     const messages: string[] = [];
     let valid = true;
 
     if (fix) {
-        // Reconstruct lockfile from local files (truth source = local)
         const entries = reconstructLockfile(skillsDir);
         writeLockfileSafe(lockPath, entries);
         messages.push(`Reconstructed lockfile with ${entries.length} skill(s).`);
@@ -116,9 +219,6 @@ export function commandVerify(skillsDir: string, fix: boolean = false): { valid:
         return { valid: false, messages };
     }
 
-    // SkillValidator is statically imported — always available
-    const useValidation = true;
-
     for (const entry of entries) {
         const skillDir = path.join(skillsDir, entry.name);
         if (!fs.existsSync(skillDir)) {
@@ -127,32 +227,13 @@ export function commandVerify(skillsDir: string, fix: boolean = false): { valid:
             continue;
         }
 
-        // Use SkillValidator for full validation (path traversal + extension whitelist + hash)
-        if (useValidation) {
-            const validation = validateSync(skillDir, entry);
-            if (!validation.valid) {
-                for (const err of validation.errors) {
-                    messages.push(`${entry.name}: ${err}`);
-                }
-                valid = false;
-                continue;
+        const validation = validateSync(skillDir, entry);
+        if (!validation.valid) {
+            for (const err of validation.errors) {
+                messages.push(`${entry.name}: ${err}`);
             }
-        } else {
-            // Fallback: direct file hash check
-            for (const [filePath, expected] of Object.entries(entry.files)) {
-                const fullPath = path.join(skillDir, filePath);
-                if (!fs.existsSync(fullPath)) {
-                    messages.push(`MISSING FILE: ${entry.name}/${filePath}`);
-                    valid = false;
-                    continue;
-                }
-
-                const actual = crypto.createHash('sha256').update(fs.readFileSync(fullPath)).digest('hex');
-                if (actual !== expected.sha256) {
-                    messages.push(`HASH MISMATCH: ${entry.name}/${filePath}`);
-                    valid = false;
-                }
-            }
+            valid = false;
+            continue;
         }
     }
 
@@ -163,13 +244,9 @@ export function commandVerify(skillsDir: string, fix: boolean = false): { valid:
     return { valid, messages };
 }
 
-/** Synchronous wrapper around SkillInstaller.validate */
-function validateSync(
-    skillDir: string, entry: SkillLockEntry,
-): { valid: boolean; errors: string[] } {
+function validateSync(skillDir: string, entry: SkillLockEntry): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
     const validator = new SkillValidator();
-
     const allowedExtensions = entry.allowActions
         ? [...DEFAULT_CONTENT_EXTENSIONS, ...DEFAULT_ACTION_EXTENSIONS]
         : [...DEFAULT_CONTENT_EXTENSIONS];
@@ -177,13 +254,11 @@ function validateSync(
     for (const [filePath, expected] of Object.entries(entry.files)) {
         const fullPath = path.resolve(skillDir, filePath);
 
-        // Path traversal check
         if (!validator.isWithinRoot(fullPath, skillDir)) {
             errors.push(`Path traversal blocked: "${filePath}"`);
             continue;
         }
 
-        // Extension whitelist check (respects allowActions)
         if (!validator.isAllowedExtension(filePath, allowedExtensions)) {
             const ext = path.extname(filePath).toLowerCase();
             errors.push(`Blocked extension: "${filePath}" ("${ext}" not in whitelist)`);
@@ -204,22 +279,17 @@ function validateSync(
     return { valid: errors.length === 0, errors };
 }
 
-/** skill remove — Removes an installed skill. */
 export function commandRemove(skillsDir: string, name: string): string {
     const skillDir = path.join(skillsDir, name);
     const lockPath = path.join(skillsDir, 'skill-lock.json');
-
-    // Record existence BEFORE deletion
     const hadDir = fs.existsSync(skillDir);
 
-    // Remove directory
     if (hadDir) {
         fs.rmSync(skillDir, { recursive: true, force: true });
     }
 
-    // Remove from lockfile
     const entries = readLockfileSafe(lockPath);
-    const filtered = entries.filter(e => e.name !== name);
+    const filtered = entries.filter((entry) => entry.name !== name);
     const wasTracked = filtered.length !== entries.length;
 
     if (wasTracked) {
@@ -227,7 +297,6 @@ export function commandRemove(skillsDir: string, name: string): string {
         return `Removed skill "${name}"`;
     }
 
-    // Directory existed but no lockfile entry
     if (hadDir) {
         return `Removed skill "${name}" (was untracked — no lockfile entry)`;
     }
@@ -235,16 +304,12 @@ export function commandRemove(skillsDir: string, name: string): string {
     return `Skill "${name}" not found`;
 }
 
-// ============================================================================
-// verify --fix: Reconstruct lockfile from local files
-// ============================================================================
-
 function reconstructLockfile(skillsDir: string): SkillLockEntry[] {
     if (!fs.existsSync(skillsDir)) return [];
 
     const entries: SkillLockEntry[] = [];
     const dirs = fs.readdirSync(skillsDir, { withFileTypes: true })
-        .filter(d => d.isDirectory() && !d.name.startsWith('.'));
+        .filter((d) => d.isDirectory() && !d.name.startsWith('.'));
 
     for (const dir of dirs) {
         const manifestPath = path.join(skillsDir, dir.name, 'skill.json');
@@ -252,52 +317,49 @@ function reconstructLockfile(skillsDir: string): SkillLockEntry[] {
 
         try {
             const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
-            const manifest = JSON.parse(manifestContent);
+            const manifest = JSON.parse(manifestContent) as {
+                name?: string;
+                version?: string;
+                files?: Record<string, unknown>;
+                actions?: unknown[];
+            };
 
-            // Build files map by scanning manifest.files or from directory
             const filesMap: Record<string, { sha256: string; size: number }> = {};
             if (manifest.files) {
-                for (const [filePath, _expected] of Object.entries(manifest.files)) {
+                for (const [filePath] of Object.entries(manifest.files)) {
                     const fullPath = path.join(skillsDir, dir.name, filePath);
-                    if (fs.existsSync(fullPath)) {
-                        const content = fs.readFileSync(fullPath);
-                        filesMap[filePath] = {
-                            sha256: crypto.createHash('sha256').update(content).digest('hex'),
-                            size: content.length,
-                        };
-                    }
+                    if (!fs.existsSync(fullPath)) continue;
+
+                    const content = fs.readFileSync(fullPath);
+                    filesMap[filePath] = {
+                        sha256: crypto.createHash('sha256').update(content).digest('hex'),
+                        size: content.length,
+                    };
                 }
             }
-
-            // Determine allowActions from manifest.actions
-            const hasActions = Array.isArray(manifest.actions) && manifest.actions.length > 0;
 
             entries.push({
                 name: manifest.name ?? dir.name,
                 version: manifest.version ?? '0.0.0',
                 manifestHash: crypto.createHash('sha256').update(manifestContent, 'utf-8').digest('hex'),
                 files: filesMap,
-                allowActions: hasActions,
+                allowActions: Array.isArray(manifest.actions) && manifest.actions.length > 0,
                 installedAt: new Date().toISOString(),
             });
         } catch {
-            // Skip unparseable manifests
+            // Skip unparseable manifests.
         }
     }
 
     return entries;
 }
 
-// ============================================================================
-// add: Install a remote skill from URL
-// ============================================================================
-
 function warnDependencies(deps: string[]): void {
     console.warn(
-        `⚠️  This skill declares ${deps.length} unresolved dependencies:\n` +
-        deps.map(d => `   - ${d}`).join('\n') + '\n' +
-        `   Automatic dependency resolution is not yet supported.\n` +
-        `   The skill may not work correctly if dependencies are missing.`
+        `This skill declares ${deps.length} unresolved dependencies:\n` +
+        deps.map((dep) => `   - ${dep}`).join('\n') + '\n' +
+        'Automatic dependency resolution is not yet supported.\n' +
+        'The skill may not work correctly if dependencies are missing.',
     );
 }
 
@@ -308,60 +370,216 @@ async function commandAdd(
     const registry = new SkillRegistry({
         skillsDir: opts.dir,
         allowRemote: true,
-        allowedDomains: [],  // CLI = trust user's explicit URL
+        allowedDomains: [],
     });
 
-    // 1. register + get name (single fetch)
     const source: RemoteSkillSource = {
         url,
         integrityHash: opts.sha256 ? `sha256:${opts.sha256}` : undefined,
         authorization: opts.auth,
     };
     const name = await registry.registerRemoteAndGetName(source);
-
-    // 2. dependencies warn
     const skill = registry.get(name);
+
     if (skill?.manifest.dependencies?.length) {
         warnDependencies(skill.manifest.dependencies);
     }
 
-    // 3. installRemote
     await registry.installRemote(name, {
         installDir: opts.dir,
         allowActions: opts.allowActions,
     });
 
-    console.log(`✅ Installed "${name}" v${skill?.manifest.version ?? 'unknown'}`);
+    console.log(`Installed "${name}" v${skill?.manifest.version ?? 'unknown'}`);
 }
 
-// ============================================================================
-// CLI Entry Point
-// ============================================================================
-
-export function runCLI(args: string[]): void {
-    const command = args[0];
-
-    if (command !== 'skill') {
-        console.log('qiniu-ai CLI v0.38.0');
-        console.log('');
-        console.log('Usage: qiniu-ai skill <command> [options]');
-        console.log('');
-        console.log('Available commands:');
-        console.log('  list              List installed skills');
-        console.log('  add <url>         Install a remote skill from manifest URL');
-        console.log('  verify [--fix]    Verify integrity / reconstruct lockfile');
-        console.log('  remove <name>     Remove an installed skill');
-        console.log('');
-        console.log('Options:');
-        console.log('  --dir <path>      Skills directory (default: .agent/skills)');
-        console.log('  --sha256 <hash>   Verify manifest integrity (for add)');
-        console.log('  --auth <token>    Authorization header (for add)');
-        console.log('  --allow-actions   Allow installing skill actions (for add)');
+async function runInitCommand(args: string[], options: RunCLIOptions): Promise<void> {
+    const templateValue = getArgValue(args, '--template');
+    if (process.exitCode === 1 || !templateValue) {
+        printInitUsage();
+        process.exitCode = 1;
         return;
     }
 
+    const template = parseStarterTemplate(templateValue);
+    const cwd = options.cwd ?? process.cwd();
+    const targetDir = resolveProjectDir(args, cwd);
+    const projectName = getArgValue(args, '--name');
+    if (process.exitCode === 1) return;
+
+    const result = initStarterProject({
+        template,
+        targetDir,
+        projectName,
+        packageRoot: options.packageRoot ?? cwd,
+    });
+
+    console.log(`Created ${template} starter in ${result.targetDir}`);
+    console.log('Generated files:');
+    for (const file of result.files) {
+        console.log(`  ${file}`);
+    }
+}
+
+async function runDoctorCommand(args: string[], options: RunCLIOptions): Promise<void> {
+    const cwd = options.cwd ?? process.cwd();
+    const templateValue = getArgValue(args, '--template');
+    const lane = getArgValue(args, '--lane');
+    if (process.exitCode === 1) return;
+
+    const template = templateValue ? parseStarterTemplate(templateValue) : 'agent';
+    const result = doctorProject({
+        template,
+        projectDir: resolveProjectDir(args, cwd),
+        env: options.env,
+        nodeVersion: options.nodeVersion,
+        lane: lane as WorktreeLane | undefined,
+    });
+
+    for (const check of result.checks) {
+        console.log(`[${check.level}] ${check.message}`);
+    }
+    process.exitCode = result.exitCode;
+}
+
+async function runWorktreeCommand(args: string[], options: RunCLIOptions): Promise<void> {
     const subcommand = args[1];
-    const skillsDir = resolveSkillsDir(args);
+    const cwd = options.cwd ?? process.cwd();
+    const projectDir = resolveProjectDir(args, cwd);
+    const worktreeRoot = getArgValue(args, '--root');
+    const integrationBranch = getArgValue(args, '--integration');
+    if (process.exitCode === 1) return;
+
+    switch (subcommand) {
+        case 'init': {
+            const baseBranch = getArgValue(args, '--base');
+            if (process.exitCode === 1) return;
+            const result = initWorktreeWorkspace({
+                projectDir,
+                worktreeRoot,
+                baseBranch,
+                integrationBranch,
+            });
+            console.log(
+                `${result.created ? 'Created' : 'Using'} integration worktree: ${result.integrationPath}`,
+            );
+            console.log(`Integration branch: ${result.integrationBranch}`);
+            return;
+        }
+
+        case 'spawn': {
+            const lane = getArgValue(args, '--lane');
+            if (process.exitCode === 1 || !lane) {
+                printWorktreeUsage();
+                process.exitCode = 1;
+                return;
+            }
+            const result = spawnLaneWorktree({
+                lane,
+                projectDir,
+                worktreeRoot,
+                integrationBranch,
+            });
+            console.log(`${result.created ? 'Created' : 'Using'} lane worktree: ${result.path}`);
+            console.log(`Lane branch: ${result.branch}`);
+            return;
+        }
+
+        case 'status': {
+            const worktrees = listWorktrees(projectDir);
+            if (worktrees.length === 0) {
+                console.log('No worktrees found.');
+                return;
+            }
+            for (const worktree of worktrees) {
+                const branch = worktree.branch ?? '(detached)';
+                const lane = worktree.lane ? ` lane=${worktree.lane}` : '';
+                console.log(`${worktree.path} :: ${branch}${lane}`);
+            }
+            return;
+        }
+
+        case 'integrate': {
+            const lane = getArgValue(args, '--lane');
+            if (process.exitCode === 1 || !lane) {
+                printWorktreeUsage();
+                process.exitCode = 1;
+                return;
+            }
+            const result = integrateLaneWorktree({
+                lane,
+                projectDir,
+                worktreeRoot,
+                integrationBranch,
+            });
+            console.log(`Merged ${result.laneBranch} into ${result.integrationBranch}`);
+            if (result.summary) {
+                console.log(result.summary);
+            }
+            return;
+        }
+
+        default:
+            printWorktreeUsage();
+            return;
+    }
+}
+
+async function runVerifyCommand(args: string[], options: RunCLIOptions): Promise<void> {
+    const subcommand = args[1];
+    const cwd = options.cwd ?? process.cwd();
+    const outputPath = getArgValue(args, '--out');
+    const jsonMode = args.includes('--json');
+    if (process.exitCode === 1) return;
+
+    let result;
+    if (subcommand === 'live') {
+        const lane = getArgValue(args, '--lane');
+        if (process.exitCode === 1 || !lane) {
+            printVerifyUsage();
+            process.exitCode = 1;
+            return;
+        }
+
+        result = await verifyLiveLane({
+            lane: lane as WorktreeLane,
+            env: options.env,
+        });
+    } else if (subcommand === 'gate') {
+        const lanesArg = getArgValue(args, '--lanes');
+        if (process.exitCode === 1) return;
+
+        result = await verifyLiveGate({
+            lanes: parseLiveVerifyGateLanes(lanesArg),
+            strict: args.includes('--strict'),
+            env: options.env,
+        });
+    } else {
+        printVerifyUsage();
+        return;
+    }
+
+    if (jsonMode) {
+        console.log(JSON.stringify(result, null, 2));
+    } else {
+        for (const check of result.checks) {
+            console.log(`[${check.level}] ${check.message}`);
+        }
+    }
+
+    if (outputPath) {
+        const written = writeVerifyOutput(result, outputPath, cwd);
+        if (!jsonMode) {
+            console.log(`Wrote live verification result to ${written}`);
+        }
+    }
+    process.exitCode = result.exitCode;
+}
+
+async function runSkillCommand(args: string[], options: RunCLIOptions): Promise<void> {
+    const subcommand = args[1];
+    const cwd = options.cwd ?? process.cwd();
+    const skillsDir = resolveSkillsDir(args, cwd);
 
     switch (subcommand) {
         case 'list': {
@@ -374,7 +592,7 @@ export function runCLI(args: string[]): void {
                     console.log(`  ${item}`);
                 }
             }
-            break;
+            return;
         }
 
         case 'verify': {
@@ -384,7 +602,7 @@ export function runCLI(args: string[]): void {
                 console.log(msg);
             }
             process.exitCode = result.valid ? 0 : 1;
-            break;
+            return;
         }
 
         case 'remove': {
@@ -395,7 +613,7 @@ export function runCLI(args: string[]): void {
                 return;
             }
             console.log(commandRemove(skillsDir, name));
-            break;
+            return;
         }
 
         case 'add': {
@@ -407,37 +625,58 @@ export function runCLI(args: string[]): void {
             }
             const sha256 = getArgValue(args, '--sha256');
             const auth = getArgValue(args, '--auth');
-            // Bail out if any value-taking flag was invalid
             if (process.exitCode === 1) return;
-            const allowActions = args.includes('--allow-actions');
-            commandAdd(url, { dir: skillsDir, allowActions, sha256, auth })
-                .catch(err => {
-                    console.error(`❌ Failed to install skill: ${err.message}`);
-                    process.exitCode = 1;
+
+            try {
+                await commandAdd(url, {
+                    dir: skillsDir,
+                    allowActions: args.includes('--allow-actions'),
+                    sha256,
+                    auth,
                 });
-            break;
+            } catch (error) {
+                console.error(`Failed to install skill: ${(error as Error).message}`);
+                process.exitCode = 1;
+            }
+            return;
         }
 
         default:
-            console.log('Usage: qiniu-ai skill <list|add|verify|remove> [options]');
-            break;
+            printSkillUsage();
+            return;
     }
 }
 
-/** Extract --key value from args. Rejects missing or flag-like values. */
-function getArgValue(args: string[], key: string): string | undefined {
-    const idx = args.indexOf(key);
-    if (idx === -1 || idx >= args.length - 1) return undefined;
-    const value = args[idx + 1];
-    if (value.startsWith('--')) {
-        console.error(`Error: ${key} requires a value, got "${value}"`);
-        process.exitCode = 1;
-        return undefined;
+export async function runCLI(args: string[], options: RunCLIOptions = {}): Promise<void> {
+    process.exitCode = undefined;
+
+    if (args.length === 0 || args[0] === 'help' || args.includes('--help')) {
+        printMainUsage();
+        return;
     }
-    return value;
+
+    switch (args[0]) {
+        case 'init':
+            await runInitCommand(args, options);
+            return;
+        case 'doctor':
+            await runDoctorCommand(args, options);
+            return;
+        case 'worktree':
+            await runWorktreeCommand(args, options);
+            return;
+        case 'verify':
+            await runVerifyCommand(args, options);
+            return;
+        case 'skill':
+            await runSkillCommand(args, options);
+            return;
+        default:
+            printMainUsage();
+            return;
+    }
 }
 
-// Run only when executed directly (not imported for testing)
 if (typeof require !== 'undefined' && require.main === module) {
-    runCLI(process.argv.slice(2));
+    void runCLI(process.argv.slice(2));
 }

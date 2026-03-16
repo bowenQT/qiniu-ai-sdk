@@ -3,7 +3,13 @@
  */
 
 // HTTP Transport (Phase 3)
-export { MCPHttpTransport, MCPHttpTransportError, type TokenProvider } from './http-transport';
+export {
+    MCPHttpTransport,
+    MCPHttpTransportError,
+    type TokenProvider,
+    type MCPProbeOptions,
+    type MCPProbeResult,
+} from './http-transport';
 
 // OAuth (Phase 3)
 export {
@@ -13,8 +19,13 @@ export {
     generateCodeVerifier,
     generateCodeChallenge,
     generateState,
+    discoverProtectedResourceMetadata,
+    discoverAuthorizationServerMetadata,
+    discoverMcpOAuthMetadata,
     refreshAccessToken,
     type OAuthTokens,
+    type ProtectedResourceMetadata,
+    type AuthorizationServerMetadata,
 } from './oauth';
 
 // Token Store (Phase 3)
@@ -32,8 +43,10 @@ export type {
     MCPStdioServerConfig,
     MCPHttpServerConfig,
     MCPOAuthConfig,
+    MCPPromptMessage,
     MCPToolDefinition,
     MCPToolResult,
+    MCPResourceContent,
     MCPTransport,
 } from './types';
 export { DEFAULT_MCP_CONFIG } from './types';

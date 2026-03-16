@@ -30,7 +30,16 @@ export type {
 
 // Re-export NodeMCPHost (MCP Host Layer v2)
 export { NodeMCPHost } from './mcp-host';
-export type { NodeMCPHostConfig, MCPServerConfig } from './mcp-host';
+export type {
+    NodeMCPHostConfig,
+    NodeMCPHostProbeResult,
+    NodeMCPHostResourceInfo,
+    NodeMCPHostResourceContent,
+    NodeMCPHostPromptInfo,
+    NodeMCPHostPromptMessage,
+    NodeMCPHostToolInfo,
+    MCPServerConfig,
+} from './mcp-host';
 
 // Re-export Skill Package v2 modules
 export { SkillValidator, DEFAULT_CONTENT_EXTENSIONS, DEFAULT_ACTION_EXTENSIONS } from './skills';
@@ -61,6 +70,8 @@ export {
     startFromEnv,
 } from './mcp';
 export type {
+    MCPProbeOptions,
+    MCPProbeResult,
     TokenProvider,
     OAuthTokens,
     TokenStore,
@@ -68,6 +79,8 @@ export type {
     MCPStdioServerConfig,
     MCPHttpServerConfig,
     MCPOAuthConfig,
+    MCPResourceContent,
+    MCPPromptMessage,
     MCPToolDefinition,
     MCPToolResult,
     MCPTransport,

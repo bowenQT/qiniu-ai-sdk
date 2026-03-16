@@ -11,13 +11,14 @@ import type { RegisteredTool } from '../lib/tool-registry';
 import type { Skill } from '../modules/skills/types';
 import type { ReferenceMode } from '../modules/skills/reference-mode';
 import { applyReferenceMode } from '../modules/skills/reference-mode';
+import type { Guardrail } from './guardrails';
 import { StateGraph, END } from './graph';
 import { predict, type PredictResult, type PredictChunk } from './nodes/predict-node';
 import { executeTools, toolResultsToMessages, type ToolExecutionResult } from './nodes/execute-node';
 import { compactMessages, ContextOverflowError } from './nodes/memory-node';
 import type { CompactionConfig, CompactionResult } from './nodes/types';
 import { estimateMessageTokens, type TokenEstimatorConfig } from '../lib/token-estimator';
-import { normalizeContent } from '../lib/content-converter';
+import { normalizeContentAsync } from '../lib/content-converter';
 import type { MemoryManager } from './memory';
 import type {
     AgentState,
@@ -59,6 +60,10 @@ export interface AgentGraphOptions {
     memory?: MemoryManager;
     /** Thread ID for memory isolation (used with memory option) */
     threadId?: string;
+    /** Guardrails applied across runtime phases */
+    guardrails?: Guardrail[];
+    /** Agent ID for guardrail attribution */
+    agentId?: string;
     /** Auto-retry configuration for RecoverableError handling */
     autoRetry?: AutoRetryConfig;
     /** Skill reference injection mode (default: 'none') */
@@ -696,10 +701,10 @@ export class AgentGraph {
             const compactedState = this.compactIfNeeded(state);
 
             // Normalize multimodal content (image -> image_url) and strip metadata
-            const apiMessages = stripMeta(compactedState.messages).map(msg => ({
+            const apiMessages = await Promise.all(stripMeta(compactedState.messages).map(async (msg) => ({
                 ...msg,
-                content: normalizeContent(msg.content),
-            }));
+                content: await normalizeContentAsync(msg.content),
+            })));
 
             // Execute prediction with onChunk forwarding
             const result = await predict({
@@ -807,6 +812,13 @@ export class AgentGraph {
                 },
                 state.approvalConfig,
                 state.skipApprovalCheck, // Pass through for invokeResumable
+                this.options.guardrails?.length
+                    ? {
+                        guardrails: this.options.guardrails,
+                        agentId: this.options.agentId ?? this.options.threadId ?? 'default',
+                        threadId: this.options.threadId,
+                    }
+                    : undefined,
             );
 
             // Create tool result steps and messages

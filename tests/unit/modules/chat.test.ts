@@ -58,6 +58,100 @@ describe('Chat Module', () => {
             expect(result.choices[0].message.content).toBe('Hello!');
             expect(result.usage?.total_tokens).toBe(15);
         });
+
+        it('should preserve cache_control when normalizing image sugar content', async () => {
+            const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+                id: 'chat-124',
+                object: 'chat.completion',
+                created: 1234567890,
+                model: 'test-model',
+                choices: [
+                    {
+                        index: 0,
+                        message: { role: 'assistant', content: 'ok' },
+                        finish_reason: 'stop',
+                    },
+                ],
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            }));
+
+            const client = new QiniuAI({
+                apiKey: 'sk-test',
+                adapter: { fetch },
+            });
+
+            await client.chat.create({
+                model: 'test-model',
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'image',
+                                image: 'https://example.com/image.jpg',
+                                cache_control: { type: 'ephemeral' },
+                            } as any,
+                        ],
+                    },
+                ],
+            });
+
+            const init = fetch.mock.calls[0]?.[1] as RequestInit;
+            const body = JSON.parse(String(init.body));
+            expect(body.messages[0].content[0]).toEqual({
+                type: 'image_url',
+                image_url: { url: 'https://example.com/image.jpg' },
+                cache_control: { type: 'ephemeral' },
+            });
+        });
+
+        it('should normalize Blob image sugar content for non-streaming chat requests', async () => {
+            const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+                id: 'chat-125',
+                object: 'chat.completion',
+                created: 1234567890,
+                model: 'test-model',
+                choices: [
+                    {
+                        index: 0,
+                        message: { role: 'assistant', content: 'ok' },
+                        finish_reason: 'stop',
+                    },
+                ],
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            }));
+
+            const client = new QiniuAI({
+                apiKey: 'sk-test',
+                adapter: { fetch },
+            });
+
+            await client.chat.create({
+                model: 'test-model',
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'image',
+                                image: new Blob([Uint8Array.from([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }),
+                            } as any,
+                        ],
+                    },
+                ],
+            });
+
+            const init = fetch.mock.calls[0]?.[1] as RequestInit;
+            const body = JSON.parse(String(init.body));
+            expect(body.messages[0].content[0]).toEqual({
+                type: 'image_url',
+                image_url: { url: 'data:image/png;base64,iVBORw==' },
+            });
+        });
     });
 
     describe('createStream()', () => {
@@ -169,6 +263,48 @@ describe('Chat Module', () => {
             }
 
             expect(fullContent).toBe('ABC');
+        });
+
+        it('should normalize Blob image sugar content for streaming chat requests', async () => {
+            const sseResponse = createSSEResponse([
+                {
+                    id: 'chat-126',
+                    object: 'chat.completion.chunk',
+                    created: 1234567890,
+                    model: 'test-model',
+                    choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+                },
+            ]);
+            const fetch = vi.fn().mockResolvedValue(sseResponse);
+
+            const client = new QiniuAI({
+                apiKey: 'sk-test',
+                adapter: { fetch },
+            });
+
+            for await (const _chunk of client.chat.createStream({
+                model: 'test-model',
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'image',
+                                image: new Blob([Uint8Array.from([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }),
+                            } as any,
+                        ],
+                    },
+                ],
+            })) {
+                // consume
+            }
+
+            const init = fetch.mock.calls[0]?.[1] as RequestInit;
+            const body = JSON.parse(String(init.body));
+            expect(body.messages[0].content[0]).toEqual({
+                type: 'image_url',
+                image_url: { url: 'data:image/png;base64,iVBORw==' },
+            });
         });
     });
 });

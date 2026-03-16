@@ -1,5 +1,6 @@
 import { IQiniuClient, ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChunk, ChatDelta, ToolCallDelta } from '../../lib/types';
 import { parseSSEStream, createStreamAccumulator, accumulateDelta, finalizeToolCalls, StreamAccumulator } from '../../lib/sse';
+import { normalizeContentAsync } from '../../lib/content-converter';
 
 /**
  * Options for streaming chat completion
@@ -55,7 +56,7 @@ export class Chat {
                 'The create() method only supports non-streaming requests.'
             );
         }
-        return this.client.post<ChatCompletionResponse>('/chat/completions', params, undefined, {
+        return this.client.post<ChatCompletionResponse>('/chat/completions', await normalizeChatRequest(params), undefined, {
             signal: options?.signal,
         });
     }
@@ -100,7 +101,7 @@ export class Chat {
         }
 
         // Force stream: true
-        const requestBody = { ...params, stream: true };
+        const requestBody = { ...(await normalizeChatRequest(params)), stream: true };
 
         logger.debug('Starting streaming chat completion', {
             model: params.model,
@@ -150,4 +151,14 @@ export class Chat {
             usage,
         };
     }
+}
+
+async function normalizeChatRequest(params: ChatCompletionRequest): Promise<ChatCompletionRequest> {
+    return {
+        ...params,
+        messages: await Promise.all(params.messages.map(async (message) => ({
+            ...message,
+            content: await normalizeContentAsync(message.content),
+        }))),
+    };
 }

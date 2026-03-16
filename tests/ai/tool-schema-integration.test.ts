@@ -4,6 +4,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
+import { toolFilter } from '../../src/ai/guardrails';
 
 describe('generate-text tool-schema integration', () => {
     it('generate-text imports normalizeToJsonSchema from lib/tool-schema', async () => {
@@ -113,5 +114,69 @@ describe('execute-node tool-schema integration', () => {
 
         expect(results).toHaveLength(1);
         expect(results[0].isError).toBe(false);
+    });
+
+    it('blocks tool execution when tool-phase guardrail blocks arguments', async () => {
+        const { executeTools } = await import('../../src/ai/nodes/execute-node');
+
+        const execute = vi.fn(async () => 'sent');
+        const tools = new Map();
+        tools.set('send_email', {
+            name: 'send_email',
+            execute,
+            parameters: {
+                type: 'object',
+                properties: { email: { type: 'string' } },
+                required: ['email'],
+            },
+            source: { type: 'user' as const, namespace: 'tests' },
+        });
+
+        const results = await executeTools(
+            [{ id: 'call4', type: 'function', function: { name: 'send_email', arguments: JSON.stringify({ email: 'test@example.com' }) } }],
+            tools,
+            { messages: [] },
+            undefined,
+            undefined,
+            {
+                guardrails: [toolFilter({ block: ['pii'] })],
+                agentId: 'agent1',
+            },
+        );
+
+        expect(execute).not.toHaveBeenCalled();
+        expect(results[0].isError).toBe(true);
+        expect(results[0].result).toContain('Guardrail Blocked');
+    });
+
+    it('redacts tool results when tool-phase guardrail redacts output', async () => {
+        const { executeTools } = await import('../../src/ai/nodes/execute-node');
+
+        const tools = new Map();
+        tools.set('lookup', {
+            name: 'lookup',
+            execute: async () => 'email=test@example.com',
+            parameters: {
+                type: 'object',
+                properties: {},
+            },
+            source: { type: 'user' as const, namespace: 'tests' },
+        });
+
+        const results = await executeTools(
+            [{ id: 'call5', type: 'function', function: { name: 'lookup', arguments: '{}' } }],
+            tools,
+            { messages: [] },
+            undefined,
+            undefined,
+            {
+                guardrails: [toolFilter({ block: ['pii'], action: 'redact' })],
+                agentId: 'agent1',
+            },
+        );
+
+        expect(results[0].isError).toBe(false);
+        expect(results[0].result).toContain('[REDACTED]');
+        expect(results[0].result).not.toContain('test@example.com');
     });
 });

@@ -16,13 +16,18 @@
  * ```
  */
 
-import type { ContentPart, ImageSource, ImageUrlContentPart } from './types';
+import type {
+    ContentPartWithCacheControl,
+    ImageSource,
+} from './types';
 
 /**
  * Normalize content parts for API calls.
  * Converts `image` sugar format to `image_url` API format.
  */
-export function normalizeContent(content: string | ContentPart[]): string | ContentPart[] {
+export function normalizeContent(
+    content: string | ContentPartWithCacheControl[],
+): string | ContentPartWithCacheControl[] {
     // String content doesn't need normalization
     if (typeof content === 'string') {
         return content;
@@ -33,9 +38,23 @@ export function normalizeContent(content: string | ContentPart[]): string | Cont
 }
 
 /**
+ * Async variant of normalizeContent.
+ * Supports Blob inputs in addition to the synchronous sources.
+ */
+export async function normalizeContentAsync(
+    content: string | ContentPartWithCacheControl[],
+): Promise<string | ContentPartWithCacheControl[]> {
+    if (typeof content === 'string') {
+        return content;
+    }
+
+    return Promise.all(content.map((part) => normalizeContentPartAsync(part)));
+}
+
+/**
  * Normalize a single content part.
  */
-function normalizeContentPart(part: ContentPart): ContentPart {
+function normalizeContentPart(part: ContentPartWithCacheControl): ContentPartWithCacheControl {
     // Already in API format
     if (part.type === 'text' || part.type === 'image_url') {
         return part;
@@ -43,16 +62,46 @@ function normalizeContentPart(part: ContentPart): ContentPart {
 
     // Convert image sugar to image_url
     if (part.type === 'image') {
-        return {
+        const normalized: ContentPartWithCacheControl = {
             type: 'image_url',
             image_url: {
                 url: imageSourceToDataUrl(part.image),
                 detail: part.detail,
             },
-        } as ImageUrlContentPart;
+        };
+
+        if ('cache_control' in part && part.cache_control) {
+            normalized.cache_control = part.cache_control;
+        }
+
+        return normalized;
     }
 
     // Unknown type, return as-is
+    return part;
+}
+
+async function normalizeContentPartAsync(part: ContentPartWithCacheControl): Promise<ContentPartWithCacheControl> {
+    if (part.type === 'text' || part.type === 'image_url') {
+        return part;
+    }
+
+    if (part.type === 'image') {
+        const normalized: ContentPartWithCacheControl = {
+            type: 'image_url',
+            image_url: {
+                url: await imageSourceToDataUrlAsync(part.image),
+                detail: part.detail,
+            },
+        };
+
+        if ('cache_control' in part && part.cache_control) {
+            normalized.cache_control = part.cache_control;
+        }
+
+        return normalized;
+    }
+
     return part;
 }
 
@@ -66,8 +115,7 @@ function imageSourceToDataUrl(source: ImageSource): string {
         if (source.startsWith('data:') || source.startsWith('http://') || source.startsWith('https://')) {
             return source;
         }
-        // Assume base64, wrap in data URL
-        return `data:image/png;base64,${source}`;
+        return base64StringToDataUrl(source);
     }
 
     // URL object
@@ -94,12 +142,46 @@ function imageSourceToDataUrl(source: ImageSource): string {
     throw new Error(`Unsupported image source type: ${typeof source}`);
 }
 
+export async function imageSourceToDataUrlAsync(source: ImageSource): Promise<string> {
+    if (typeof source === 'string') {
+        if (source.startsWith('data:') || source.startsWith('http://') || source.startsWith('https://')) {
+            return source;
+        }
+        return base64StringToDataUrl(source);
+    }
+
+    if (source instanceof URL) {
+        return source.toString();
+    }
+
+    if (typeof Blob !== 'undefined' && source instanceof Blob) {
+        const mimeType = source.type || undefined;
+        return arrayBufferToDataUrl(new Uint8Array(await source.arrayBuffer()), mimeType);
+    }
+
+    if (source instanceof ArrayBuffer) {
+        return arrayBufferToDataUrl(new Uint8Array(source));
+    }
+
+    if (source instanceof Uint8Array) {
+        return arrayBufferToDataUrl(source);
+    }
+
+    throw new Error(`Unsupported image source type: ${typeof source}`);
+}
+
+function base64StringToDataUrl(source: string): string {
+    const normalized = normalizeBase64String(source);
+    const decoded = decodeBase64Bytes(normalized);
+    const mimeType = decoded ? detectMimeType(decoded) : 'image/png';
+    return `data:${mimeType};base64,${normalized}`;
+}
+
 /**
  * Convert Uint8Array to data URL.
  */
-function arrayBufferToDataUrl(buffer: Uint8Array): string {
-    // Detect MIME type from magic bytes
-    const mimeType = detectMimeType(buffer);
+function arrayBufferToDataUrl(buffer: Uint8Array, mimeTypeOverride?: string): string {
+    const mimeType = mimeTypeOverride || detectMimeType(buffer);
 
     // Convert to base64
     const base64 = uint8ArrayToBase64(buffer);
@@ -137,6 +219,37 @@ function detectMimeType(buffer: Uint8Array): string {
     }
 
     return 'image/png'; // Default fallback
+}
+
+function normalizeBase64String(raw: string): string {
+    const sanitized = raw
+        .replace(/\s+/g, '')
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+
+    const remainder = sanitized.length % 4;
+    if (remainder === 0) {
+        return sanitized;
+    }
+
+    return sanitized + '='.repeat(4 - remainder);
+}
+
+function decodeBase64Bytes(base64: string): Uint8Array | null {
+    if (typeof Buffer !== 'undefined') {
+        return Uint8Array.from(Buffer.from(base64, 'base64'));
+    }
+
+    if (typeof atob === 'function') {
+        const decoded = atob(base64);
+        const bytes = new Uint8Array(decoded.length);
+        for (let i = 0; i < decoded.length; i++) {
+            bytes[i] = decoded.charCodeAt(i);
+        }
+        return bytes;
+    }
+
+    return null;
 }
 
 /**
@@ -179,7 +292,7 @@ export async function blobToDataUrl(blob: Blob): Promise<string> {
 /**
  * Check if content contains any image parts that need normalization.
  */
-export function hasImageParts(content: string | ContentPart[]): boolean {
+export function hasImageParts(content: string | ContentPartWithCacheControl[]): boolean {
     if (typeof content === 'string') {
         return false;
     }

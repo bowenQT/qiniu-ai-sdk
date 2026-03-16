@@ -18,27 +18,21 @@ import type {
 } from '../lib/mcp-host-types';
 import type { RegisteredTool, RegisteredToolContext } from '../lib/tool-registry';
 import { SDK_VERSION } from '../lib/version';
+import {
+    DEFAULT_MCP_CONFIG,
+    type MCPHttpServerConfig,
+    type MCPServerConfig as MCPTransportServerConfig,
+} from './mcp/types';
+import { MCPHttpTransport, type MCPProbeOptions, type MCPProbeResult } from './mcp/http-transport';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export interface MCPServerConfig {
-    /** Unique server name */
-    name: string;
-    /** Transport type */
-    transport: 'stdio' | 'http';
-    /** Command for stdio transport */
-    command?: string;
-    /** Args for stdio transport */
-    args?: string[];
-    /** URL for http transport */
-    url?: string;
-    /** Environment vars for stdio */
-    env?: Record<string, string>;
+export type MCPServerConfig = MCPTransportServerConfig & {
     /** Per-server tool execution policy */
     toolPolicy?: MCPToolPolicy;
-}
+};
 
 export interface NodeMCPHostConfig {
     /** MCP server configurations */
@@ -47,6 +41,46 @@ export interface NodeMCPHostConfig {
     clientName?: string;
     /** SDK client info version */
     clientVersion?: string;
+}
+
+export interface NodeMCPHostProbeResult {
+    serverName: string;
+    result: MCPProbeResult;
+}
+
+export interface NodeMCPHostToolInfo {
+    serverName: string;
+    name: string;
+    description?: string;
+    inputSchema?: Record<string, unknown>;
+}
+
+export interface NodeMCPHostResourceInfo {
+    serverName: string;
+    uri: string;
+    name: string;
+    mimeType?: string;
+}
+
+export interface NodeMCPHostPromptInfo {
+    serverName: string;
+    name: string;
+    description?: string;
+    arguments?: Array<{
+        name: string;
+        required?: boolean;
+    }>;
+}
+
+export interface NodeMCPHostResourceContent {
+    text?: string;
+    mimeType?: string;
+    [key: string]: unknown;
+}
+
+export interface NodeMCPHostPromptMessage {
+    role?: string;
+    content: unknown;
 }
 
 // ============================================================================
@@ -68,7 +102,7 @@ export class NodeMCPHost implements MCPHostProvider {
 
         try {
             for (const server of this.config.servers) {
-                const transport = this.createTransport(server);
+                const transport = await this.createTransport(server);
                 const client = new Client(
                     {
                         name: this.config.clientName ?? 'qiniu-ai-sdk',
@@ -138,18 +172,41 @@ export class NodeMCPHost implements MCPHostProvider {
         return allResources;
     }
 
+    async listServerResources(serverName: string): Promise<NodeMCPHostResourceInfo[]> {
+        const client = this.clients.get(serverName);
+        if (!client) {
+            throw new Error(`MCP server "${serverName}" not found`);
+        }
+
+        const result = await client.listResources();
+        return result.resources.map((resource) => ({
+            serverName,
+            uri: resource.uri,
+            name: resource.name ?? resource.uri,
+            mimeType: (resource as any).mimeType,
+        }));
+    }
+
     async readResource(serverName: string, uri: string): Promise<string> {
+        const contents = await this.readResourceContents(serverName, uri);
+        if (contents.length === 0) {
+            return '';
+        }
+        return contents.map((content) =>
+            typeof content.text === 'string' ? content.text : JSON.stringify(content),
+        ).join('\n');
+    }
+
+    async readResourceContents(serverName: string, uri: string): Promise<NodeMCPHostResourceContent[]> {
         const client = this.clients.get(serverName);
         if (!client) {
             throw new Error(`MCP server "${serverName}" not found`);
         }
 
         const result = await client.readResource({ uri });
-        const contents = result.contents;
-        if (contents.length === 0) {
-            return '';
-        }
-        return (contents[0] as any).text ?? JSON.stringify(contents[0]);
+        return (result.contents ?? []).map((content) => ({
+            ...(content as Record<string, unknown>),
+        }));
     }
 
     async listPrompts(): Promise<MCPPrompt[]> {
@@ -177,30 +234,88 @@ export class NodeMCPHost implements MCPHostProvider {
         return allPrompts;
     }
 
-    async getPrompt(
-        serverName: string,
-        name: string,
-        args?: Record<string, string>,
-    ): Promise<string> {
+    async listServerPrompts(serverName: string): Promise<NodeMCPHostPromptInfo[]> {
         const client = this.clients.get(serverName);
         if (!client) {
             throw new Error(`MCP server "${serverName}" not found`);
         }
 
-        const result = await client.getPrompt({ name, arguments: args });
-        const messages = result.messages;
+        const result = await client.listPrompts();
+        return result.prompts.map((prompt) => ({
+            serverName,
+            name: prompt.name,
+            description: prompt.description,
+            arguments: prompt.arguments?.map((arg) => ({
+                name: arg.name,
+                required: arg.required,
+            })),
+        }));
+    }
+
+    async getPrompt(
+        serverName: string,
+        name: string,
+        args?: Record<string, string>,
+    ): Promise<string> {
+        const messages = await this.getPromptMessages(serverName, name, args);
         if (messages.length === 0) {
             return '';
         }
 
-        return messages.map(m => {
-            const content = m.content;
+        return messages.map((message) => {
+            const content = message.content;
             if (typeof content === 'string') return content;
             if (content && typeof content === 'object' && 'text' in content) {
                 return (content as any).text;
             }
             return JSON.stringify(content);
         }).join('\n');
+    }
+
+    async getPromptMessages(
+        serverName: string,
+        name: string,
+        args?: Record<string, string>,
+    ): Promise<NodeMCPHostPromptMessage[]> {
+        const client = this.clients.get(serverName);
+        if (!client) {
+            throw new Error(`MCP server "${serverName}" not found`);
+        }
+
+        const result = await client.getPrompt({ name, arguments: args });
+        return (result.messages ?? []).map((message) => ({
+            role: message.role,
+            content: message.content,
+        }));
+    }
+
+    async listServerTools(serverName: string): Promise<NodeMCPHostToolInfo[]> {
+        const client = this.clients.get(serverName);
+        if (!client) {
+            throw new Error(`MCP server "${serverName}" not found`);
+        }
+
+        const result = await client.listTools();
+        return result.tools.map((tool) => ({
+            serverName,
+            name: tool.name,
+            description: tool.description,
+            inputSchema: (tool.inputSchema as Record<string, unknown> | undefined),
+        }));
+    }
+
+    async executeServerTool(
+        serverName: string,
+        toolName: string,
+        args: Record<string, unknown> = {},
+        context?: RegisteredToolContext,
+    ): Promise<string> {
+        const client = this.clients.get(serverName);
+        if (!client) {
+            throw new Error(`MCP server "${serverName}" not found`);
+        }
+
+        return this.executeClientTool(serverName, client, toolName, args, context);
     }
 
     async dispose(): Promise<void> {
@@ -216,20 +331,67 @@ export class NodeMCPHost implements MCPHostProvider {
         this.changeCallbacks.clear();
     }
 
+    /**
+     * Probe a single configured HTTP MCP server by name.
+     * Useful for targeted health checks and verification flows.
+     */
+    async probeServer(serverName: string, options: MCPProbeOptions = {}): Promise<NodeMCPHostProbeResult> {
+        const server = this.config.servers.find((candidate) => candidate.name === serverName);
+        if (!server) {
+            throw new Error(`MCP server "${serverName}" not found`);
+        }
+
+        if (server.transport !== 'http') {
+            throw new Error(`MCP server "${serverName}" does not use HTTP transport and cannot be probed`);
+        }
+
+        const transport = new MCPHttpTransport(server);
+        const result = await transport.probe(options);
+        return {
+            serverName,
+            result,
+        };
+    }
+
+    /**
+     * Probe configured HTTP MCP servers using the shared MCPHttpTransport helper surface.
+     * Stdio servers are skipped because they do not expose the same resumable HTTP semantics.
+     */
+    async probeServers(options: MCPProbeOptions = {}): Promise<NodeMCPHostProbeResult[]> {
+        const results: NodeMCPHostProbeResult[] = [];
+
+        for (const server of this.config.servers) {
+            if (server.transport !== 'http') {
+                continue;
+            }
+
+            results.push(await this.probeServer(server.name, options));
+        }
+
+        return results;
+    }
+
     // ========================================================================
     // Private
     // ========================================================================
 
-    private createTransport(server: MCPServerConfig): any {
+    private async createTransport(server: MCPServerConfig): Promise<any> {
         if (server.transport === 'stdio') {
             return new StdioClientTransport({
-                command: server.command!,
+                command: server.command,
                 args: server.args,
                 env: server.env,
             });
         }
 
-        return new StreamableHTTPClientTransport(new URL(server.url!));
+        const token = server.token ?? await server.tokenProvider?.();
+        const headers = buildHttpHeaders(server, token);
+
+        return new StreamableHTTPClientTransport(new URL(server.url!), {
+            requestInit: {
+                headers,
+            },
+        });
     }
 
     private async refreshTools(): Promise<void> {
@@ -237,7 +399,6 @@ export class NodeMCPHost implements MCPHostProvider {
 
         for (const [serverName, client] of this.clients) {
             try {
-                const policy = this.getPolicyForServer(serverName);
                 const result = await client.listTools();
                 for (const t of result.tools) {
                     allTools.push({
@@ -245,45 +406,9 @@ export class NodeMCPHost implements MCPHostProvider {
                         description: t.description ?? '',
                         parameters: (t.inputSchema as any) ?? { type: 'object' as const, properties: {} },
                         source: { type: 'mcp' as const, namespace: serverName },
-                        requiresApproval: policy.requiresApproval ?? false,
+                        requiresApproval: this.getPolicyForServer(serverName).requiresApproval ?? false,
                         execute: async (args: Record<string, unknown>, _context?: RegisteredToolContext) => {
-                            const maxLen = policy.maxOutputLength ?? 1_048_576;
-
-                            // SDK-native timeout/cancel via RequestOptions
-                            const requestOptions: Record<string, unknown> = {
-                                timeout: policy.timeout ?? 30000,
-                                resetTimeoutOnProgress: policy.resetTimeoutOnProgress ?? false,
-                            };
-                            if (policy.maxTotalTimeout != null) {
-                                requestOptions.maxTotalTimeout = policy.maxTotalTimeout;
-                            }
-                            // Bridge context.abortSignal to MCP SDK RequestOptions
-                            if (_context?.abortSignal) {
-                                requestOptions.signal = _context.abortSignal;
-                            }
-
-                            const callResult = await client.callTool(
-                                { name: t.name, arguments: args as Record<string, unknown> },
-                                undefined,
-                                requestOptions as any,
-                            );
-
-                            // Extract text from content array
-                            let output: string;
-                            if (Array.isArray(callResult.content)) {
-                                output = callResult.content
-                                    .map((c: any) => c.text ?? JSON.stringify(c))
-                                    .join('\n');
-                            } else {
-                                output = JSON.stringify(callResult.content);
-                            }
-
-                            // Host-layer output truncation
-                            if (output.length > maxLen) {
-                                output = output.slice(0, maxLen) + `\n[TRUNCATED: exceeded ${maxLen} chars]`;
-                            }
-
-                            return output;
+                            return this.executeClientTool(serverName, client, t.name, args, _context);
                         },
                     });
                 }
@@ -307,4 +432,70 @@ export class NodeMCPHost implements MCPHostProvider {
         const serverConfig = this.config.servers.find(s => s.name === serverName);
         return serverConfig?.toolPolicy ?? {};
     }
+
+    private async executeClientTool(
+        serverName: string,
+        client: Client,
+        toolName: string,
+        args: Record<string, unknown>,
+        context?: RegisteredToolContext,
+    ): Promise<string> {
+        const policy = this.getPolicyForServer(serverName);
+        const maxLen = policy.maxOutputLength ?? 1_048_576;
+
+        const requestOptions: Record<string, unknown> = {
+            timeout: policy.timeout ?? 30000,
+            resetTimeoutOnProgress: policy.resetTimeoutOnProgress ?? false,
+        };
+        if (policy.maxTotalTimeout != null) {
+            requestOptions.maxTotalTimeout = policy.maxTotalTimeout;
+        }
+        if (context?.abortSignal) {
+            requestOptions.signal = context.abortSignal;
+        }
+
+        const callResult = await client.callTool(
+            { name: toolName, arguments: args as Record<string, unknown> },
+            undefined,
+            requestOptions as any,
+        );
+
+        let output: string;
+        if (Array.isArray(callResult.content)) {
+            output = callResult.content
+                .map((c: any) => c.text ?? JSON.stringify(c))
+                .join('\n');
+        } else {
+            output = JSON.stringify(callResult.content);
+        }
+
+        if (output.length > maxLen) {
+            output = output.slice(0, maxLen) + `\n[TRUNCATED: exceeded ${maxLen} chars]`;
+        }
+
+        return output;
+    }
+}
+
+function buildHttpHeaders(server: MCPHttpServerConfig, token?: string): Record<string, string> {
+    const headers: Record<string, string> = {
+        Accept: server.accept ?? DEFAULT_MCP_CONFIG.accept,
+        'MCP-Protocol-Version': server.protocolVersion ?? DEFAULT_MCP_CONFIG.protocolVersion,
+        ...server.headers,
+    };
+
+    if (server.sessionId) {
+        headers['MCP-Session-Id'] = server.sessionId;
+    }
+    if (server.lastEventId) {
+        headers['Last-Event-ID'] = server.lastEventId;
+    }
+    if (server.origin) {
+        headers.Origin = server.origin;
+    }
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+
+    return headers;
 }

@@ -6,7 +6,7 @@
 import type { LanguageModelClient } from '../core/client';
 import type { ChatMessage, ResponseFormat } from '../lib/types';
 import { StructuredOutputError, type ValidationErrorItem } from '../lib/errors';
-import { normalizeContent } from '../lib/content-converter';
+import { normalizeContentAsync } from '../lib/content-converter';
 
 // ============================================================================
 // Types
@@ -263,10 +263,10 @@ export async function generateObject<T>(
     }
 
     // Normalize multimodal content (image -> image_url) for API compatibility
-    const normalizedMessages = messages.map(msg => ({
+    const normalizedMessages = await Promise.all(messages.map(async (msg) => ({
         ...msg,
-        content: normalizeContent(msg.content),
-    }));
+        content: await normalizeContentAsync(msg.content),
+    })));
 
     // Make API call (non-streaming for structured output)
     const response = await client.chat.create({

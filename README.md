@@ -34,6 +34,7 @@
 - 🏭 **createAgent** — Reusable agent factory with configurable behaviors
 
 ### Advanced Capabilities
+- 🧭 **Capability Registry** — Query model capabilities and module maturity from the SDK
 - 📋 **Skills Injection** — Markdown-based agent knowledge (Claude Skills compatible)
 - 🏪 **Skill Marketplace** — Remote skill loading with SHA256 integrity verification (v0.32.0+)
 - 🔐 **Security Hardening** — Atomic remote install, cumulative size limits, deny-first tool policy (v0.38.0+)
@@ -57,19 +58,103 @@
 npm install @bowenqt/qiniu-ai-sdk
 ```
 
-### Recommended Imports
+### Choose Your Entry
 
-```typescript
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
-import { createAgent, generateText } from '@bowenqt/qiniu-ai-sdk/core';
-import { createNodeQiniuAI, NodeMCPHost, FileTokenStore } from '@bowenqt/qiniu-ai-sdk/node';
-```
+| I want to... | Use |
+|--------------|-----|
+| Call Qiniu cloud APIs directly | `@bowenqt/qiniu-ai-sdk/qiniu` |
+| Build agent/runtime workflows | `@bowenqt/qiniu-ai-sdk/qiniu` + `@bowenqt/qiniu-ai-sdk/core` |
+| Add MCP, sandbox, skills, or non-memory checkpointers | `@bowenqt/qiniu-ai-sdk/qiniu` + `@bowenqt/qiniu-ai-sdk/core` + `@bowenqt/qiniu-ai-sdk/node` |
 
 ### Entry Guarantees
 
 - `@bowenqt/qiniu-ai-sdk/node` is the only supported Node integration surface for MCP, sandbox, audit sinks, and non-memory checkpointers.
 - `@bowenqt/qiniu-ai-sdk/core` and `@bowenqt/qiniu-ai-sdk/browser` are kept free of Node-only transitive dependencies.
 - `ResponseAPI` remains experimental and provider-specific; use `QiniuAI#response` or import it from `@bowenqt/qiniu-ai-sdk/qiniu`, not from the root entry.
+- The root entry remains a compatibility surface, not the recommended teaching surface for new projects.
+
+### Cloud API Quickstart
+
+```typescript
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+
+const client = new QiniuAI({
+  apiKey: process.env.QINIU_API_KEY || '',
+});
+
+const result = await client.chat.create({
+  model: 'gemini-2.5-flash',
+  messages: [{ role: 'user', content: 'Introduce Qiniu AI SDK in one sentence.' }],
+});
+
+console.log(result.choices[0]?.message?.content ?? '');
+```
+
+### Agent Quickstart
+
+```typescript
+import { z } from 'zod';
+import { zodToJsonSchema } from '@bowenqt/qiniu-ai-sdk/ai-tools';
+import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { generateText } from '@bowenqt/qiniu-ai-sdk/core';
+
+const calculatorSchema = z.object({ a: z.number(), b: z.number() });
+
+const client = new QiniuAI({
+  apiKey: process.env.QINIU_API_KEY || '',
+});
+
+const result = await generateText({
+  client,
+  model: 'gemini-2.5-flash',
+  prompt: 'What is 42 multiplied by 17?',
+  tools: {
+    calculator: {
+      description: 'Perform arithmetic',
+      parameters: zodToJsonSchema(calculatorSchema),
+      execute: async (args) => {
+        const { a, b } = calculatorSchema.parse(args);
+        return a * b;
+      },
+    },
+  },
+});
+
+console.log(result.text);
+```
+
+### Node Agent Quickstart
+
+```typescript
+import { z } from 'zod';
+import { zodToJsonSchema } from '@bowenqt/qiniu-ai-sdk/ai-tools';
+import { createAgent } from '@bowenqt/qiniu-ai-sdk/core';
+import { createNodeQiniuAI } from '@bowenqt/qiniu-ai-sdk/node';
+
+const nowSchema = z.object({});
+
+const client = createNodeQiniuAI({
+  apiKey: process.env.QINIU_API_KEY || '',
+});
+
+const agent = createAgent({
+  client,
+  model: 'gemini-2.5-flash',
+  tools: {
+    now: {
+      description: 'Return the current ISO timestamp',
+      parameters: zodToJsonSchema(nowSchema),
+      execute: async () => ({ now: new Date().toISOString() }),
+    },
+  },
+});
+
+const result = await agent.run({
+  prompt: 'Use the now tool, then explain why ISO timestamps are useful.',
+});
+
+console.log(result.text);
+```
 
 ### v0.46 Migration
 
@@ -113,6 +198,47 @@ npm install ioredis
 npm install pg
 ```
 
+### Capability Metadata
+
+```typescript
+import {
+  getModelCapabilities,
+  getModuleMaturity,
+  listModels,
+} from '@bowenqt/qiniu-ai-sdk/qiniu';
+
+const featuredChatModels = listModels({ type: 'chat' }).slice(0, 3);
+const responseApi = getModuleMaturity('ResponseAPI');
+const gemini = getModelCapabilities('gemini-2.5-flash');
+
+console.log(featuredChatModels.map((model) => model.id));
+console.log(responseApi?.maturity); // experimental
+console.log(gemini?.capabilities);
+```
+
+See the generated [Capability Scorecard](docs/capability-scorecard.md) for the current validated-model subset and module maturity matrix.
+
+### Worktree Delivery
+
+```bash
+# Create the integration worktree and default .worktrees/ layout
+qiniu-ai worktree init
+
+# Spawn a lane from codex/vnext-integration
+qiniu-ai worktree spawn --lane foundation
+
+# Inspect current worktrees and inferred lanes
+qiniu-ai worktree status
+
+# Merge a lane back into the integration branch
+qiniu-ai worktree integrate --lane foundation
+
+# Run the default live probe for a lane
+qiniu-ai verify live --lane runtime
+```
+
+Use worktree lanes for broad SDK upgrades. Keep the root workspace focused on orchestration and integration, and let each lane own a single subsystem group.
+
 ### Kodo Audit Sink
 
 ```typescript
@@ -129,36 +255,6 @@ const logger = auditLogger({
   }),
 });
 ```
-
----
-
-## 🚀 Quick Start
-
-```typescript
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
-
-const client = new QiniuAI({
-  apiKey: 'Sk-xxxxxxxxxxxxxxxx',
-});
-
-// Chat completion
-const chat = await client.chat.create({
-  model: 'gemini-2.5-flash',
-  messages: [{ role: 'user', content: 'Hello!' }],
-});
-console.log(chat.choices[0].message.content);
-
-// Streaming chat
-const stream = await client.chat.createStream({
-  model: 'gemini-2.5-flash',
-  messages: [{ role: 'user', content: 'Explain AI briefly' }],
-});
-for await (const chunk of stream) {
-  process.stdout.write(chunk.choices[0]?.delta?.content || '');
-}
-```
-
----
 
 ## 🤖 Agentic Usage
 
@@ -485,6 +581,15 @@ await instance.kill();
 
 ## 🛠️ CLI Tools
 
+### Project Setup
+
+```bash
+npx qiniu-ai init --template chat
+npx qiniu-ai init --template agent
+npx qiniu-ai init --template node-agent
+npx qiniu-ai doctor --template agent
+```
+
 ### MCP Server
 
 ```bash
@@ -494,6 +599,7 @@ npx qiniu-mcp-server
 ### Skill Manager (v0.39.0+)
 
 ```bash
+npx qiniu-ai doctor --template node-agent  # Validate env, peers, and import choices
 npx qiniu-ai skill list          # List installed skills
 npx qiniu-ai skill add <url>     # Install a remote skill from manifest URL
 npx qiniu-ai skill add <url> --sha256 <hash>  # With integrity verification

@@ -8,6 +8,8 @@ import type { RegisteredTool } from '../../lib/tool-registry';
 import { ToolExecutionError, RecoverableError, FatalToolError } from '../../lib/errors';
 import { executeToolWithApproval, serializeResult, type ApprovalConfig } from '../tool-approval';
 import { validateToolArgs, type JsonSchema } from '../../lib/tool-schema';
+import type { Guardrail } from '../guardrails';
+import { GuardrailChain } from '../guardrails';
 
 /** Tool execution context */
 export interface ExecutionContext {
@@ -29,6 +31,17 @@ export interface ToolExecutionResult {
     latencyMs: number;
 }
 
+export interface ToolGuardrailOptions {
+    guardrails: Guardrail[];
+    agentId: string;
+    threadId?: string;
+}
+
+interface BlockedToolGuardrailResult {
+    blocked: true;
+    blockedResult: string;
+}
+
 /**
  * Execute tools based on tool calls from LLM.
  * @param toolCalls - Tool calls from LLM response
@@ -43,8 +56,12 @@ export async function executeTools(
     context: Omit<ExecutionContext, 'toolCallId'>,
     approvalConfig?: ApprovalConfig,
     skipApprovalCheck?: boolean,
+    toolGuardrailOptions?: ToolGuardrailOptions,
 ): Promise<ToolExecutionResult[]> {
     const results: ToolExecutionResult[] = [];
+    const guardrailChain = toolGuardrailOptions?.guardrails.length
+        ? new GuardrailChain(toolGuardrailOptions.guardrails)
+        : null;
 
     for (const call of toolCalls) {
         // Check abort signal
@@ -73,7 +90,7 @@ export async function executeTools(
         }
 
         // Parse arguments
-        const args = parseToolArguments(call.function.arguments);
+        let args = parseToolArguments(call.function.arguments);
 
         // Validate args against schema (strict for user/skill/builtin, lenient for mcp)
         if (tool.parameters && typeof tool.parameters === 'object') {
@@ -91,6 +108,29 @@ export async function executeTools(
             }
         }
 
+        if (guardrailChain) {
+            const guardedArgs = await applyToolGuardrailsToArgs(
+                guardrailChain,
+                args,
+                call,
+                tool,
+                toolGuardrailOptions!,
+            );
+
+            if (isBlockedGuardrailResult(guardedArgs)) {
+                results.push({
+                    toolCallId: call.id,
+                    toolName: call.function.name,
+                    result: guardedArgs.blockedResult,
+                    isError: true,
+                    latencyMs: 0,
+                });
+                continue;
+            }
+
+            args = guardedArgs;
+        }
+
         if (skipApprovalCheck) {
             // Direct execution without approval check (pre-checked by invokeResumable)
             const startTime = Date.now();
@@ -99,10 +139,37 @@ export async function executeTools(
                     ? await tool.execute(args, { toolCallId: call.id, messages: context.messages, abortSignal: context.abortSignal })
                     : undefined;
                 // Use shared serializeResult for consistent formatting
+                let serialized = serializeResult(result);
+
+                if (guardrailChain) {
+                    const guardedResult = await applyToolGuardrailsToResult(
+                        guardrailChain,
+                        serialized,
+                        call,
+                        tool,
+                        args,
+                        toolGuardrailOptions!,
+                    );
+
+                    if (isBlockedGuardrailResult(guardedResult)) {
+                        results.push({
+                            toolCallId: call.id,
+                            toolName: call.function.name,
+                            result: guardedResult.blockedResult,
+                            isError: true,
+                            parsedArgs: args,
+                            latencyMs: Date.now() - startTime,
+                        });
+                        continue;
+                    }
+
+                    serialized = guardedResult;
+                }
+
                 results.push({
                     toolCallId: call.id,
                     toolName: call.function.name,
-                    result: serializeResult(result),
+                    result: serialized,
                     isError: false,
                     parsedArgs: args,
                     latencyMs: Date.now() - startTime,
@@ -150,11 +217,33 @@ export async function executeTools(
                 context.abortSignal,
             );
 
+            let guardedResult = execResult.result;
+            let guardedIsError = execResult.isError;
+
+            if (guardrailChain) {
+                const filtered = await applyToolGuardrailsToResult(
+                    guardrailChain,
+                    execResult.result,
+                    call,
+                    tool,
+                    args,
+                    toolGuardrailOptions!,
+                    execResult.isRejected,
+                );
+
+                if (isBlockedGuardrailResult(filtered)) {
+                    guardedResult = filtered.blockedResult;
+                    guardedIsError = true;
+                } else {
+                    guardedResult = filtered;
+                }
+            }
+
             results.push({
                 toolCallId: call.id,
                 toolName: call.function.name,
-                result: execResult.result,
-                isError: execResult.isError,
+                result: guardedResult,
+                isError: guardedIsError,
                 isRejected: execResult.isRejected,
                 parsedArgs: args,
                 latencyMs: Date.now() - startTime,
@@ -163,6 +252,96 @@ export async function executeTools(
     }
 
     return results;
+}
+
+async function applyToolGuardrailsToArgs(
+    chain: GuardrailChain,
+    args: Record<string, unknown>,
+    call: ToolCall,
+    tool: RegisteredTool,
+    options: ToolGuardrailOptions,
+): Promise<Record<string, unknown> | BlockedToolGuardrailResult> {
+    const serializedArgs = JSON.stringify(args);
+    const result = await chain.execute('tool', {
+        content: serializedArgs,
+        agentId: options.agentId,
+        threadId: options.threadId,
+        metadata: {
+            toolCallId: call.id,
+            toolName: call.function.name,
+            toolArgs: args,
+            toolSource: `${tool.source.type}:${tool.source.namespace}`,
+            toolStage: 'request',
+        },
+    });
+
+    if (!result.shouldProceed) {
+        const blockingResult = result.results.find((entry) => entry.action === 'block');
+        return {
+            blocked: true,
+            blockedResult: `[Guardrail Blocked] ${blockingResult?.reason ?? `Tool call blocked for ${call.function.name}`}`,
+        };
+    }
+
+    if (result.content === serializedArgs) {
+        return args;
+    }
+
+    try {
+        const parsed = JSON.parse(result.content);
+        return parsed && typeof parsed === 'object'
+            ? parsed as Record<string, unknown>
+            : args;
+    } catch {
+        return {
+            blocked: true,
+            blockedResult: `[Guardrail Blocked] Sanitized arguments for ${call.function.name} are no longer valid JSON`,
+        };
+    }
+}
+
+async function applyToolGuardrailsToResult(
+    chain: GuardrailChain,
+    content: string,
+    call: ToolCall,
+    tool: RegisteredTool,
+    args: Record<string, unknown>,
+    options: ToolGuardrailOptions,
+    isRejected = false,
+): Promise<string | BlockedToolGuardrailResult> {
+    const result = await chain.execute('tool', {
+        content,
+        agentId: options.agentId,
+        threadId: options.threadId,
+        metadata: {
+            toolCallId: call.id,
+            toolName: call.function.name,
+            toolArgs: args,
+            toolSource: `${tool.source.type}:${tool.source.namespace}`,
+            toolStage: 'result',
+            isRejected,
+        },
+    });
+
+    if (!result.shouldProceed) {
+        const blockingResult = result.results.find((entry) => entry.action === 'block');
+        return {
+            blocked: true,
+            blockedResult: `[Guardrail Blocked] ${blockingResult?.reason ?? `Tool result blocked for ${call.function.name}`}`,
+        };
+    }
+
+    return result.content;
+}
+
+function isBlockedGuardrailResult(
+    value: unknown,
+): value is BlockedToolGuardrailResult {
+    return typeof value === 'object'
+        && value !== null
+        && 'blocked' in value
+        && (value as { blocked?: unknown }).blocked === true
+        && 'blockedResult' in value;
 }
 
 /**

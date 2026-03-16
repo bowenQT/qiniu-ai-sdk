@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { normalizeContent, hasImageParts } from '../../../src/lib/content-converter';
+import { normalizeContent, normalizeContentAsync, hasImageParts } from '../../../src/lib/content-converter';
 import type { ContentPart, TextContentPart, ImageUrlContentPart, ImageContentPart } from '../../../src/lib/types';
 
 describe('Content Converter', () => {
@@ -63,6 +63,27 @@ describe('Content Converter', () => {
             expect((result[0] as ImageUrlContentPart).image_url.url).toContain('data:image/png;base64,');
         });
 
+        it('should infer MIME type for raw base64 image strings', () => {
+            const jpegBase64 = '/9j/4A==';
+            const content: ContentPart[] = [
+                { type: 'image', image: jpegBase64 } as ImageContentPart,
+            ];
+
+            const result = normalizeContent(content) as ContentPart[];
+            expect((result[0] as ImageUrlContentPart).image_url.url).toBe('data:image/jpeg;base64,/9j/4A==');
+        });
+
+        it('should normalize url-safe unpadded base64 image strings before building data URLs', () => {
+            const pngBase64UrlSafe = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk-M9QDwADhgGAWjR9awAAAABJRU5ErkJggg';
+            const content: ContentPart[] = [
+                { type: 'image', image: pngBase64UrlSafe } as ImageContentPart,
+            ];
+
+            const result = normalizeContent(content) as ContentPart[];
+            expect((result[0] as ImageUrlContentPart).image_url.url).toMatch(/^data:image\/png;base64,/);
+            expect((result[0] as ImageUrlContentPart).image_url.url).not.toContain('-');
+        });
+
         it('should convert image with URL object to string', () => {
             const url = new URL('https://example.com/image.jpg');
             const content: ContentPart[] = [
@@ -107,6 +128,20 @@ describe('Content Converter', () => {
             expect((result[0] as ImageUrlContentPart).image_url.detail).toBe('high');
         });
 
+        it('should preserve cache_control when converting image sugar parts', () => {
+            const result = normalizeContent([
+                {
+                    type: 'image',
+                    image: 'https://example.com/image.jpg',
+                    cache_control: { type: 'ephemeral' },
+                } as ImageContentPart & { cache_control: { type: string } },
+            ]) as Array<ImageUrlContentPart & { cache_control?: { type: string } }>;
+
+            expect(result[0].type).toBe('image_url');
+            expect(result[0].cache_control).toEqual({ type: 'ephemeral' });
+            expect(result[0].image_url.url).toBe('https://example.com/image.jpg');
+        });
+
         it('should handle mixed content parts', () => {
             const content: ContentPart[] = [
                 { type: 'text', text: 'Describe this:' },
@@ -119,6 +154,36 @@ describe('Content Converter', () => {
             expect(result[0].type).toBe('text');
             expect(result[1].type).toBe('image_url');
             expect(result[2].type).toBe('text');
+        });
+    });
+
+    describe('normalizeContentAsync', () => {
+        it('should preserve Blob MIME type when converting image sugar parts', async () => {
+            const result = await normalizeContentAsync([
+                {
+                    type: 'image',
+                    image: new Blob([Uint8Array.from([0x00, 0x01])], { type: 'image/jpeg' }),
+                } as ImageContentPart,
+            ]) as ContentPart[];
+
+            expect(result[0]).toEqual({
+                type: 'image_url',
+                image_url: { url: 'data:image/jpeg;base64,AAE=' },
+            });
+        });
+
+        it('should infer MIME type for raw base64 image strings asynchronously', async () => {
+            const result = await normalizeContentAsync([
+                {
+                    type: 'image',
+                    image: '/9j/4A==',
+                } as ImageContentPart,
+            ]) as ContentPart[];
+
+            expect(result[0]).toEqual({
+                type: 'image_url',
+                image_url: { url: 'data:image/jpeg;base64,/9j/4A==' },
+            });
         });
     });
 

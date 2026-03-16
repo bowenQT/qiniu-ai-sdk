@@ -5,7 +5,7 @@ import { MaxStepsExceededError, ToolExecutionError } from '../lib/errors';
 import type { Checkpointer } from './graph/checkpointer';
 import type { ApprovalConfig, ApprovalHandler, ApprovalResult } from './tool-approval';
 import { checkApproval } from './tool-approval';
-import { normalizeContent } from '../lib/content-converter';
+import { normalizeContentAsync } from '../lib/content-converter';
 import { normalizeToJsonSchema } from '../lib/tool-schema';
 import type { MemoryManager } from './memory';
 import type { Guardrail } from './guardrails';
@@ -119,7 +119,7 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
     let finishReason: GenerateTextResult['finishReason'] = null;
 
     for (let stepIndex = 0; stepIndex < maxSteps; stepIndex += 1) {
-        const request = buildChatRequest({
+        const request = await buildChatRequest({
             model,
             messages,
             tools,
@@ -231,7 +231,34 @@ function normalizeMessages(options: GenerateTextOptions): ChatMessage[] {
     return messages;
 }
 
-function buildChatRequest(params: {
+function normalizeMessagesForResume(
+    options: GenerateTextOptions,
+    historicalMessages: ChatMessage[],
+): ChatMessage[] {
+    if (options.messages && options.messages.length > 0) {
+        const freshMessages = [...options.messages];
+        while (freshMessages[0]?.role === 'system') {
+            freshMessages.shift();
+        }
+        return freshMessages;
+    }
+
+    const freshMessages: ChatMessage[] = [];
+    if (options.prompt) {
+        freshMessages.push({ role: 'user', content: options.prompt });
+    }
+    return freshMessages;
+}
+
+function buildResumePrefixMessages(options: GenerateTextOptions, historicalMessages: ChatMessage[]): ChatMessage[] {
+    const hasHistoricalSystemMessage = historicalMessages.some(message => message.role === 'system');
+    if (hasHistoricalSystemMessage || !options.system) {
+        return [];
+    }
+    return [{ role: 'system', content: options.system }];
+}
+
+async function buildChatRequest(params: {
     model: string;
     messages: ChatMessage[];
     tools?: Record<string, Tool>;
@@ -240,14 +267,14 @@ function buildChatRequest(params: {
     maxTokens?: number;
     responseFormat?: ResponseFormat;
     toolChoice?: 'none' | 'auto' | { type: 'function'; function: { name: string } };
-}): ChatCompletionRequest {
+}): Promise<ChatCompletionRequest> {
     const { model, messages, tools, temperature, topP, maxTokens, responseFormat, toolChoice } = params;
 
     // Normalize multimodal content (image -> image_url) for API compatibility
-    const normalizedMessages = messages.map(msg => ({
+    const normalizedMessages = await Promise.all(messages.map(async (msg) => ({
         ...msg,
-        content: normalizeContent(msg.content),
-    }));
+        content: await normalizeContentAsync(msg.content),
+    })));
 
     return {
         model,
@@ -523,6 +550,8 @@ function parseToolArguments(payload: string): unknown {
 import { AgentGraph, type AgentGraphOptions, type AgentGraphResult, type TokenEvent } from './agent-graph';
 import type { RegisteredTool, ToolParameters } from '../lib/tool-registry';
 import type { Skill } from '../modules/skills/types';
+import type { SessionStore } from './session-store';
+import { serializeState } from './graph/checkpointer';
 
 /**
  * Extended options for graph-based generation.
@@ -546,6 +575,8 @@ export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
     approvalConfig?: ApprovalConfig;
     /** Memory manager for conversation summarization */
     memory?: MemoryManager;
+    /** Higher-level session persistence (checkpoint + summary) */
+    sessionStore?: SessionStore;
     /** Guardrails for input/output filtering */
     guardrails?: Guardrail[];
     /** Agent ID for guardrail attribution (defaults to threadId or 'default') */
@@ -616,6 +647,7 @@ export async function generateTextWithGraph(
         threadId,
         resumeFromCheckpoint = true,
         memory,
+        sessionStore,
         guardrails,
         onTokenEvent,
     } = options;
@@ -627,25 +659,27 @@ export async function generateTextWithGraph(
     const guardrailChain = guardrails?.length ? new GuardrailChain(guardrails) : null;
 
     // Validate checkpointer + threadId combination
-    if (checkpointer && !threadId) {
-        throw new Error('threadId is required when checkpointer is provided');
+    if ((checkpointer || sessionStore) && !threadId) {
+        throw new Error('threadId is required when checkpointer or sessionStore is provided');
     }
 
     // Try to resume from checkpoint if available
     let resumedMessages: ChatMessage[] | null = null;
-    if (checkpointer && threadId && resumeFromCheckpoint) {
-        const checkpoint = await checkpointer.load(threadId);
-        if (checkpoint) {
-            // Extract historical messages and append new input
-            // v0.32.0+: prefer internalMessages, fallback to legacy messages for migration
-            const historicalMessages = (checkpoint.state.internalMessages ?? checkpoint.state.messages) as ChatMessage[];
-            const newMessages = normalizeMessages(options);
-            // Only append new messages if there are any (avoid duplicating history)
-            if (newMessages.length > 0) {
-                resumedMessages = [...historicalMessages, ...newMessages];
-            } else {
-                resumedMessages = historicalMessages;
-            }
+    const loadedSession = threadId && sessionStore ? await sessionStore.load(threadId) : null;
+    if (threadId && memory && loadedSession?.summary) {
+        memory.setSummary(threadId, loadedSession.summary);
+    }
+
+    if (threadId && resumeFromCheckpoint) {
+        const sessionCheckpoint = loadedSession?.checkpoint ?? null;
+        const checkpoint = sessionCheckpoint ?? (checkpointer ? await checkpointer.load(threadId) : null);
+        const historicalMessages = checkpoint
+            ? ((checkpoint.state.internalMessages ?? checkpoint.state.messages) as ChatMessage[])
+            : (loadedSession?.messages ?? null);
+        if (historicalMessages) {
+            const prefixMessages = buildResumePrefixMessages(options, historicalMessages);
+            const newMessages = normalizeMessagesForResume(options, historicalMessages);
+            resumedMessages = [...prefixMessages, ...historicalMessages, ...newMessages];
         }
     }
 
@@ -780,6 +814,8 @@ export async function generateTextWithGraph(
         approvalConfig: options.approvalConfig,
         memory,
         threadId,
+        guardrails,
+        agentId: resolvedAgentId,
         skillReferenceMode: options.skillReferenceMode,
         onTokenEvent,
     });
@@ -833,7 +869,7 @@ export async function generateTextWithGraph(
 
     // Save checkpoint AFTER post-response guardrails (use redacted content)
     // This overwrites the internal AgentGraph checkpoint with redacted version
-    if (checkpointer && threadId) {
+    if ((checkpointer || sessionStore) && threadId) {
         // If content was redacted, update the final assistant message in state
         const stateToSave = { ...graphResult.state };
 
@@ -855,11 +891,28 @@ export async function generateTextWithGraph(
         }
 
         // Save with completed status to overwrite any intermediate checkpoints
-        const savedMetadata = await checkpointer.save(threadId, stateToSave, { status: 'completed' });
+        const savedMetadata = checkpointer
+            ? await checkpointer.save(threadId, stateToSave, { status: 'completed' })
+            : {
+                id: `session_${threadId}_${Date.now()}`,
+                threadId,
+                createdAt: Date.now(),
+                stepCount: stateToSave.stepCount,
+                status: 'completed' as const,
+            };
+
+        if (sessionStore) {
+            await sessionStore.save({
+                threadId,
+                state: serializeState(stateToSave),
+                checkpointMetadata: savedMetadata,
+                summary: memory?.getSummary(threadId),
+            });
+        }
 
         // Clear old checkpoints to prevent access to unredacted versions
         // Pass the saved checkpoint ID to ensure we keep the correct one
-        if (finalText !== graphResult.text && checkpointer.clearHistory) {
+        if (finalText !== graphResult.text && checkpointer?.clearHistory) {
             await checkpointer.clearHistory(threadId, savedMetadata.id);
         }
     }

@@ -7,6 +7,8 @@
  */
 
 import { IQiniuClient } from '../../lib/types';
+import { pollUntilComplete, type PollerOptions } from '../../lib/poller';
+import { createUnsupportedTaskCancellation, type TaskHandle } from '../../lib/task-handle';
 
 // ============================================================================
 // Types
@@ -73,6 +75,20 @@ export interface VideoCensorJobResponse {
     jobId: string;
 }
 
+export interface VideoCensorWaitOptions {
+    intervalMs?: number;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+    maxRetries?: number;
+    onPoll?: PollerOptions<VideoCensorResult>['onPoll'];
+}
+
+export interface VideoCensorTaskHandle
+    extends VideoCensorJobResponse,
+        TaskHandle<VideoCensorResult, VideoCensorResult, VideoCensorWaitOptions> {
+    id: string;
+}
+
 /** Video censor status */
 export type VideoCensorStatus = 'WAITING' | 'DOING' | 'DONE' | 'FAILED';
 
@@ -134,6 +150,18 @@ interface VideoCensorStatusApiResponse {
     error?: string;
 }
 
+const TERMINAL_VIDEO_CENSOR_STATUSES: VideoCensorStatus[] = ['DONE', 'FAILED'];
+
+function createVideoCensorTaskHandle(censor: Censor, jobId: string): VideoCensorTaskHandle {
+    return {
+        id: jobId,
+        jobId,
+        get: () => censor.getVideoStatus(jobId),
+        wait: (options?: VideoCensorWaitOptions) => censor.waitForVideoCompletion(jobId, options),
+        cancel: createUnsupportedTaskCancellation('Video censor', jobId),
+    };
+}
+
 // ============================================================================
 // Censor Class
 // ============================================================================
@@ -192,7 +220,7 @@ export class Censor {
     /**
      * Start async video moderation job.
      */
-    async video(request: VideoCensorRequest): Promise<VideoCensorJobResponse> {
+    async video(request: VideoCensorRequest): Promise<VideoCensorTaskHandle> {
         const logger = this.client.getLogger();
         const scenes = request.scenes ?? ['pulp', 'terror', 'politician'];
         const intervalMs = request.intervalMs ?? 5000;
@@ -219,13 +247,14 @@ export class Censor {
             throw new Error('Video censor failed: no job ID returned');
         }
 
-        return { jobId: response.job };
+        return createVideoCensorTaskHandle(this, response.job);
     }
 
     /**
      * Get video moderation job status and result.
      */
-    async getVideoStatus(jobId: string): Promise<VideoCensorResult> {
+    async getVideoStatus(jobIdOrHandle: string | Pick<VideoCensorJobResponse, 'jobId'>): Promise<VideoCensorResult> {
+        const jobId = typeof jobIdOrHandle === 'string' ? jobIdOrHandle : jobIdOrHandle.jobId;
         const logger = this.client.getLogger();
 
         logger.debug('Get video censor status', { jobId });
@@ -245,6 +274,28 @@ export class Censor {
                 : undefined,
             error: response.error,
         };
+    }
+
+    /**
+     * Wait until a video moderation job reaches a terminal state.
+     */
+    async waitForVideoCompletion(
+        jobIdOrHandle: string | Pick<VideoCensorJobResponse, 'jobId'>,
+        options: VideoCensorWaitOptions = {},
+    ): Promise<VideoCensorResult> {
+        const jobId = typeof jobIdOrHandle === 'string' ? jobIdOrHandle : jobIdOrHandle.jobId;
+        const { result } = await pollUntilComplete(jobId, {
+            intervalMs: options.intervalMs ?? 2_000,
+            timeoutMs: options.timeoutMs ?? 300_000,
+            maxRetries: options.maxRetries ?? 3,
+            signal: options.signal,
+            onPoll: options.onPoll,
+            logger: this.client.getLogger(),
+            isTerminal: (state) => TERMINAL_VIDEO_CENSOR_STATUSES.includes(state.status),
+            getStatus: (id) => this.getVideoStatus(id),
+        });
+
+        return result;
     }
 
     /**

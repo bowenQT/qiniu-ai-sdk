@@ -101,6 +101,53 @@ describe('streamObject', () => {
             const rawText = await result.rawText;
             expect(rawText).toBe('{"name": "test"}');
         });
+
+        it('should normalize Blob image inputs before streaming structured output requests', async () => {
+            const schema = z.object({ name: z.string() });
+            const createStream = vi.fn().mockResolvedValue((async function* () {
+                yield { choices: [{ delta: { content: '{"name":"blob"}' } }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } };
+            })());
+            mockClient = {
+                chat: {
+                    createStream,
+                    create: vi.fn(),
+                },
+                getBaseUrl: () => 'https://api.qiniu.com',
+            } as unknown as QiniuAI;
+
+            const result = await streamObject({
+                client: mockClient,
+                model: 'gemini-2.5-flash',
+                schema,
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'image',
+                                image: new Blob([Uint8Array.from([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }),
+                            } as any,
+                        ],
+                    },
+                ],
+            });
+
+            await result.object;
+
+            expect(createStream).toHaveBeenCalledWith(expect.objectContaining({
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'image_url',
+                                image_url: { url: 'data:image/png;base64,iVBORw==' },
+                            },
+                        ],
+                    },
+                ],
+            }), expect.any(Object));
+        });
     });
 
     describe('validation errors', () => {

@@ -1,0 +1,422 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SDK_VERSION } from '../../src/lib/version';
+
+const transportCtorCalls: Array<{ url: URL; options: unknown }> = [];
+const clientCtorCalls: Array<{ info: { name: string; version: string } }> = [];
+
+const mockClientInstance = {
+    connect: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn().mockResolvedValue(undefined),
+    listTools: vi.fn().mockResolvedValue({ tools: [] }),
+    listResources: vi.fn().mockResolvedValue({ resources: [] }),
+    listPrompts: vi.fn().mockResolvedValue({ prompts: [] }),
+    readResource: vi.fn().mockResolvedValue({ contents: [] }),
+    getPrompt: vi.fn().mockResolvedValue({ messages: [] }),
+    callTool: vi.fn(),
+};
+const fetchMock = vi.fn();
+
+vi.mock('@modelcontextprotocol/sdk/client/index.js', () => {
+    const MockClient = vi.fn().mockImplementation(function(this: any, info: { name: string; version: string }) {
+        clientCtorCalls.push({ info });
+        Object.assign(this, mockClientInstance);
+    });
+    return { Client: MockClient };
+});
+
+vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
+    StreamableHTTPClientTransport: vi.fn().mockImplementation(function(this: any, url: URL, options: unknown) {
+        transportCtorCalls.push({ url, options });
+        Object.assign(this, { close: vi.fn() });
+    }),
+}));
+
+describe('MCPHttpTransport', () => {
+    beforeEach(() => {
+        vi.useRealTimers();
+        vi.clearAllMocks();
+        transportCtorCalls.length = 0;
+        clientCtorCalls.length = 0;
+        fetchMock.mockReset();
+        vi.stubGlobal('fetch', fetchMock);
+    });
+
+    it('builds MCP 2025-11-25 headers and SDK metadata on connect', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+
+        const transport = new MCPHttpTransport({
+            name: 'server-a',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+            token: 'static-token',
+            sessionId: 'session-42',
+            origin: 'https://app.example.com',
+        });
+
+        await transport.connect();
+
+        expect(transportCtorCalls[0]).toEqual({
+            url: new URL('https://mcp.example.com/mcp'),
+            options: expect.objectContaining({
+                requestInit: {
+                    headers: expect.objectContaining({
+                        Accept: 'application/json, text/event-stream',
+                        Authorization: 'Bearer static-token',
+                        'MCP-Protocol-Version': '2025-11-25',
+                        'MCP-Session-Id': 'session-42',
+                        Origin: 'https://app.example.com',
+                    }),
+                },
+            }),
+        });
+        expect(clientCtorCalls[0]?.info).toEqual({
+            name: 'qiniu-ai-sdk',
+            version: SDK_VERSION,
+        });
+    });
+
+    it('prefers tokenProvider when static token is absent', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+        const tokenProvider = vi.fn().mockResolvedValue('dynamic-token');
+
+        const transport = new MCPHttpTransport({
+            name: 'server-b',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+            tokenProvider,
+            protocolVersion: '2025-11-25',
+        });
+
+        await transport.connect();
+
+        expect(tokenProvider).toHaveBeenCalledTimes(1);
+        expect(transportCtorCalls[0]?.options).toEqual(expect.objectContaining({
+            requestInit: {
+                headers: expect.objectContaining({
+                    Authorization: 'Bearer dynamic-token',
+                    'MCP-Protocol-Version': '2025-11-25',
+                }),
+            },
+        }));
+    });
+
+    it('opens resumable event streams with Last-Event-ID', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+        fetchMock.mockResolvedValue(new Response('event: message\n\n', {
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream' },
+        }));
+
+        const transport = new MCPHttpTransport({
+            name: 'server-c',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+            sessionId: 'session-99',
+            lastEventId: 'evt-41',
+        });
+
+        const response = await transport.openEventStream();
+
+        expect(response.status).toBe(200);
+        expect(fetchMock).toHaveBeenCalledWith(
+            'https://mcp.example.com/mcp',
+            expect.objectContaining({
+                method: 'GET',
+                headers: expect.objectContaining({
+                    Accept: 'text/event-stream',
+                    'MCP-Session-Id': 'session-99',
+                    'Last-Event-ID': 'evt-41',
+                }),
+            }),
+        );
+    });
+
+    it('terminates sessions with DELETE and reports unsupported servers', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+
+        fetchMock
+            .mockResolvedValueOnce(new Response(null, { status: 204 }))
+            .mockResolvedValueOnce(new Response(null, { status: 405 }));
+
+        const transport = new MCPHttpTransport({
+            name: 'server-d',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+            sessionId: 'session-delete',
+        });
+
+        expect(await transport.terminateSession()).toBe(true);
+        expect(await transport.terminateSession()).toBe(false);
+
+        expect(fetchMock).toHaveBeenNthCalledWith(
+            1,
+            'https://mcp.example.com/mcp',
+            expect.objectContaining({
+                method: 'DELETE',
+                headers: expect.objectContaining({
+                    'MCP-Session-Id': 'session-delete',
+                }),
+            }),
+        );
+    });
+
+    it('discovers OAuth metadata from protected resource and authorization server', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+        fetchMock
+            .mockResolvedValueOnce(new Response(JSON.stringify({
+                resource: 'https://mcp.example.com',
+                authorization_servers: ['https://auth.example.com'],
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({
+                issuer: 'https://auth.example.com',
+                authorization_endpoint: 'https://auth.example.com/authorize',
+                token_endpoint: 'https://auth.example.com/token',
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+        const transport = new MCPHttpTransport({
+            name: 'server-e',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+            protocolVersion: '2025-11-25',
+        });
+
+        const metadata = await transport.discoverOAuthMetadata();
+
+        expect(metadata.protectedResource.authorization_servers).toEqual(['https://auth.example.com']);
+        expect(metadata.authorizationServer?.token_endpoint).toBe('https://auth.example.com/token');
+        expect(fetchMock).toHaveBeenNthCalledWith(
+            1,
+            'https://mcp.example.com/.well-known/oauth-protected-resource',
+            expect.objectContaining({
+                method: 'GET',
+                headers: expect.objectContaining({
+                    Accept: 'application/json',
+                    'MCP-Protocol-Version': '2025-11-25',
+                }),
+            }),
+        );
+        expect(fetchMock).toHaveBeenNthCalledWith(
+            2,
+            'https://auth.example.com/.well-known/oauth-authorization-server',
+            expect.objectContaining({
+                method: 'GET',
+            }),
+        );
+    });
+
+    it('applies configured timeout to event streams, terminate, and OAuth discovery', async () => {
+        vi.useFakeTimers();
+        const { MCPHttpTransport, MCPHttpTransportError } = await import('../../src/node/mcp/http-transport');
+
+        fetchMock.mockImplementation((_input: string, init?: RequestInit) => new Promise((_, reject) => {
+            const signal = init?.signal;
+            signal?.addEventListener('abort', () => {
+                reject(new DOMException('Aborted', 'AbortError'));
+            }, { once: true });
+        }));
+
+        const transport = new MCPHttpTransport({
+            name: 'server-timeout',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+            timeout: 25,
+        });
+
+        const streamPromise = expect(transport.openEventStream()).rejects.toMatchObject({
+            message: 'Open event stream timeout after 25ms',
+            serverName: 'server-timeout',
+        });
+        await vi.advanceTimersByTimeAsync(25);
+        await streamPromise;
+
+        const terminatePromise = expect(transport.terminateSession()).rejects.toMatchObject({
+            message: 'Terminate session timeout after 25ms',
+            serverName: 'server-timeout',
+        });
+        await vi.advanceTimersByTimeAsync(25);
+        await terminatePromise;
+
+        const discoveryPromise = expect(transport.discoverOAuthMetadata()).rejects.toMatchObject({
+            message: 'OAuth metadata discovery timeout after 25ms',
+            serverName: 'server-timeout',
+        });
+        await vi.advanceTimersByTimeAsync(25);
+        await discoveryPromise;
+    });
+
+    it('probes MCP capabilities through a single helper surface', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+
+        fetchMock
+            .mockResolvedValueOnce(new Response('event: ready\n\n', {
+                status: 200,
+                headers: { 'Content-Type': 'text/event-stream' },
+            }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({
+                resource: 'https://mcp.example.com',
+                authorization_servers: ['https://auth.example.com'],
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+            .mockResolvedValueOnce(new Response(JSON.stringify({
+                issuer: 'https://auth.example.com',
+                authorization_endpoint: 'https://auth.example.com/authorize',
+                token_endpoint: 'https://auth.example.com/token',
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+            .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+        mockClientInstance.listTools.mockResolvedValueOnce({
+            tools: [{ name: 'ping', description: 'Ping', inputSchema: { type: 'object', properties: {} } }],
+        });
+        mockClientInstance.listResources.mockResolvedValueOnce({
+            resources: [{ uri: 'file:///readme.md', name: 'readme', mimeType: 'text/markdown' }],
+        });
+        mockClientInstance.listPrompts.mockResolvedValueOnce({
+            prompts: [{ name: 'summarize', description: 'Summarize text', arguments: [{ name: 'text', required: true }] }],
+        });
+        mockClientInstance.readResource.mockResolvedValueOnce({
+            contents: [{ text: '# Hello from MCP' }],
+        });
+        mockClientInstance.getPrompt.mockResolvedValueOnce({
+            messages: [{ role: 'user', content: { type: 'text', text: 'Please summarize hello' } }],
+        });
+        mockClientInstance.callTool.mockResolvedValueOnce({
+            content: [{ type: 'text', text: 'pong' }],
+            isError: false,
+        });
+
+        const transport = new MCPHttpTransport({
+            name: 'server-probe',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+        });
+
+        const result = await transport.probe({
+            listTools: true,
+            listResources: true,
+            listPrompts: true,
+            readResource: { uri: 'file:///readme.md' },
+            getPrompt: { name: 'summarize', args: { text: 'hello' } },
+            executeTool: { name: 'ping', args: { echo: 'pong' } },
+            eventStream: true,
+            oauthMetadata: true,
+            terminateSession: true,
+        });
+
+        expect(result.tools?.[0]?.name).toBe('ping');
+        expect(result.resources?.[0]).toEqual({
+            uri: 'file:///readme.md',
+            name: 'readme',
+            mimeType: 'text/markdown',
+        });
+        expect(result.prompts?.[0]).toEqual({
+            name: 'summarize',
+            description: 'Summarize text',
+            arguments: [{ name: 'text', required: true }],
+        });
+        expect(result.resourceContents).toEqual([
+            { text: '# Hello from MCP' },
+        ]);
+        expect(result.resourceText).toBe('# Hello from MCP');
+        expect(result.promptMessages).toEqual([
+            { role: 'user', content: { type: 'text', text: 'Please summarize hello' } },
+        ]);
+        expect(result.promptText).toBe('Please summarize hello');
+        expect(result.toolResult?.content?.[0]).toEqual({ type: 'text', text: 'pong' });
+        expect(result.eventStream).toEqual({
+            status: 200,
+            contentType: 'text/event-stream',
+        });
+        expect(result.oauthMetadata?.authorizationServer?.issuer).toBe('https://auth.example.com');
+        expect(result.terminated).toBe(true);
+        expect(mockClientInstance.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('lists resources and prompts directly once connected', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+
+        mockClientInstance.listResources.mockResolvedValueOnce({
+            resources: [{ uri: 'file:///guide.md', name: 'guide', mimeType: 'text/markdown' }],
+        });
+        mockClientInstance.listPrompts.mockResolvedValueOnce({
+            prompts: [{ name: 'rewrite', description: 'Rewrite text' }],
+        });
+        mockClientInstance.readResource.mockResolvedValueOnce({
+            contents: [{ text: '# Guide' }],
+        });
+        mockClientInstance.getPrompt.mockResolvedValueOnce({
+            messages: [{ role: 'user', content: { type: 'text', text: 'Rewrite: hello' } }],
+        });
+
+        const transport = new MCPHttpTransport({
+            name: 'server-direct',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+        });
+
+        await transport.connect();
+
+        await expect(transport.listResources()).resolves.toEqual([
+            {
+                uri: 'file:///guide.md',
+                name: 'guide',
+                mimeType: 'text/markdown',
+            },
+        ]);
+        await expect(transport.listPrompts()).resolves.toEqual([
+            {
+                name: 'rewrite',
+                description: 'Rewrite text',
+                arguments: undefined,
+            },
+        ]);
+        await expect(transport.readResource('file:///guide.md')).resolves.toBe('# Guide');
+        await expect(transport.getPrompt('rewrite', { text: 'hello' })).resolves.toBe('Rewrite: hello');
+    });
+
+    it('readResourceContents() returns structured resource contents', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+
+        mockClientInstance.readResource.mockResolvedValueOnce({
+            contents: [
+                { text: '# Guide', mimeType: 'text/markdown' },
+                { uri: 'file:///guide.md', mimeType: 'text/markdown' },
+            ],
+        });
+
+        const transport = new MCPHttpTransport({
+            name: 'server-resource-contents',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+        });
+
+        await transport.connect();
+
+        await expect(transport.readResourceContents('file:///guide.md')).resolves.toEqual([
+            { text: '# Guide', mimeType: 'text/markdown' },
+            { uri: 'file:///guide.md', mimeType: 'text/markdown' },
+        ]);
+    });
+
+    it('getPromptMessages() returns structured prompt messages', async () => {
+        const { MCPHttpTransport } = await import('../../src/node/mcp/http-transport');
+
+        mockClientInstance.getPrompt.mockResolvedValueOnce({
+            messages: [
+                { role: 'user', content: { type: 'text', text: 'Rewrite hello' } },
+                { role: 'assistant', content: 'Sure' },
+            ],
+        });
+
+        const transport = new MCPHttpTransport({
+            name: 'server-prompt-messages',
+            transport: 'http',
+            url: 'https://mcp.example.com/mcp',
+        });
+
+        await transport.connect();
+
+        await expect(transport.getPromptMessages('rewrite', { text: 'hello' })).resolves.toEqual([
+            { role: 'user', content: { type: 'text', text: 'Rewrite hello' } },
+            { role: 'assistant', content: 'Sure' },
+        ]);
+    });
+});

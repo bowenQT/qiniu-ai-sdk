@@ -68,6 +68,9 @@ export {
     outputFilter,
 } from '../ai/guardrails/output-filter';
 export {
+    toolFilter,
+} from '../ai/guardrails/tool-filter';
+export {
     tokenLimiter,
 } from '../ai/guardrails/token-limiter';
 export {
@@ -75,6 +78,7 @@ export {
 } from '../ai/guardrails/types';
 export type {
     Guardrail,
+    CanonicalGuardrailPhase,
     GuardrailPhase,
     GuardrailAction,
     GuardrailContext,
@@ -164,8 +168,15 @@ export type {
     Agent,
     AgentRunOptions,
     AgentRunWithThreadOptions,
+    AgentRunResumableWithThreadOptions,
     AgentStreamOptions,
     AgentStreamWithThreadOptions,
+    AgentResumeThreadOptions,
+    AgentResumableThreadResult,
+    AgentForkThreadOptions,
+    AgentRestoreThreadOptions,
+    AgentMoveThreadOptions,
+    AgentThreadOptions,
 } from '../ai/create-agent';
 
 export type {
@@ -207,6 +218,13 @@ export type {
     VectorDocument,
     InMemoryVectorStoreConfig,
 } from '../ai/memory';
+export {
+    MemorySessionStore,
+    CheckpointerSessionStore,
+    extractSessionMessages,
+    replaySession,
+} from '../ai/session-store';
+export type { SessionStore, SessionRecord, SessionSaveInput } from '../ai/session-store';
 
 // Checkpointer and graph runtime
 export {

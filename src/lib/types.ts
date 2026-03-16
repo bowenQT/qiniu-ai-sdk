@@ -2,7 +2,7 @@
 
 export interface ChatMessage {
     role: 'system' | 'user' | 'assistant' | 'tool' | 'function';
-    content: string | ContentPart[];
+    content: string | ContentPartWithCacheControl[];
     name?: string;
     tool_calls?: ToolCall[];
     /** Required for tool role messages to match the corresponding tool_call */
@@ -94,12 +94,15 @@ export interface VideoContentPart {
 }
 
 /** Cache control content part */
+export interface CacheControl {
+    type: string;
+    ttl?: string;
+}
+
+/** Cache control content part */
 export interface CacheControlContentPart {
     type: string;
-    cache_control: {
-        type: string;
-        ttl?: string;
-    };
+    cache_control: CacheControl;
 }
 
 /** Thinking block object (Claude response) */
@@ -130,6 +133,18 @@ export type ContentPart =
     | FileUrlContentPart
     | ThinkingContentPart
     | VideoContentPart;
+
+/** Content parts that may carry provider-specific cache directives */
+export type ContentPartWithCacheControl =
+    | (TextContentPart & { cache_control?: CacheControl })
+    | (ImageUrlContentPart & { cache_control?: CacheControl })
+    | (ImageContentPart & { cache_control?: CacheControl })
+    | (VideoUrlContentPart & { cache_control?: CacheControl })
+    | (FileContentPart & { cache_control?: CacheControl })
+    | (InputAudioContentPart & { cache_control?: CacheControl })
+    | (FileUrlContentPart & { cache_control?: CacheControl })
+    | (ThinkingContentPart & { cache_control?: CacheControl })
+    | (VideoContentPart & { cache_control?: CacheControl });
 
 export interface ToolCall {
     id: string;
@@ -291,6 +306,7 @@ import type { ChildTransport } from './child-transport';
 export interface IQiniuClient {
     post<T>(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions): Promise<T>;
     get<T>(endpoint: string, params?: Record<string, string>, requestId?: string, options?: RequestOptions): Promise<T>;
+    delete<T>(endpoint: string, requestId?: string, options?: RequestOptions): Promise<T>;
     postStream(endpoint: string, body: unknown, requestId?: string, options?: RequestOptions & { signal?: AbortSignal }): Promise<Response>;
     /** GET using absolute URL (skips baseUrl prepend) */
     getAbsolute<T>(absoluteUrl: string, params?: Record<string, string>, requestId?: string, options?: RequestOptions): Promise<T>;
@@ -314,4 +330,3 @@ export interface CompactionInfo {
     /** Recommendation for reducing context */
     recommendation?: string;
 }
-

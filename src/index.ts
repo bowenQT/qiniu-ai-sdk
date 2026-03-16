@@ -18,6 +18,12 @@ export {
     VIDEO_MODELS,
     MODEL_CATALOG,
 } from './models';
+export {
+    listModels,
+    getModelCapabilities,
+    listModuleMaturities,
+    getModuleMaturity,
+} from './lib/capability-registry';
 
 export type {
     ChatModel,
@@ -26,6 +32,13 @@ export type {
     Model,
     ModelInfo,
 } from './models';
+export type {
+    ModuleMaturity,
+    ValidationLevel,
+    ModelCapabilityInfo,
+    ModuleMaturityInfo,
+    ListModelsOptions,
+} from './lib/capability-registry';
 
 export type {
     QiniuAIOptions,
@@ -37,6 +50,7 @@ export type {
     MiddlewareResponse,
     RequestOptions,
 } from './client';
+export type { TaskHandle } from './lib/task-handle';
 
 // Error types
 export { APIError } from './lib/request';
@@ -96,11 +110,13 @@ export {
     GuardrailBlockedError,
     inputFilter,
     outputFilter,
+    toolFilter,
     tokenLimiter,
     ACTION_PRIORITY,
 } from './ai/guardrails';
 export type {
     Guardrail,
+    CanonicalGuardrailPhase,
     GuardrailPhase,
     GuardrailAction,
     GuardrailContext,
@@ -193,6 +209,7 @@ export type { PollerOptions, PollResult } from './lib/poller';
 export type {
     ImageGenerationRequest,
     ImageTaskResponse,
+    ImageTaskHandle,
     ImageCreateResult,
     ImageGenerateResult,
     ImageUsage,
@@ -239,6 +256,20 @@ export type { UsageQuery, UsageResponse, UsageModelStat, UsageItem, UsageCategor
 
 // Module types - Admin
 export type { CreateKeysRequest, ApiKey } from './modules/admin';
+
+// Module types - Batch
+export { Batch } from './modules/batch';
+export type {
+    BatchCreateRequest,
+    BatchResponse,
+    BatchTaskSnapshot,
+    BatchListResponse,
+    BatchListOptions,
+    BatchWaitOptions,
+    BatchCancelResponse,
+    BatchTaskHandle,
+    BatchStatus,
+} from './modules/batch';
 
 // Module types - File (Phase 2)
 export { File as QiniuFile } from './modules/file';
@@ -290,7 +321,21 @@ export type { StreamTextOptions, StreamTextResult } from './ai/stream-text';
 
 // createAgent (reusable agent wrapper)
 export { createAgent } from './ai/create-agent';
-export type { AgentConfig, Agent, AgentRunOptions, AgentRunWithThreadOptions, AgentStreamOptions, AgentStreamWithThreadOptions } from './ai/create-agent';
+export type {
+    AgentConfig,
+    Agent,
+    AgentRunOptions,
+    AgentRunWithThreadOptions,
+    AgentRunResumableWithThreadOptions,
+    AgentStreamOptions,
+    AgentStreamWithThreadOptions,
+    AgentResumeThreadOptions,
+    AgentResumableThreadResult,
+    AgentForkThreadOptions,
+    AgentRestoreThreadOptions,
+    AgentMoveThreadOptions,
+    AgentThreadOptions,
+} from './ai/create-agent';
 
 // Tool Approval (Human-in-the-Loop)
 export type { ApprovalConfig, ApprovalHandler, ApprovalContext, ApprovalResult } from './ai/tool-approval';
@@ -313,6 +358,13 @@ export type {
     VectorDocument,
     InMemoryVectorStoreConfig,
 } from './ai/memory';
+export {
+    MemorySessionStore,
+    CheckpointerSessionStore,
+    extractSessionMessages,
+    replaySession,
+} from './ai/session-store';
+export type { SessionStore, SessionRecord, SessionSaveInput } from './ai/session-store';
 
 // Signer (browser-compatible delegate pattern)
 export { UrlCache, CachedSigner } from './lib/signer';
@@ -372,6 +424,8 @@ export type {
     ImageCensorResponse,
     VideoCensorRequest,
     VideoCensorJobResponse,
+    VideoCensorTaskHandle,
+    VideoCensorWaitOptions,
     VideoCensorStatus,
     VideoCensorResult,
     SceneResult,

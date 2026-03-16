@@ -57,7 +57,7 @@ export function inputFilter(config: ContentFilterConfig): Guardrail {
 
     return {
         name: 'inputFilter',
-        phase: 'pre-request',
+        phase: 'input',
 
         async process(context: GuardrailContext): Promise<GuardrailResult> {
             const content = context.content;

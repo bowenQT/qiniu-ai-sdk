@@ -36,7 +36,7 @@ import { StructuredOutputError, type ValidationErrorItem } from '../lib/errors';
 import { PartialJsonParser } from '../lib/partial-json-parser';
 import { capabilityCache } from '../lib/capability-cache';
 import { generateObject, type GenerateObjectResult } from './generate-object';
-import { normalizeContent } from '../lib/content-converter';
+import { normalizeContentAsync } from '../lib/content-converter';
 
 // ============================================================================
 // Types
@@ -290,10 +290,10 @@ async function streamObjectInternal<T>(
     };
 
     // Normalize multimodal content (image -> image_url) for API compatibility
-    const normalizedMessages = apiMessages.map(msg => ({
+    const normalizedMessages = await Promise.all(apiMessages.map(async (msg) => ({
         ...msg,
-        content: normalizeContent(msg.content),
-    }));
+        content: await normalizeContentAsync(msg.content),
+    })));
 
     // Create streaming request - bypass predict-node, go directly to client
     const response = await client.chat.createStream({

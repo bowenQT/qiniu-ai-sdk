@@ -43,6 +43,14 @@ Use the using-git-worktrees skill to create an isolated development branch.
 - Verify clean test baseline
 ```
 
+### Step 3b: Product-Scale Lane Setup (for repo-wide changes)
+```
+If the change spans multiple subsystems, switch to the multi-agent-product-evolution workflow:
+- create codex/vnext-integration
+- spawn lane worktrees under .worktrees/
+- keep the root workspace focused on orchestration only
+```
+
 ### Step 4: Create Implementation Plan
 ```
 Use the writing-plans skill to break down the design into bite-sized tasks.
@@ -148,6 +156,7 @@ Use the dispatching-parallel-agents skill:
 | Design | frontend-design → brainstorming |
 | RFC Review | rfc-design-review |
 | Setup | using-git-worktrees |
+| Product-scale setup | multi-agent-product-evolution |
 | Planning | writing-plans |
 | Implementation | executing-plans / subagent-driven-development + test-driven-development |
 | Review | requesting-code-review |

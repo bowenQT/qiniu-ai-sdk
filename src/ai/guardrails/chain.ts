@@ -10,7 +10,7 @@ import type {
     GuardrailPhase,
     GuardrailAction,
 } from './types';
-import { ACTION_PRIORITY } from './types';
+import { ACTION_PRIORITY, guardrailPhaseMatches, toCanonicalGuardrailPhase } from './types';
 
 // ============================================================================
 // Chain
@@ -39,9 +39,10 @@ export class GuardrailChain {
      */
     async execute(
         phase: GuardrailPhase,
-        context: Omit<GuardrailContext, 'phase'>
+        context: Omit<GuardrailContext, 'phase' | 'canonicalPhase'>
     ): Promise<GuardrailChainResult> {
-        const fullContext: GuardrailContext = { ...context, phase };
+        const canonicalPhase = toCanonicalGuardrailPhase(phase);
+        const fullContext: GuardrailContext = { ...context, phase, canonicalPhase };
         const results: GuardrailResult[] = [];
         let currentContent = context.content;
         let highestAction: GuardrailAction = 'pass';
@@ -49,7 +50,7 @@ export class GuardrailChain {
         // Filter guardrails for this phase
         const applicableGuardrails = this.guardrails.filter(g => {
             const phases = Array.isArray(g.phase) ? g.phase : [g.phase];
-            return phases.includes(phase);
+            return phases.some((declaredPhase) => guardrailPhaseMatches(declaredPhase, phase));
         });
 
         // Execute each guardrail

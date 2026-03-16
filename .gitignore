@@ -29,6 +29,9 @@ coverage/
 *.tmp
 *.temp
 .npmrc
+artifacts/
+.worktrees/
+worktrees/
 
 # Local verification (ignored)
 local-tests/

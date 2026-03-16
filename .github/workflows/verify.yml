@@ -1,0 +1,53 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'codex/**'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      QINIU_API_KEY: ${{ secrets.QINIU_API_KEY }}
+      QINIU_ENABLE_LIVE_VERIFY_GATE: ${{ secrets.QINIU_API_KEY != '' && '1' || '0' }}
+      QINIU_LIVE_VERIFY_OUTPUT: artifacts/live-verify-gate.json
+      QINIU_LIVE_VERIFY_SUMMARY_OUTPUT: artifacts/live-verify-gate.md
+      QINIU_VERIFICATION_REPORT_OUTPUT: artifacts/verification-report.md
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run repository verification gate
+        run: npm run test:ci
+
+      - name: Render live verification summary artifact
+        if: always()
+        run: npm run generate:live-verify-summary
+
+      - name: Render aggregated verification report
+        if: always()
+        run: npm run generate:verification-report
+
+      - name: Upload live verification artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-verify-gate
+          path: |
+            artifacts/live-verify-gate.json
+            artifacts/live-verify-gate.md
+            artifacts/verification-report.md
+          if-no-files-found: ignore
