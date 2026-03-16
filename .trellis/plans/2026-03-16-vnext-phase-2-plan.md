@@ -1,43 +1,42 @@
-# vNext Phase 2 Seed Plan
+# vNext Phase 2 Plan
 
-Phase 2 starts only after Phase 1 is closed and treated as a stable baseline.
+Phase 2 starts from the stable Phase 1 baseline and moves the repository to a package-first
+operating model.
 
-## Priority 1: Verification Hardening
+## Phase Goal
 
-- move live verification from env-gated optional evidence toward repository/CI hard gates
-- define which GA/Beta modules must have live probes on every PR
-- define nightly-only probes separately from PR-blocking probes
-- connect verification report artifacts to promotion decisions
+Make bounded change packages, deterministic evidence flow, and tracked phase boundaries the default
+way Codex and antigravity collaborate in this repository.
 
-## Priority 2: Capability Truth Automation
+## Scope
 
-- reduce manual capability-source maintenance
-- align capability truth with `apidocs.qnaigc.com` more directly
-- define how live verification evidence updates maturity notes / validated dates
-- keep scorecard and verification report aligned without hand edits
+### Priority 1: Package-First Delivery
+- replace "continue until vNext is done" with bounded change packages
+- make `phase/<lane>/<topic>` the durable package identifier
+- require package briefs, evidence bundles, review packets, and optional promotion decisions
 
-## Priority 3: Runtime Productization
+### Priority 2: Evidence As A First-Class Input
+- keep capability scorecard, live verify summary, review packet, promotion decisions, and the
+  verification report aligned
+- ensure maturity changes can be traced back to explicit artifacts
 
-- continue `/core` replay / restore / resumable thread product surface
-- clarify which runtime contracts are GA vs Beta
-- strengthen session persistence behavior beyond current helper surface
+### Priority 3: Phase Stop Protocol
+- keep tracked entry criteria, exit criteria, freeze triggers, and deferred rules in repo policy
+- stop opening new packages automatically once exit criteria are met
 
-## Priority 4: Node / MCP Interop
+### Priority 4: CI / Review Consumption
+- make repository CI publish the package artifacts needed for antigravity and release review
+- prefer review packets and artifact links over replaying raw transcripts
 
-- deepen real MCP interoperability evidence, not just unit coverage
-- continue protocol conformance against the chosen MCP spec baseline
-- separate generic node platform guarantees from Qiniu-specific integrations
+## Out Of Scope
 
-## Priority 5: Surface Promotion Review
+- replacing Codex execution with antigravity execution
+- removing `worktree + integration` mechanics proven in Phase 1
+- expanding SDK surface area just to keep Phase 2 busy
 
-- review which Phase 1 additions are ready for promotion
-- avoid expanding public storytelling faster than validation evidence
-- explicitly keep incomplete surfaces in Beta / Experimental until evidence catches up
+## Exit Criteria
 
-## Guardrails
-
-- no unbounded continuation of `vNext` work without a scoped phase goal
-- each phase must have:
-  - explicit exit criteria
-  - bounded scope
-  - merge/readiness review point
+- package-first workflow is documented and implemented in tracked repo assets
+- review packet and promotion decision artifacts are generated through repo scripts
+- CI can publish a verification report that references both tracked truth and latest evidence
+- new package creation can be frozen by tracked phase policy instead of transcript-only instructions

@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - 'codex/**'
+  merge_group:
   workflow_dispatch:
 
 jobs:
@@ -16,6 +17,8 @@ jobs:
       QINIU_ENABLE_LIVE_VERIFY_GATE: ${{ secrets.QINIU_API_KEY != '' && '1' || '0' }}
       QINIU_LIVE_VERIFY_OUTPUT: artifacts/live-verify-gate.json
       QINIU_LIVE_VERIFY_SUMMARY_OUTPUT: artifacts/live-verify-gate.md
+      QINIU_REVIEW_PACKET_OUTPUT: artifacts/review-packet.md
+      QINIU_PROMOTION_DECISIONS_OUTPUT: artifacts/promotion-decisions.md
       QINIU_VERIFICATION_REPORT_OUTPUT: artifacts/verification-report.md
     steps:
       - name: Checkout
@@ -37,6 +40,14 @@ jobs:
         if: always()
         run: npm run generate:live-verify-summary
 
+      - name: Render review packet artifact
+        if: always()
+        run: npm run generate:review-packet
+
+      - name: Render promotion decision artifact
+        if: always()
+        run: npm run generate:promotion-decisions
+
       - name: Render aggregated verification report
         if: always()
         run: npm run generate:verification-report
@@ -49,5 +60,7 @@ jobs:
           path: |
             artifacts/live-verify-gate.json
             artifacts/live-verify-gate.md
+            artifacts/review-packet.md
+            artifacts/promotion-decisions.md
             artifacts/verification-report.md
           if-no-files-found: ignore

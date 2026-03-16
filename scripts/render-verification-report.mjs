@@ -17,6 +17,14 @@ const outputPath = resolve(
   process.cwd(),
   process.env.QINIU_VERIFICATION_REPORT_OUTPUT || 'artifacts/verification-report.md',
 );
+const reviewPacketPath = resolve(
+  process.cwd(),
+  process.env.QINIU_REVIEW_PACKET_OUTPUT || 'artifacts/review-packet.md',
+);
+const promotionDecisionsPath = resolve(
+  process.cwd(),
+  process.env.QINIU_PROMOTION_DECISIONS_OUTPUT || 'artifacts/promotion-decisions.md',
+);
 
 if (!existsSync(capabilityScorecardPath)) {
   throw new Error(`Missing capability scorecard: ${capabilityScorecardPath}`);
@@ -31,12 +39,22 @@ const { renderVerificationReport } = await import(pathToFileURL(distEntry).href)
 const capabilityScorecard = readFileSync(capabilityScorecardPath, 'utf8');
 const liveVerifyAvailable = existsSync(liveVerifySummaryPath);
 const liveVerifySummary = liveVerifyAvailable ? readFileSync(liveVerifySummaryPath, 'utf8') : undefined;
+const reviewPacketAvailable = existsSync(reviewPacketPath);
+const reviewPacket = reviewPacketAvailable ? readFileSync(reviewPacketPath, 'utf8') : undefined;
+const promotionDecisionsAvailable = existsSync(promotionDecisionsPath);
+const promotionDecisions = promotionDecisionsAvailable
+  ? readFileSync(promotionDecisionsPath, 'utf8')
+  : undefined;
 
 const rendered = renderVerificationReport({
   generatedAt: new Date().toISOString(),
   capabilityScorecard,
   liveVerifySummary,
   liveVerifyAvailable,
+  reviewPacket,
+  reviewPacketAvailable,
+  promotionDecisions,
+  promotionDecisionsAvailable,
 });
 
 mkdirSync(dirname(outputPath), { recursive: true });
