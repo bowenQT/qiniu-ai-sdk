@@ -3,8 +3,11 @@
 Phase 2 starts from the stable Phase 1 baseline and moves the repository to a package-first
 operating model.
 
-The first execution queue for this phase is tracked in
-[2026-03-16-vnext-phase-2-batch-1.md](./2026-03-16-vnext-phase-2-batch-1.md).
+Batch 1 is closed on the current `main` baseline:
+[2026-03-16-vnext-phase-2-batch-1.md](./2026-03-16-vnext-phase-2-batch-1.md)
+
+The next execution queue for this phase is tracked in:
+[2026-03-16-vnext-phase-2-batch-2.md](./2026-03-16-vnext-phase-2-batch-2.md)
 
 ## Phase Goal
 

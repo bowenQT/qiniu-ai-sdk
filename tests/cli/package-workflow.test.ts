@@ -82,6 +82,31 @@ describe('CLI package workflow', () => {
         expect(consoleLogSpy).toHaveBeenCalledWith(`Wrote change package: ${outputPath}`);
     });
 
+    it('accepts package lanes that are narrower than worktree lanes', async () => {
+        await runCLI(
+            [
+                'package',
+                'init',
+                '--lane',
+                'runtime-hardening',
+                '--topic',
+                'audit p1 p2 fixes',
+                '--goal',
+                'Harden runtime findings from tracked audits',
+                '--success',
+                'P1 and P2 runtime fixes stay bounded',
+            ],
+            { cwd: tmpDir },
+        );
+
+        const outputPath = path.join(tmpDir, '.trellis', 'packages', 'phase2', 'runtime-hardening-audit-p1-p2-fixes.json');
+        const payload = JSON.parse(fs.readFileSync(outputPath, 'utf8')) as ChangePackage;
+
+        expect(payload.packageId).toBe('phase2/runtime-hardening/audit-p1-p2-fixes');
+        expect(payload.expectedBranch).toBe('codex/phase2/runtime-hardening/audit-p1-p2-fixes');
+        expect(payload.ownerLane).toBe('runtime-hardening');
+    });
+
     it('rejects creating a new package when phase policy is frozen', async () => {
         writePhasePolicy(tmpDir, false, 'frozen');
 

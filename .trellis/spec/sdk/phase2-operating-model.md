@@ -19,6 +19,7 @@ Lanes still exist, but only as ownership labels:
 - `foundation`
 - `cloud-surface`
 - `runtime`
+- `runtime-hardening`
 - `node-integrations`
 - `dx-validation`
 

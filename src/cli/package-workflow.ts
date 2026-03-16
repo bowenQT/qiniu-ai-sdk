@@ -1,9 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import type { WorktreeLane } from './doctor';
 
-export type PackageLane = Exclude<WorktreeLane, 'integration'>;
+export type PackageLane =
+    | 'foundation'
+    | 'cloud-surface'
+    | 'runtime'
+    | 'runtime-hardening'
+    | 'node-integrations'
+    | 'dx-validation';
 export type PackageDecisionMaturity = 'ga' | 'beta' | 'experimental';
 export type PhasePolicyStatus = 'planning' | 'active' | 'frozen' | 'closed';
 
@@ -11,6 +16,7 @@ const PACKAGE_LANES: PackageLane[] = [
     'foundation',
     'cloud-surface',
     'runtime',
+    'runtime-hardening',
     'node-integrations',
     'dx-validation',
 ];
