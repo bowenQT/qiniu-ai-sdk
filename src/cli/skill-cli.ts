@@ -40,6 +40,7 @@ import {
     defaultEvidenceBundlePath,
     defaultPromotionDecisionJsonPath,
     defaultPromotionDecisionMarkdownPath,
+    defaultTrackedPromotionDecisionPath,
     defaultReviewPacketPath,
     DEFAULT_PHASE,
     DEFAULT_PHASE_POLICY_PATH,
@@ -225,6 +226,8 @@ function printPackageUsage(): void {
     console.log('Decision options:');
     console.log('  --append <path>           Existing promotion-decision JSON to update');
     console.log('  --decision-at <iso>       Override decision timestamp');
+    console.log('  --tracked-out <path>      Override tracked promotion-decision JSON path');
+    console.log('  --no-track                Skip writing the tracked promotion-decision JSON');
 }
 
 function printWorktreeUsage(): void {
@@ -667,6 +670,7 @@ async function runPackageCommand(args: string[], options: RunCLIOptions): Promis
             const toValue = getArgValue(args, '--to');
             const outputPath = getArgValue(args, '--out');
             const appendPath = getArgValue(args, '--append');
+            const trackedOutputPath = getArgValue(args, '--tracked-out');
             const source = getArgValue(args, '--source');
             const decisionAt = getArgValue(args, '--decision-at');
             const evidenceBasis = getArgValues(args, '--basis');
@@ -702,9 +706,16 @@ async function runPackageCommand(args: string[], options: RunCLIOptions): Promis
                 ? path.resolve(cwd, outputPath)
                 : defaultPromotionDecisionJsonPath(projectDir, changePackage.packageId);
             const markdownDestination = defaultPromotionDecisionMarkdownPath(projectDir, changePackage.packageId);
+            const trackedDestination = trackedOutputPath
+                ? path.resolve(cwd, trackedOutputPath)
+                : defaultTrackedPromotionDecisionPath(projectDir, changePackage.packageId);
 
             writeJsonFile(jsonDestination, decisionSet);
             writeTextFile(markdownDestination, renderPromotionDecisionMarkdown(decisionSet));
+            if (!args.includes('--no-track')) {
+                writeJsonFile(trackedDestination, decisionSet);
+                console.log(`Wrote tracked promotion decisions: ${trackedDestination}`);
+            }
             console.log(`Wrote promotion decisions: ${jsonDestination}`);
             console.log(`Wrote promotion decision summary: ${markdownDestination}`);
             return;

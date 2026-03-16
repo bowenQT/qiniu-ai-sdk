@@ -84,7 +84,8 @@
   ],
   "scripts": {
     "prebuild": "node scripts/generate-version.js",
-    "generate:capability-scorecard": "node scripts/render-capability-scorecard.mjs",
+    "generate:capability-evidence": "node scripts/render-capability-evidence-snapshot.mjs",
+    "generate:capability-scorecard": "node scripts/render-capability-evidence-snapshot.mjs && node scripts/render-capability-scorecard.mjs",
     "generate:live-verify-summary": "node scripts/render-live-verify-gate-summary.mjs",
     "generate:review-packet": "node scripts/render-review-packet.mjs",
     "generate:promotion-decisions": "node scripts/render-promotion-decisions.mjs",
@@ -93,7 +94,7 @@
     "build:cjs": "tsc -p tsconfig.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm.js",
     "clean": "rm -rf dist",
-    "test:docs": "node scripts/render-capability-scorecard.mjs --check && node scripts/verify-docs.mjs",
+    "test:docs": "node scripts/render-capability-evidence-snapshot.mjs --check && node scripts/render-capability-scorecard.mjs --check && node scripts/verify-docs.mjs",
     "test:live-verify": "node bin/qiniu-ai.mjs verify gate --lanes cloud-surface,node-integrations,dx-validation",
     "test:live-verify:ci": "node scripts/run-live-verify-gate.mjs",
     "test:package-smoke": "node scripts/package-smoke.mjs",

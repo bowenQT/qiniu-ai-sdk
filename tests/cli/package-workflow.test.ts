@@ -257,6 +257,16 @@ describe('CLI package workflow', () => {
         expect(payload.decisions[0]?.module).toBe('response');
         expect(payload.decisions[0]?.newMaturity).toBe('beta');
 
+        const trackedJsonPath = path.join(
+            tmpDir,
+            '.trellis',
+            'decisions',
+            'phase2',
+            'phase2-foundation-promotion-flow.json',
+        );
+        const trackedPayload = JSON.parse(fs.readFileSync(trackedJsonPath, 'utf8')) as PromotionDecisionSet;
+        expect(trackedPayload.decisions[0]?.module).toBe('response');
+
         const markdownPath = path.join(tmpDir, 'artifacts', 'phase2-foundation-promotion-flow-promotion-decisions.md');
         const markdown = fs.readFileSync(markdownPath, 'utf8');
         expect(markdown).toContain('# Promotion Decisions');

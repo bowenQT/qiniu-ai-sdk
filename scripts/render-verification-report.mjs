@@ -9,6 +9,10 @@ const capabilityScorecardPath = resolve(
   process.cwd(),
   process.env.QINIU_CAPABILITY_SCORECARD_PATH || 'docs/capability-scorecard.md',
 );
+const capabilityEvidencePath = resolve(
+  process.cwd(),
+  process.env.QINIU_CAPABILITY_EVIDENCE_PATH || '.trellis/spec/sdk/capability-evidence.json',
+);
 const liveVerifySummaryPath = resolve(
   process.cwd(),
   process.env.QINIU_LIVE_VERIFY_SUMMARY_OUTPUT || 'artifacts/live-verify-gate.md',
@@ -37,6 +41,20 @@ if (!existsSync(distEntry)) {
 
 const { renderVerificationReport } = await import(pathToFileURL(distEntry).href);
 const capabilityScorecard = readFileSync(capabilityScorecardPath, 'utf8');
+const capabilityEvidenceAvailable = existsSync(capabilityEvidencePath);
+const capabilityEvidenceSummary = capabilityEvidenceAvailable
+  ? (() => {
+      const snapshot = JSON.parse(readFileSync(capabilityEvidencePath, 'utf8'));
+      return [
+        '# Capability Evidence Snapshot',
+        '',
+        `Generated at: ${snapshot.generatedAt ?? 'unknown'}`,
+        `Tracked decision files: ${Array.isArray(snapshot.decisionFiles) ? snapshot.decisionFiles.length : 0}`,
+        `Tracked promotion decisions: ${Array.isArray(snapshot.promotionDecisions) ? snapshot.promotionDecisions.length : 0}`,
+        '',
+      ].join('\n');
+    })()
+  : undefined;
 const liveVerifyAvailable = existsSync(liveVerifySummaryPath);
 const liveVerifySummary = liveVerifyAvailable ? readFileSync(liveVerifySummaryPath, 'utf8') : undefined;
 const reviewPacketAvailable = existsSync(reviewPacketPath);
@@ -49,6 +67,8 @@ const promotionDecisions = promotionDecisionsAvailable
 const rendered = renderVerificationReport({
   generatedAt: new Date().toISOString(),
   capabilityScorecard,
+  capabilityEvidenceSummary,
+  capabilityEvidenceAvailable,
   liveVerifySummary,
   liveVerifyAvailable,
   reviewPacket,

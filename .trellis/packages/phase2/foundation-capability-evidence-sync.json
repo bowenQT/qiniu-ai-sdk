@@ -11,8 +11,12 @@
     "Manual overrides remain explicit instead of masquerading as primary truth."
   ],
   "touchedSurfaces": [
+    ".trellis/spec/sdk/capability-evidence-baseline.json",
+    ".trellis/spec/sdk/capability-evidence.json",
     "src/lib/capability-source.ts",
+    "src/cli/package-workflow.ts",
     "scripts/render-capability-scorecard.mjs",
+    "scripts/render-capability-evidence-snapshot.mjs",
     "src/cli/verification-report.ts",
     "docs/capability-scorecard.md"
   ],
@@ -28,7 +32,7 @@
   ],
   "expectedMergeTarget": "main",
   "expectedBranch": "codex/phase2/foundation/capability-evidence-sync",
-  "branch": "main",
-  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk",
+  "branch": "codex/phase2/foundation/capability-evidence-sync",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase2-evidence-sync",
   "createdAt": "2026-03-16T05:33:33.946Z"
 }

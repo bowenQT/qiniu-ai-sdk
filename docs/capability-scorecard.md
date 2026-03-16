@@ -9,6 +9,8 @@ This document is generated from the SDK capability registry and is intended to m
 - Validated models: 10
 - Validated chat/image/video split: chat=5, image=2, video=3
 - Module maturity split: ga=12, beta=14, experimental=5
+- Evidence snapshot generated at: 2026-03-15T00:00:00.000Z
+- Tracked promotion decisions: 0
 
 ## Validated Models
 
@@ -60,3 +62,11 @@ This document is generated from the SDK capability registry and is intended to m
 | crew | experimental | static |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
 | QiniuMCPServer | experimental | unit |  |  | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
 | ResponseAPI | experimental | unit | 2026-03-15 | Provider-only surface is covered by dedicated unit suites; live verification remains opt-in. | https://apidocs.qnaigc.com/417773141e0 |
+
+## Tracked Evidence Snapshot
+
+| Field | Value |
+| --- | --- |
+| Generated At | 2026-03-15T00:00:00.000Z |
+| Tracked Decision Files | 0 |
+| Tracked Promotion Decisions | 0 |

@@ -235,6 +235,11 @@ export function defaultPromotionDecisionMarkdownPath(repoRoot: string, packageId
     return path.join(repoRoot, 'artifacts', `${packageIdToFileStem(packageId)}-promotion-decisions.md`);
 }
 
+export function defaultTrackedPromotionDecisionPath(repoRoot: string, packageId: string): string {
+    const [phase] = packageId.split('/');
+    return path.join(repoRoot, '.trellis', 'decisions', phase, `${packageIdToFileStem(packageId)}.json`);
+}
+
 export function createChangePackage(options: CreateChangePackageOptions): ChangePackage {
     if (options.successCriteria.length === 0) {
         throw new Error('Change package requires at least one success criterion.');

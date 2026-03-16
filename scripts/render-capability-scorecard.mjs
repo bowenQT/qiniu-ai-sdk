@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const outputPath = resolve(repoRoot, 'docs', 'capability-scorecard.md');
+const evidenceSnapshotPath = resolve(repoRoot, '.trellis', 'spec', 'sdk', 'capability-evidence.json');
 const checkMode = process.argv.includes('--check');
 
 const maturityRank = {
@@ -31,7 +32,7 @@ function renderTable(headers, rows) {
   return [headerLine, separatorLine, body].filter(Boolean).join('\n');
 }
 
-function renderScorecard(models, modules) {
+function renderScorecard(models, modules, evidenceSnapshot) {
   const validatedModels = models
     .filter((model) => model.validatedAt)
     .sort((a, b) => a.type.localeCompare(b.type) || a.id.localeCompare(b.id));
@@ -50,6 +51,8 @@ function renderScorecard(models, modules) {
   }, {});
 
   const syncedAt = moduleRows[0]?.sourceUpdatedAt ?? 'unknown';
+  const evidenceGeneratedAt = evidenceSnapshot?.generatedAt ?? 'unknown';
+  const trackedDecisionCount = evidenceSnapshot?.promotionDecisions?.length ?? 0;
 
   return [
     '# Capability Scorecard',
@@ -63,6 +66,8 @@ function renderScorecard(models, modules) {
     `- Validated models: ${validatedModels.length}`,
     `- Validated chat/image/video split: chat=${validatedCounts.chat ?? 0}, image=${validatedCounts.image ?? 0}, video=${validatedCounts.video ?? 0}`,
     `- Module maturity split: ga=${maturityCounts.ga ?? 0}, beta=${maturityCounts.beta ?? 0}, experimental=${maturityCounts.experimental ?? 0}`,
+    `- Evidence snapshot generated at: ${evidenceGeneratedAt}`,
+    `- Tracked promotion decisions: ${trackedDecisionCount}`,
     '',
     '## Validated Models',
     '',
@@ -93,11 +98,23 @@ function renderScorecard(models, modules) {
       ]),
     ),
     '',
+    '## Tracked Evidence Snapshot',
+    '',
+    renderTable(
+      ['Field', 'Value'],
+      [
+        ['Generated At', evidenceGeneratedAt],
+        ['Tracked Decision Files', String(evidenceSnapshot?.decisionFiles?.length ?? 0)],
+        ['Tracked Promotion Decisions', String(trackedDecisionCount)],
+      ],
+    ),
+    '',
   ].join('\n');
 }
 
+const evidenceSnapshot = JSON.parse(readFileSync(evidenceSnapshotPath, 'utf8'));
 const { listModels, listModuleMaturities } = await requireDistModule();
-const rendered = renderScorecard(listModels(), listModuleMaturities());
+const rendered = renderScorecard(listModels(), listModuleMaturities(), evidenceSnapshot);
 
 if (checkMode) {
   const existing = existsSync(outputPath) ? readFileSync(outputPath, 'utf8') : '';

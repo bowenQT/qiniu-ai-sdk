@@ -1,6 +1,8 @@
 export interface VerificationReportInput {
     generatedAt: string;
     capabilityScorecard: string;
+    capabilityEvidenceSummary?: string;
+    capabilityEvidenceAvailable?: boolean;
     liveVerifySummary?: string;
     liveVerifyAvailable: boolean;
     reviewPacket?: string;
@@ -16,6 +18,9 @@ function trimEmbeddedHeading(content: string): string {
 
 export function renderVerificationReport(input: VerificationReportInput): string {
     const capabilityScorecard = trimEmbeddedHeading(input.capabilityScorecard);
+    const capabilityEvidenceSummary = input.capabilityEvidenceSummary
+        ? trimEmbeddedHeading(input.capabilityEvidenceSummary)
+        : undefined;
     const liveVerifySummary = input.liveVerifySummary ? trimEmbeddedHeading(input.liveVerifySummary) : undefined;
     const reviewPacket = input.reviewPacket ? trimEmbeddedHeading(input.reviewPacket) : undefined;
     const promotionDecisions = input.promotionDecisions
@@ -32,6 +37,12 @@ export function renderVerificationReport(input: VerificationReportInput): string
         '## Capability Scorecard',
         '',
         capabilityScorecard,
+        '',
+        '## Capability Evidence Snapshot',
+        '',
+        input.capabilityEvidenceAvailable && capabilityEvidenceSummary
+            ? capabilityEvidenceSummary
+            : 'Capability evidence snapshot was not produced for this run.',
         '',
         '## Live Verification',
         '',
