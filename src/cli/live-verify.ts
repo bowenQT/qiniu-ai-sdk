@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { generateText } from '../core';
 import { createNodeQiniuAI } from '../node';
 import type { MCPHttpServerConfig } from '../node';
@@ -6,9 +8,17 @@ import type { WorktreeLane } from './doctor';
 import { getModuleMaturity } from '../lib/capability-registry';
 
 export type LiveVerifyStatus = 'ok' | 'warn' | 'fail';
+export type LiveVerifyProbeStatus = LiveVerifyStatus | 'skipped';
 
 export interface LiveVerifyCheck {
     level: LiveVerifyStatus;
+    message: string;
+}
+
+export interface LiveVerifyProbe {
+    id: string;
+    lane: WorktreeLane;
+    status: LiveVerifyProbeStatus;
     message: string;
 }
 
@@ -16,6 +26,7 @@ export interface LiveVerifyResult {
     status: LiveVerifyStatus;
     exitCode: 0 | 1 | 2;
     checks: LiveVerifyCheck[];
+    probes: LiveVerifyProbe[];
 }
 
 export interface LiveVerifyGateLaneResult {
@@ -26,6 +37,9 @@ export interface LiveVerifyGateLaneResult {
 export interface LiveVerifyGateResult extends LiveVerifyResult {
     generatedAt: string;
     lanes: LiveVerifyGateLaneResult[];
+    policyProfile?: string;
+    policyPath?: string;
+    blockingFailures?: string[];
 }
 
 export interface LiveVerifyOptions {
@@ -40,9 +54,29 @@ export interface LiveVerifyGateOptions {
     lanes: WorktreeLane[];
     env?: NodeJS.ProcessEnv;
     strict?: boolean;
+    policyProfile?: string;
+    policyPath?: string;
+    policy?: LiveVerifyPolicy;
     createQiniuClient?: LiveVerifyOptions['createQiniuClient'];
     createNodeClient?: LiveVerifyOptions['createNodeClient'];
     createMcpTransport?: LiveVerifyOptions['createMcpTransport'];
+}
+
+export interface LiveVerifyPolicyProfile {
+    description?: string;
+    requiredProbes?: Partial<Record<WorktreeLane, string[]>>;
+}
+
+export interface LiveVerifyPolicy {
+    version: 1;
+    profiles: Record<string, LiveVerifyPolicyProfile>;
+}
+
+interface ResolvedLiveVerifyPolicyProfile {
+    name: string;
+    policyPath?: string;
+    description?: string;
+    requiredProbes: Partial<Record<WorktreeLane, string[]>>;
 }
 
 interface LiveVerifyMcpTransport {
@@ -100,10 +134,54 @@ function addCheck(checks: LiveVerifyCheck[], level: LiveVerifyStatus, message: s
     checks.push({ level, message });
 }
 
+function addProbe(
+    probes: LiveVerifyProbe[],
+    lane: WorktreeLane,
+    id: string,
+    status: LiveVerifyProbeStatus,
+    message: string,
+): void {
+    probes.push({ id, lane, status, message });
+}
+
 function summarize(checks: LiveVerifyCheck[]): LiveVerifyStatus {
     if (checks.some((check) => check.level === 'fail')) return 'fail';
     if (checks.some((check) => check.level === 'warn')) return 'warn';
     return 'ok';
+}
+
+function readLiveVerifyPolicy(policyPath: string): LiveVerifyPolicy {
+    const resolved = path.resolve(policyPath);
+    const payload = JSON.parse(fs.readFileSync(resolved, 'utf8')) as LiveVerifyPolicy;
+    if (payload.version !== 1 || !payload.profiles) {
+        throw new Error(`Invalid live verify policy file: ${resolved}`);
+    }
+    return payload;
+}
+
+function resolveLiveVerifyPolicyProfile(options: LiveVerifyGateOptions): ResolvedLiveVerifyPolicyProfile | undefined {
+    const env = options.env ?? process.env;
+    const profileName = options.policyProfile ?? env.QINIU_LIVE_VERIFY_PROFILE?.trim();
+    if (!profileName) {
+        return undefined;
+    }
+
+    const policyPath = options.policyPath
+        ? path.resolve(options.policyPath)
+        : path.resolve(process.cwd(), env.QINIU_LIVE_VERIFY_POLICY_PATH || DEFAULT_LIVE_VERIFY_POLICY_PATH);
+    const policy = options.policy ?? readLiveVerifyPolicy(policyPath);
+    const profile = policy.profiles[profileName];
+
+    if (!profile) {
+        throw new Error(`Live verify policy does not define profile "${profileName}"`);
+    }
+
+    return {
+        name: profileName,
+        policyPath,
+        description: profile.description,
+        requiredProbes: profile.requiredProbes ?? {},
+    };
 }
 
 function parseOptionalTimeout(value: string | undefined): number | undefined {
@@ -139,6 +217,8 @@ const LANE_MODULES: Record<Exclude<WorktreeLane, 'integration'>, string[]> = {
     'node-integrations': ['NodeMCPHost', 'sandbox', 'skills', 'auditLogger'],
     'dx-validation': ['chat', 'file', 'generateText'],
 };
+
+export const DEFAULT_LIVE_VERIFY_POLICY_PATH = '.trellis/spec/sdk/live-verify-policy.json';
 
 export const DEFAULT_LIVE_VERIFY_GATE_LANES: WorktreeLane[] = [
     'cloud-surface',
@@ -215,6 +295,7 @@ function addMaturityEvidence(checks: LiveVerifyCheck[], lane: WorktreeLane): voi
 
 export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVerifyResult> {
     const checks: LiveVerifyCheck[] = [];
+    const probes: LiveVerifyProbe[] = [];
     const env = options.env ?? process.env;
     const apiKey = env.QINIU_API_KEY;
     const createQiniuClient = options.createQiniuClient ?? ((nextApiKey: string) => new QiniuAI({ apiKey: nextApiKey }));
@@ -230,10 +311,18 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
             'warn',
             'foundation lane has no direct live API probe yet. Use docs/package/template smoke plus source sync evidence.',
         );
+        addProbe(
+            probes,
+            options.lane,
+            'foundation-direct',
+            'skipped',
+            'foundation lane has no direct live API probe yet.',
+        );
         return {
             status: summarize(checks),
             exitCode: 2,
             checks,
+            probes,
         };
     }
 
@@ -245,6 +334,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
             status: 'fail',
             exitCode: 1,
             checks,
+            probes,
         };
     }
 
@@ -257,6 +347,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
         });
         const content = result.choices[0]?.message?.content;
         addCheck(checks, 'ok', `Chat probe succeeded: ${typeof content === 'string' ? content : '[non-text]'}`);
+        addProbe(probes, options.lane, 'chat', 'ok', `Chat probe succeeded: ${typeof content === 'string' ? content : '[non-text]'}`);
 
         if (env.QINIU_LIVE_VERIFY_FILE_WORKFLOW === '1') {
             const fileClient = client.file as {
@@ -290,6 +381,13 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     'ok',
                     `File workflow probe succeeded: ${part.file.file_id}${part.file.format ? ` (${part.file.format})` : ''}`,
                 );
+                addProbe(
+                    probes,
+                    options.lane,
+                    'file-workflow',
+                    'ok',
+                    `File workflow probe succeeded: ${part.file.file_id}${part.file.format ? ` (${part.file.format})` : ''}`,
+                );
             } finally {
                 if (cleanupFileId && fileClient.delete) {
                     try {
@@ -316,6 +414,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 'warn',
                 'QINIU_LIVE_VERIFY_FILE_WORKFLOW not set. File/qfile live probe was skipped.',
             );
+            addProbe(probes, options.lane, 'file-workflow', 'skipped', 'File/qfile live probe was skipped.');
         }
 
         if (env.QINIU_LIVE_VERIFY_IMAGE === '1') {
@@ -484,6 +583,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 'ok',
                 `Response API probe succeeded: ${responseText ?? '[non-text]'}`,
             );
+            addProbe(probes, options.lane, 'response-api', 'ok', `Response API probe succeeded: ${responseText ?? '[non-text]'}`);
 
             if (env.QINIU_LIVE_VERIFY_RESPONSE_STREAM === '1') {
                 if (!responseClient.createTextStream) {
@@ -510,12 +610,20 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     'ok',
                     `Response API stream probe succeeded: ${streamedText || '[non-text]'}`,
                 );
+                addProbe(
+                    probes,
+                    options.lane,
+                    'response-api-stream',
+                    'ok',
+                    `Response API stream probe succeeded: ${streamedText || '[non-text]'}`,
+                );
             } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
                 addCheck(
                     checks,
                     'warn',
                     'QINIU_LIVE_VERIFY_RESPONSE_STREAM not set. Response API stream live probe was skipped.',
                 );
+                addProbe(probes, options.lane, 'response-api-stream', 'skipped', 'Response API stream live probe was skipped.');
             }
         } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
             addCheck(
@@ -523,6 +631,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 'warn',
                 'QINIU_LIVE_VERIFY_RESPONSE_API not set. Response API live probe was skipped.',
             );
+            addProbe(probes, options.lane, 'response-api', 'skipped', 'Response API live probe was skipped.');
         }
 
         if (env.QINIU_LIVE_VERIFY_BATCH === '1') {
@@ -673,6 +782,13 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     first?.id ? ` (${first.id}${first.status ? ` ${first.status}` : ''})` : ''
                 }`,
             );
+            addProbe(
+                probes,
+                options.lane,
+                'batch-list',
+                'ok',
+                `Batch list probe succeeded: ${listed.data.length} item(s)`,
+            );
 
             if (first) {
                 const features = [
@@ -693,6 +809,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 'warn',
                 'QINIU_LIVE_VERIFY_BATCH_LIST not set. Batch list live probe was skipped.',
             );
+            addProbe(probes, options.lane, 'batch-list', 'skipped', 'Batch list live probe was skipped.');
         }
 
         if (env.QINIU_LIVE_VERIFY_BATCH_GET_ID) {
@@ -900,12 +1017,20 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 'ok',
                 `Account usage probe succeeded: ${usage.data?.length ?? 0} models${firstModel ? ` (${firstModel})` : ''}`,
             );
+            addProbe(
+                probes,
+                options.lane,
+                'account-usage',
+                'ok',
+                `Account usage probe succeeded: ${usage.data?.length ?? 0} models${firstModel ? ` (${firstModel})` : ''}`,
+            );
         } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
             addCheck(
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_ACCOUNT_USAGE not set. Account usage live probe was skipped.',
             );
+            addProbe(probes, options.lane, 'account-usage', 'skipped', 'Account usage live probe was skipped.');
         }
 
         if (env.QINIU_LIVE_VERIFY_ADMIN_LIST_KEYS === '1') {
@@ -978,12 +1103,20 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 'ok',
                 `Log export probe succeeded: ${entries.length} entries${entries[0]?.id ? ` (${entries[0].id})` : ''}`,
             );
+            addProbe(
+                probes,
+                options.lane,
+                'log-export',
+                'ok',
+                `Log export probe succeeded: ${entries.length} entries${entries[0]?.id ? ` (${entries[0].id})` : ''}`,
+            );
         } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
             addCheck(
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_LOG_EXPORT not set. Log export live probe was skipped.',
             );
+            addProbe(probes, options.lane, 'log-export', 'skipped', 'Log export live probe was skipped.');
         }
 
         if (env.QINIU_LIVE_VERIFY_OCR === '1') {
@@ -1164,6 +1297,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                         : undefined,
                     terminateSession: env.QINIU_LIVE_VERIFY_MCP_TERMINATE === '1',
                 });
+                addProbe(probes, options.lane, 'mcp-connect', 'ok', `MCP transport probe connected: ${mcpUrl}`);
 
                 if (probeResult.tools) {
                     addCheck(checks, 'ok', `MCP tool listing probe succeeded: ${probeResult.tools.length} tools`);
@@ -1179,16 +1313,24 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
 
                 if (typeof probeResult.resourceText === 'string') {
                     addCheck(checks, 'ok', `MCP resource read probe succeeded: ${probeResult.resourceText}`);
+                    addProbe(probes, options.lane, 'mcp-read-resource', 'ok', `MCP resource read probe succeeded: ${resourceUri ?? '[configured-by-probe]'}`);
                 }
                 if (probeResult.resourceContents) {
                     addCheck(checks, 'ok', `MCP structured resource read probe succeeded: ${probeResult.resourceContents.length} contents`);
+                    if (resourceUri) {
+                        addProbe(probes, options.lane, 'mcp-read-resource', 'ok', `MCP structured resource read probe succeeded: ${resourceUri}`);
+                    }
                 }
 
                 if (typeof probeResult.promptText === 'string') {
                     addCheck(checks, 'ok', `MCP prompt get probe succeeded: ${probeResult.promptText}`);
+                    addProbe(probes, options.lane, 'mcp-get-prompt', 'ok', `MCP prompt get probe succeeded: ${promptName ?? '[configured-by-probe]'}`);
                 }
                 if (probeResult.promptMessages) {
                     addCheck(checks, 'ok', `MCP structured prompt get probe succeeded: ${probeResult.promptMessages.length} messages`);
+                    if (promptName) {
+                        addProbe(probes, options.lane, 'mcp-get-prompt', 'ok', `MCP structured prompt get probe succeeded: ${promptName}`);
+                    }
                 }
 
                 if (toolName && probeResult.toolResult) {
@@ -1274,6 +1416,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                                 typeof content.text === 'string' ? content.text : JSON.stringify(content),
                             ).join('\n');
                         addCheck(checks, 'ok', `MCP resource read probe succeeded: ${resourceText}`);
+                        addProbe(probes, options.lane, 'mcp-read-resource', 'ok', `MCP resource read probe succeeded: ${resourceUri}`);
                     }
 
                     if (promptName) {
@@ -1300,6 +1443,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                                 return JSON.stringify(content);
                             }).join('\n');
                         addCheck(checks, 'ok', `MCP prompt get probe succeeded: ${promptText}`);
+                        addProbe(probes, options.lane, 'mcp-get-prompt', 'ok', `MCP prompt get probe succeeded: ${promptName}`);
                     }
 
                     if (toolName) {
@@ -1320,6 +1464,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
 
                     const stream = await transport.openEventStream();
                     const contentType = stream.headers.get('content-type');
+                    addProbe(probes, options.lane, 'mcp-connect', 'ok', `MCP event stream connected: ${mcpUrl}`);
                     addCheck(
                         checks,
                         'ok',
@@ -1350,12 +1495,21 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     }
                 }
             }
+            if (!resourceUri) {
+                addProbe(probes, options.lane, 'mcp-read-resource', 'skipped', 'MCP resource read probe was skipped.');
+            }
+            if (!promptName) {
+                addProbe(probes, options.lane, 'mcp-get-prompt', 'skipped', 'MCP prompt get probe was skipped.');
+            }
         } else {
             addCheck(
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_MCP_URL not set. MCP live probe was skipped.',
             );
+            addProbe(probes, options.lane, 'mcp-connect', 'skipped', 'MCP live probe was skipped.');
+            addProbe(probes, options.lane, 'mcp-read-resource', 'skipped', 'MCP resource read probe was skipped.');
+            addProbe(probes, options.lane, 'mcp-get-prompt', 'skipped', 'MCP prompt get probe was skipped.');
         }
         if (!env.QINIU_ACCESS_KEY || !env.QINIU_SECRET_KEY) {
             addCheck(
@@ -1371,6 +1525,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
         status,
         exitCode: status === 'ok' ? 0 : status === 'warn' ? 2 : 1,
         checks,
+        probes,
     };
 }
 
@@ -1381,25 +1536,70 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
     const lanes = options.lanes.length > 0 ? options.lanes : [...DEFAULT_LIVE_VERIFY_GATE_LANES];
     const strict = options.strict ?? env.QINIU_REQUIRE_LIVE_VERIFY === '1';
     const generatedAt = new Date().toISOString();
+    const policyProfile = resolveLiveVerifyPolicyProfile(options);
+    const blockingFailures: string[] = [];
+    const collectGateProbes = (): LiveVerifyProbe[] => laneResults.flatMap((entry) => entry.result.probes);
 
     addCheck(
         checks,
         'ok',
-        `Running live verification gate for lanes: ${lanes.join(', ')}${strict ? ' (strict)' : ''}`,
+        `Running live verification gate for lanes: ${lanes.join(', ')}${policyProfile ? ` (profile=${policyProfile.name})` : ''}${strict ? ' (strict)' : ''}`,
     );
+    if (policyProfile?.description) {
+        addCheck(checks, 'ok', `Live verification policy profile ${policyProfile.name}: ${policyProfile.description}`);
+    }
 
     for (const lane of lanes) {
-        const result = await verifyLiveLane({
-            lane,
-            env,
-            createQiniuClient: options.createQiniuClient,
-            createNodeClient: options.createNodeClient,
-            createMcpTransport: options.createMcpTransport,
-        });
+        let result: LiveVerifyResult;
+        try {
+            result = await verifyLiveLane({
+                lane,
+                env,
+                createQiniuClient: options.createQiniuClient,
+                createNodeClient: options.createNodeClient,
+                createMcpTransport: options.createMcpTransport,
+            });
+        } catch (error) {
+            result = {
+                status: 'fail',
+                exitCode: 1,
+                checks: [
+                    {
+                        level: 'fail',
+                        message: error instanceof Error ? error.message : String(error),
+                    },
+                ],
+                probes: [],
+            };
+        }
         laneResults.push({ lane, result });
 
         for (const check of result.checks) {
             addCheck(checks, check.level, `[${lane}] ${check.message}`);
+        }
+    }
+
+    if (policyProfile) {
+        for (const lane of lanes) {
+            const required = policyProfile.requiredProbes[lane] ?? [];
+            if (required.length === 0) continue;
+
+            const laneResult = laneResults.find((entry) => entry.lane === lane);
+            const probes = laneResult?.result.probes ?? [];
+            for (const probeId of required) {
+                const probe = probes.find((entry) => entry.id === probeId);
+                if (!probe) {
+                    const failure = `[${lane}] Missing required probe record: ${probeId}`;
+                    blockingFailures.push(failure);
+                    addCheck(checks, 'fail', failure);
+                    continue;
+                }
+                if (probe.status !== 'ok') {
+                    const failure = `[${lane}] Required probe ${probeId} was ${probe.status}: ${probe.message}`;
+                    blockingFailures.push(failure);
+                    addCheck(checks, 'fail', failure);
+                }
+            }
         }
     }
 
@@ -1415,19 +1615,56 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
                 status: 'fail',
                 exitCode: 1,
                 checks,
+                probes: collectGateProbes(),
                 generatedAt,
                 lanes: laneResults,
+                policyProfile: policyProfile?.name,
+                policyPath: policyProfile?.policyPath,
+                blockingFailures,
             };
         }
     }
 
-    const status = summarize(checks);
+    if (blockingFailures.length > 0) {
+        addCheck(
+            checks,
+            'fail',
+            `Live verification policy profile ${policyProfile?.name} failed for required probes.`,
+        );
+        return {
+            status: 'fail',
+            exitCode: 1,
+            checks,
+            probes: collectGateProbes(),
+            generatedAt,
+            lanes: laneResults,
+            policyProfile: policyProfile?.name,
+            policyPath: policyProfile?.policyPath,
+            blockingFailures,
+        };
+    }
+
+    if (policyProfile && checks.some((check) => check.level === 'warn')) {
+        addCheck(
+            checks,
+            'ok',
+            `Non-blocking live warnings remain for profile ${policyProfile.name}, but no required probe failed.`,
+        );
+    }
+
+    const status = policyProfile
+        ? (checks.some((check) => check.level === 'fail') ? 'fail' : 'ok')
+        : summarize(checks);
     return {
         status,
         exitCode: status === 'ok' ? 0 : status === 'warn' ? 2 : 1,
         checks,
+        probes: collectGateProbes(),
         generatedAt,
         lanes: laneResults,
+        policyProfile: policyProfile?.name,
+        policyPath: policyProfile?.policyPath,
+        blockingFailures,
     };
 }
 
@@ -1436,21 +1673,44 @@ export function renderLiveVerifyGateMarkdown(result: LiveVerifyGateResult): stri
         '# Live Verification Gate',
         '',
         `Generated at: ${result.generatedAt}`,
+        ...(result.policyProfile ? [`Policy profile: ${result.policyProfile}`] : []),
+        ...(result.policyPath ? [`Policy path: ${result.policyPath}`] : []),
         '',
         `Overall status: ${result.status.toUpperCase()} (exit ${result.exitCode})`,
         '',
-        '## Lanes',
-        '',
     ];
+
+    if (result.blockingFailures && result.blockingFailures.length > 0) {
+        lines.push('## Blocking Failures');
+        lines.push('');
+        for (const failure of result.blockingFailures) {
+            lines.push(`- ${failure}`);
+        }
+        lines.push('');
+    }
+
+    lines.push('## Lanes');
+    lines.push('');
 
     for (const entry of result.lanes) {
         lines.push(`### ${entry.lane}`);
         lines.push('');
         lines.push(`- Status: ${entry.result.status.toUpperCase()} (exit ${entry.result.exitCode})`);
         lines.push(`- Checks: ${entry.result.checks.length}`);
+        if (entry.result.probes.length > 0) {
+            lines.push(`- Probes: ${entry.result.probes.length}`);
+        }
         lines.push('');
         for (const check of entry.result.checks) {
             lines.push(`- [${check.level}] ${check.message}`);
+        }
+        if (entry.result.probes.length > 0) {
+            lines.push('');
+            lines.push('#### Probes');
+            lines.push('');
+            for (const probe of entry.result.probes) {
+                lines.push(`- [${probe.status}] ${probe.id}: ${probe.message}`);
+            }
         }
         lines.push('');
     }

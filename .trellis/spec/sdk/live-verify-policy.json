@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "profiles": {
+    "pr": {
+      "description": "Pull-request blocking profile. Only baseline probes required on every verified PR run.",
+      "requiredProbes": {
+        "cloud-surface": [
+          "chat"
+        ]
+      }
+    },
+    "nightly": {
+      "description": "Nightly profile. Requires the broader live-evidence set for surfaces already productized in Phase 1.",
+      "requiredProbes": {
+        "cloud-surface": [
+          "chat",
+          "file-workflow",
+          "response-api",
+          "batch-list",
+          "account-usage",
+          "log-export"
+        ],
+        "node-integrations": [
+          "mcp-connect",
+          "mcp-read-resource",
+          "mcp-get-prompt"
+        ]
+      }
+    }
+  }
+}

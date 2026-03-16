@@ -245,7 +245,7 @@ function printWorktreeUsage(): void {
 
 function printVerifyUsage(): void {
     console.log('Usage: qiniu-ai verify live --lane <name>');
-    console.log('       qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict] [--json] [--out <path>]');
+    console.log('       qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--profile <name>] [--policy <path>] [--strict] [--json] [--out <path>]');
 }
 
 function writeVerifyOutput(result: unknown, outputPath: string, cwd: string): string {
@@ -821,11 +821,15 @@ async function runVerifyCommand(args: string[], options: RunCLIOptions): Promise
         });
     } else if (subcommand === 'gate') {
         const lanesArg = getArgValue(args, '--lanes');
+        const profile = getArgValue(args, '--profile');
+        const policyPath = getArgValue(args, '--policy');
         if (process.exitCode === 1) return;
 
         result = await verifyLiveGate({
             lanes: parseLiveVerifyGateLanes(lanesArg),
             strict: args.includes('--strict'),
+            policyProfile: profile,
+            policyPath,
             env: options.env,
         });
     } else {

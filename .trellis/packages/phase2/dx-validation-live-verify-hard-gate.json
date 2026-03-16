@@ -14,6 +14,9 @@
     ".github/workflows/verify.yml",
     "scripts/run-live-verify-gate.mjs",
     "src/cli/live-verify.ts",
+    "src/cli/skill-cli.ts",
+    ".trellis/spec/sdk/index.md",
+    ".trellis/spec/sdk/live-verify-policy.json",
     ".trellis/spec/sdk/verification-matrix.md"
   ],
   "requiredEvidence": [
@@ -28,7 +31,7 @@
   ],
   "expectedMergeTarget": "main",
   "expectedBranch": "codex/phase2/dx-validation/live-verify-hard-gate",
-  "branch": "main",
-  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk",
+  "branch": "codex/phase2/dx-validation/live-verify-hard-gate",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase2-live-gate",
   "createdAt": "2026-03-16T05:33:28.076Z"
 }

@@ -15,6 +15,9 @@ jobs:
     env:
       QINIU_API_KEY: ${{ secrets.QINIU_API_KEY }}
       QINIU_ENABLE_LIVE_VERIFY_GATE: ${{ secrets.QINIU_API_KEY != '' && '1' || '0' }}
+      QINIU_LIVE_VERIFY_PROFILE: pr
+      QINIU_LIVE_VERIFY_GATE_STRICT: 0
+      QINIU_LIVE_VERIFY_POLICY_PATH: .trellis/spec/sdk/live-verify-policy.json
       QINIU_LIVE_VERIFY_OUTPUT: artifacts/live-verify-gate.json
       QINIU_LIVE_VERIFY_SUMMARY_OUTPUT: artifacts/live-verify-gate.md
       QINIU_REVIEW_PACKET_OUTPUT: artifacts/review-packet.md
