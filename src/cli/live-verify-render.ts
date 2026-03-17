@@ -5,8 +5,11 @@ export function renderLiveVerifyGateMarkdown(result: LiveVerifyGateResult): stri
         '# Live Verification Gate',
         '',
         `Generated at: ${result.generatedAt}`,
+        ...(result.packageId ? [`Package: ${result.packageId}`] : []),
+        ...(result.packageCategory ? [`Package category: ${result.packageCategory}`] : []),
         ...(result.policyProfile ? [`Policy profile: ${result.policyProfile}`] : []),
         ...(result.policyPath ? [`Policy path: ${result.policyPath}`] : []),
+        ...(result.promotionGateStatus ? [`Promotion gate status: ${result.promotionGateStatus}`] : []),
         '',
         `Overall status: ${result.status.toUpperCase()} (exit ${result.exitCode})`,
         '',
@@ -19,6 +22,40 @@ export function renderLiveVerifyGateMarkdown(result: LiveVerifyGateResult): stri
             lines.push(`- ${failure}`);
         }
         lines.push('');
+    }
+
+    if (result.heldEvidence && result.heldEvidence.length > 0) {
+        lines.push('## Held Evidence');
+        lines.push('');
+        for (const item of result.heldEvidence) {
+            lines.push(`- ${item}`);
+        }
+        lines.push('');
+    }
+
+    if (result.promotionDecisionBasis && result.promotionDecisionBasis.length > 0) {
+        lines.push('## Promotion Decision Basis');
+        lines.push('');
+        for (const basis of result.promotionDecisionBasis) {
+            lines.push(`### ${basis.lane}`);
+            lines.push('');
+            if (basis.promotionModules.length > 0) {
+                lines.push(`- Promotion modules: ${basis.promotionModules.join(', ')}`);
+            }
+            if (basis.trackedDecisionPaths.length > 0) {
+                lines.push(`- Tracked decision files: ${basis.trackedDecisionPaths.join(', ')}`);
+            }
+            if (basis.requiredProbes.length > 0) {
+                lines.push(`- Required probes: ${basis.requiredProbes.join(', ')}`);
+            }
+            if (basis.promotionSensitiveRequiredProbes.length > 0) {
+                lines.push(`- Promotion-sensitive required probes: ${basis.promotionSensitiveRequiredProbes.join(', ')}`);
+            }
+            if (basis.deferredRisks.length > 0) {
+                lines.push(`- Deferred risks: ${basis.deferredRisks.join(' | ')}`);
+            }
+            lines.push('');
+        }
     }
 
     lines.push('## Lanes');
@@ -41,6 +78,9 @@ export function renderLiveVerifyGateMarkdown(result: LiveVerifyGateResult): stri
             }
             if (entry.policy.requiredProbes.length > 0) {
                 lines.push(`- Required probes: ${entry.policy.requiredProbes.join(', ')}`);
+            }
+            if (entry.policy.promotionSensitiveRequiredProbes.length > 0) {
+                lines.push(`- Promotion-sensitive required probes: ${entry.policy.promotionSensitiveRequiredProbes.join(', ')}`);
             }
             if (entry.policy.optionalProbes.length > 0) {
                 lines.push(`- Optional probes: ${entry.policy.optionalProbes.join(', ')}`);

@@ -3,6 +3,7 @@
   "packageId": "phase2/cloud-surface/responseapi-promotion-readiness",
   "phase": "phase2",
   "ownerLane": "cloud-surface",
+  "category": "promotion-sensitive",
   "topic": "responseapi-promotion-readiness",
   "goal": "Define a narrow, auditable official boundary for ResponseAPI and record a tracked readiness decision instead of continuing unbounded helper expansion.",
   "successCriteria": [

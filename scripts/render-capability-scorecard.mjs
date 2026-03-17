@@ -53,6 +53,7 @@ function renderScorecard(models, modules, evidenceSnapshot) {
   const syncedAt = moduleRows[0]?.sourceUpdatedAt ?? 'unknown';
   const evidenceGeneratedAt = evidenceSnapshot?.generatedAt ?? 'unknown';
   const trackedDecisionCount = evidenceSnapshot?.promotionDecisions?.length ?? 0;
+  const latestGate = evidenceSnapshot?.latestLiveVerifyGate;
 
   return [
     '# Capability Scorecard',
@@ -87,10 +88,15 @@ function renderScorecard(models, modules, evidenceSnapshot) {
     '## Module Maturity',
     '',
     renderTable(
-      ['Module', 'Maturity', 'Validation', 'Validated At', 'Notes', 'Docs'],
+      ['Module', 'Maturity', 'Decision', 'Validation', 'Validated At', 'Notes', 'Docs'],
       moduleRows.map((entry) => [
         entry.name,
         entry.maturity,
+        entry.trackedDecision
+          ? entry.trackedDecision.oldMaturity === entry.trackedDecision.newMaturity
+            ? `${entry.trackedDecision.newMaturity} (held)`
+            : `${entry.trackedDecision.oldMaturity} -> ${entry.trackedDecision.newMaturity}`
+          : '',
         entry.validationLevel,
         entry.validatedAt ?? '',
         entry.notes ?? '',
@@ -106,6 +112,10 @@ function renderScorecard(models, modules, evidenceSnapshot) {
         ['Generated At', evidenceGeneratedAt],
         ['Tracked Decision Files', String(evidenceSnapshot?.decisionFiles?.length ?? 0)],
         ['Tracked Promotion Decisions', String(trackedDecisionCount)],
+        ['Latest Gate Artifact', latestGate?.path ?? ''],
+        ['Latest Gate Status', latestGate?.status ?? ''],
+        ['Latest Promotion Gate', latestGate?.promotionGateStatus ?? ''],
+        ['Latest Gate Package', latestGate?.packageId ?? ''],
       ],
     ),
     '',

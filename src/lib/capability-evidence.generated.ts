@@ -1,9 +1,11 @@
 import type { ModuleMaturityInfo } from './capability-types';
 
-export const CAPABILITY_EVIDENCE_GENERATED_AT = "2026-03-16T13:30:00.000Z";
+export const CAPABILITY_EVIDENCE_GENERATED_AT = "2026-03-17T13:10:00.000Z";
 export const CAPABILITY_EVIDENCE_DECISION_FILES = [
-  ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
+  ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json",
+  ".trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json"
 ] as const;
+export const LATEST_LIVE_VERIFY_GATE = null;
 export const TRACKED_PROMOTION_DECISIONS = [
   {
     "packageId": "phase2/node-integrations/mcp-interop-evidence-policy",
@@ -18,6 +20,21 @@ export const TRACKED_PROMOTION_DECISIONS = [
     "decisionSource": "antigravity",
     "decisionAt": "2026-03-16T13:30:00.000Z",
     "trackedPath": ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
+  },
+  {
+    "packageId": "phase2/node-integrations/node-mcphost-promotion-readiness",
+    "module": "NodeMCPHost",
+    "oldMaturity": "beta",
+    "newMaturity": "beta",
+    "evidenceBasis": [
+      "src/node/mcp-host.ts#NODE_MCPHOST_PROMOTION_READINESS_CONTRACT",
+      ".trellis/spec/sdk/live-verify-policy.json#profiles.pr.lanePolicies.node-integrations",
+      ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.node-integrations",
+      "tests/node/mcp-host.test.ts"
+    ],
+    "decisionSource": "codex",
+    "decisionAt": "2026-03-17T13:10:00.000Z",
+    "trackedPath": ".trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json"
   }
 ] as const;
 export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
@@ -179,7 +196,22 @@ export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
     "maturity": "beta",
     "docsUrl": "https://modelcontextprotocol.io/specification/2025-11-25/basic/transports",
     "sourceUpdatedAt": "2026-03-14",
-    "validationLevel": "unit"
+    "validationLevel": "unit",
+    "trackedDecision": {
+      "packageId": "phase2/node-integrations/node-mcphost-promotion-readiness",
+      "module": "NodeMCPHost",
+      "oldMaturity": "beta",
+      "newMaturity": "beta",
+      "evidenceBasis": [
+        "src/node/mcp-host.ts#NODE_MCPHOST_PROMOTION_READINESS_CONTRACT",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.pr.lanePolicies.node-integrations",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.node-integrations",
+        "tests/node/mcp-host.test.ts"
+      ],
+      "decisionSource": "codex",
+      "decisionAt": "2026-03-17T13:10:00.000Z",
+      "trackedPath": ".trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json"
+    }
   },
   {
     "name": "sandbox",

@@ -36,11 +36,15 @@ export function renderCapabilityEvidenceJson(payload) {
 }
 
 export function renderCapabilityEvidenceGeneratedModule(snapshot) {
+  const renderedLatestGate = snapshot.latestLiveVerifyGate == null
+    ? 'null'
+    : `${JSON.stringify(snapshot.latestLiveVerifyGate, null, 2)} as const`;
   return [
     "import type { ModuleMaturityInfo } from './capability-types';",
     '',
     `export const CAPABILITY_EVIDENCE_GENERATED_AT = ${JSON.stringify(snapshot.generatedAt)};`,
     `export const CAPABILITY_EVIDENCE_DECISION_FILES = ${JSON.stringify(snapshot.decisionFiles, null, 2)} as const;`,
+    `export const LATEST_LIVE_VERIFY_GATE = ${renderedLatestGate};`,
     `export const TRACKED_PROMOTION_DECISIONS = ${JSON.stringify(snapshot.promotionDecisions, null, 2)} as const;`,
     `export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = ${JSON.stringify(snapshot.modules, null, 2)};`,
     '',
@@ -90,13 +94,41 @@ export function computeCapabilityEvidenceGeneratedAt(modules, decisions) {
   return latest > 0 ? new Date(latest).toISOString() : '1970-01-01T00:00:00.000Z';
 }
 
-export function buildCapabilityEvidenceSnapshot(baseline, decisions, decisionFiles = []) {
+function buildLatestDecisionIndex(decisions) {
+  const index = new Map();
+  for (const decision of decisions) {
+    index.set(capabilityModuleKey(decision.module), decision);
+  }
+  return index;
+}
+
+export function summarizeLiveVerifyGateArtifact(gateArtifact, gatePath) {
+  if (!gateArtifact || typeof gateArtifact !== 'object') {
+    return undefined;
+  }
+
+  return {
+    path: gatePath,
+    generatedAt: gateArtifact.generatedAt,
+    status: gateArtifact.status,
+    exitCode: gateArtifact.exitCode,
+    policyProfile: gateArtifact.policyProfile,
+    packageId: gateArtifact.packageId,
+    packageCategory: gateArtifact.packageCategory,
+    promotionGateStatus: gateArtifact.promotionGateStatus,
+    blockingFailuresCount: Array.isArray(gateArtifact.blockingFailures) ? gateArtifact.blockingFailures.length : 0,
+    heldEvidenceCount: Array.isArray(gateArtifact.heldEvidence) ? gateArtifact.heldEvidence.length : 0,
+  };
+}
+
+export function buildCapabilityEvidenceSnapshot(baseline, decisions, decisionFiles = [], latestLiveVerifyGate) {
   if (baseline.version !== 1 || !Array.isArray(baseline.modules)) {
     throw new Error('Invalid capability evidence baseline payload.');
   }
 
   const modules = baseline.modules.map((entry) => ({ ...entry }));
   const index = new Map(modules.map((entry, offset) => [capabilityModuleKey(entry.name), offset]));
+  const latestDecisionIndex = buildLatestDecisionIndex(decisions);
 
   for (const decision of decisions) {
     const offset = index.get(capabilityModuleKey(decision.module));
@@ -106,13 +138,24 @@ export function buildCapabilityEvidenceSnapshot(baseline, decisions, decisionFil
     modules[offset] = {
       ...modules[offset],
       maturity: decision.newMaturity,
+      trackedDecision: latestDecisionIndex.get(capabilityModuleKey(decision.module)),
     };
+  }
+
+  for (const entry of modules) {
+    if (!entry.trackedDecision) {
+      const trackedDecision = latestDecisionIndex.get(capabilityModuleKey(entry.name));
+      if (trackedDecision) {
+        entry.trackedDecision = trackedDecision;
+      }
+    }
   }
 
   return {
     version: 1,
     generatedAt: computeCapabilityEvidenceGeneratedAt(modules, decisions),
     decisionFiles,
+    latestLiveVerifyGate,
     modules,
     promotionDecisions: decisions,
   };

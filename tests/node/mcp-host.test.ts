@@ -556,6 +556,35 @@ describe('NodeMCPHost', () => {
         });
     });
 
+    it('exposes a held promotion-readiness contract for NodeMCPHost', async () => {
+        const {
+            DEFAULT_MCP_INTEROP_DEFERRED_RISKS,
+            NODE_MCPHOST_PROMOTION_READINESS_CONTRACT,
+        } = await import('../../src/node/mcp-host');
+
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.officialSurface).toEqual(expect.arrayContaining([
+            'probeServer',
+            'probeServerInterop',
+            'listServerTools',
+            'executeServerTool',
+        ]));
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.requiredTransportEvidence).toEqual([
+            'mcp-connect',
+            'mcp-read-resource',
+            'mcp-get-prompt',
+        ]);
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.requiredHostEvidence).toEqual([
+            'mcp-host-interop',
+        ]);
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.deferredRisks).toEqual(
+            DEFAULT_MCP_INTEROP_DEFERRED_RISKS,
+        );
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.trackedDecisionPath).toBe(
+            '.trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json',
+        );
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.decisionStatus).toBe('held');
+    });
+
     it('listServerTools() and executeServerTool() reject unknown server names', async () => {
         const { NodeMCPHost } = await import('../../src/node/mcp-host');
 

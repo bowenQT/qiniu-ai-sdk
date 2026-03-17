@@ -107,6 +107,31 @@ describe('CLI package workflow', () => {
         expect(payload.ownerLane).toBe('runtime-hardening');
     });
 
+    it('records promotion-sensitive package categories in tracked briefs', async () => {
+        await runCLI(
+            [
+                'package',
+                'init',
+                '--lane',
+                'node-integrations',
+                '--category',
+                'promotion-sensitive',
+                '--topic',
+                'mcp host promotion readiness',
+                '--goal',
+                'Freeze MCP host promotion gating',
+                '--success',
+                'Promotion-sensitive evidence is explicit',
+            ],
+            { cwd: tmpDir },
+        );
+
+        const outputPath = path.join(tmpDir, '.trellis', 'packages', 'phase2', 'node-integrations-mcp-host-promotion-readiness.json');
+        const payload = JSON.parse(fs.readFileSync(outputPath, 'utf8')) as ChangePackage;
+
+        expect(payload.category).toBe('promotion-sensitive');
+    });
+
     it('rejects creating a new package when phase policy is frozen', async () => {
         writePhasePolicy(tmpDir, false, 'frozen');
 

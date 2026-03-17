@@ -9,8 +9,26 @@
         ]
       },
       "lanePolicies": {
+        "cloud-surface": {
+          "description": "PR policy records the narrow ResponseAPI promotion boundary without blocking routine refactors on response probes.",
+          "promotionSensitiveRequiredProbes": [
+            "chat",
+            "response-api"
+          ],
+          "promotionModules": [
+            "ResponseAPI"
+          ],
+          "deferredRisks": [
+            "Response API stream promotion still depends on a separate tracked decision and nightly evidence."
+          ]
+        },
         "node-integrations": {
           "description": "PR policy records MCP interop evidence boundaries without blocking on host-level interop yet.",
+          "promotionSensitiveRequiredProbes": [
+            "mcp-connect",
+            "mcp-read-resource",
+            "mcp-get-prompt"
+          ],
           "optionalProbes": [
             "mcp-connect",
             "mcp-read-resource",
@@ -21,7 +39,7 @@
             "NodeMCPHost"
           ],
           "trackedDecisionPaths": [
-            ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
+            ".trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json"
           ],
           "deferredRisks": [
             "Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.",
@@ -49,12 +67,32 @@
         ]
       },
       "lanePolicies": {
+        "cloud-surface": {
+          "description": "Nightly policy keeps ResponseAPI promotion scoped to the narrowest live-backed contract.",
+          "promotionSensitiveRequiredProbes": [
+            "chat",
+            "response-api",
+            "response-api-stream"
+          ],
+          "promotionModules": [
+            "ResponseAPI"
+          ],
+          "deferredRisks": [
+            "Higher-level ResponseAPI helper variants remain provider-only until a separate promotion package narrows their contract."
+          ]
+        },
         "node-integrations": {
           "description": "Nightly policy requires transport-level MCP interop evidence while holding host-level interop at beta until a later promotion package approves stricter gating.",
           "requiredProbes": [
             "mcp-connect",
             "mcp-read-resource",
             "mcp-get-prompt"
+          ],
+          "promotionSensitiveRequiredProbes": [
+            "mcp-connect",
+            "mcp-read-resource",
+            "mcp-get-prompt",
+            "mcp-host-interop"
           ],
           "optionalProbes": [
             "mcp-host-interop"
@@ -63,7 +101,7 @@
             "NodeMCPHost"
           ],
           "trackedDecisionPaths": [
-            ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
+            ".trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json"
           ],
           "deferredRisks": [
             "Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.",

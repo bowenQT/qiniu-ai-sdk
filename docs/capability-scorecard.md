@@ -9,8 +9,8 @@ This document is generated from the SDK capability registry and is intended to m
 - Validated models: 10
 - Validated chat/image/video split: chat=5, image=2, video=3
 - Module maturity split: ga=12, beta=14, experimental=5
-- Evidence snapshot generated at: 2026-03-16T13:30:00.000Z
-- Tracked promotion decisions: 1
+- Evidence snapshot generated at: 2026-03-17T13:10:00.000Z
+- Tracked promotion decisions: 2
 
 ## Validated Models
 
@@ -29,44 +29,48 @@ This document is generated from the SDK capability registry and is intended to m
 
 ## Module Maturity
 
-| Module | Maturity | Validation | Validated At | Notes | Docs |
-| --- | --- | --- | --- | --- | --- |
-| asr | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| chat | ga | live | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| createAgent | ga | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| file | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| generateObject | ga | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| generateText | ga | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| image | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| log | ga | unit | 2026-03-15 | Absolute export contract is covered by unit tests; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
-| ocr | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| streamText | ga | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| tts | ga | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| video | ga | unit | 2026-03-15 | Dedicated unit suites cover Veo/Kling normalization and task-handle behavior; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
-| account | beta | unit | 2026-03-15 | Usage auth signing and response handling are covered by unit tests; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
-| adapter | beta | unit |  |  | https://ai-sdk.dev/docs |
-| admin | beta | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
-| auditLogger | beta | unit |  |  | https://apidocs.qnaigc.com/ |
-| batch | beta | unit | 2026-03-15 | Core task lifecycle and handle behavior are covered; live verification remains env-gated. | https://apidocs.qnaigc.com/ |
-| censor | beta | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
-| guardrails | beta | unit |  |  | https://openai.github.io/openai-agents-js/guides/guardrails/ |
-| KodoCheckpointer | beta | unit |  |  | https://apidocs.qnaigc.com/ |
-| memory | beta | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
-| NodeMCPHost | beta | unit |  |  | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
-| PostgresCheckpointer | beta | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
-| RedisCheckpointer | beta | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
-| sandbox | beta | unit |  |  | https://apidocs.qnaigc.com/ |
-| skills | beta | unit |  |  | https://apidocs.qnaigc.com/ |
-| A2A | experimental | unit |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
-| ai-tools | experimental | unit |  |  | https://apidocs.qnaigc.com/ |
-| crew | experimental | static |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
-| QiniuMCPServer | experimental | unit |  |  | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
-| ResponseAPI | experimental | unit | 2026-03-15 | Provider-only surface is covered by dedicated unit suites; live verification remains opt-in. | https://apidocs.qnaigc.com/417773141e0 |
+| Module | Maturity | Decision | Validation | Validated At | Notes | Docs |
+| --- | --- | --- | --- | --- | --- | --- |
+| asr | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| chat | ga |  | live | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| createAgent | ga |  | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| file | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| generateObject | ga |  | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| generateText | ga |  | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| image | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| log | ga |  | unit | 2026-03-15 | Absolute export contract is covered by unit tests; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
+| ocr | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| streamText | ga |  | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| tts | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| video | ga |  | unit | 2026-03-15 | Dedicated unit suites cover Veo/Kling normalization and task-handle behavior; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
+| account | beta |  | unit | 2026-03-15 | Usage auth signing and response handling are covered by unit tests; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
+| adapter | beta |  | unit |  |  | https://ai-sdk.dev/docs |
+| admin | beta |  | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
+| auditLogger | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
+| batch | beta |  | unit | 2026-03-15 | Core task lifecycle and handle behavior are covered; live verification remains env-gated. | https://apidocs.qnaigc.com/ |
+| censor | beta |  | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
+| guardrails | beta |  | unit |  |  | https://openai.github.io/openai-agents-js/guides/guardrails/ |
+| KodoCheckpointer | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
+| memory | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
+| NodeMCPHost | beta | beta (held) | unit |  |  | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
+| PostgresCheckpointer | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
+| RedisCheckpointer | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
+| sandbox | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
+| skills | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
+| A2A | experimental |  | unit |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
+| ai-tools | experimental |  | unit |  |  | https://apidocs.qnaigc.com/ |
+| crew | experimental |  | static |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
+| QiniuMCPServer | experimental |  | unit |  |  | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
+| ResponseAPI | experimental |  | unit | 2026-03-15 | Provider-only surface is covered by dedicated unit suites; live verification remains opt-in. | https://apidocs.qnaigc.com/417773141e0 |
 
 ## Tracked Evidence Snapshot
 
 | Field | Value |
 | --- | --- |
-| Generated At | 2026-03-16T13:30:00.000Z |
-| Tracked Decision Files | 1 |
-| Tracked Promotion Decisions | 1 |
+| Generated At | 2026-03-17T13:10:00.000Z |
+| Tracked Decision Files | 2 |
+| Tracked Promotion Decisions | 2 |
+| Latest Gate Artifact |  |
+| Latest Gate Status |  |
+| Latest Promotion Gate |  |
+| Latest Gate Package |  |

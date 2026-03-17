@@ -6,6 +6,7 @@ import type { MCPHttpServerConfig } from '../node';
 import { QiniuAI } from '../qiniu';
 import type { WorktreeLane } from './doctor';
 import { getModuleMaturity } from '../lib/capability-registry';
+import type { ChangePackage } from './package-workflow';
 
 export type LiveVerifyStatus = 'ok' | 'warn' | 'fail';
 export type LiveVerifyProbeStatus = LiveVerifyStatus | 'skipped';
@@ -42,6 +43,12 @@ export interface LiveVerifyGateResult extends LiveVerifyResult {
     policyProfile?: string;
     policyPath?: string;
     blockingFailures?: string[];
+    packageId?: string;
+    packageCategory?: 'standard' | 'promotion-sensitive';
+    promotionSensitive?: boolean;
+    promotionGateStatus?: 'clear' | 'held' | 'blocking';
+    heldEvidence?: string[];
+    promotionDecisionBasis?: LiveVerifyPromotionDecisionBasis[];
 }
 
 export interface LiveVerifyOptions {
@@ -58,6 +65,7 @@ export interface LiveVerifyGateOptions {
     lanes: WorktreeLane[];
     env?: NodeJS.ProcessEnv;
     strict?: boolean;
+    packageBriefPath?: string;
     policyProfile?: string;
     policyPath?: string;
     policy?: LiveVerifyPolicy;
@@ -81,6 +89,7 @@ export interface LiveVerifyPolicy {
 export interface LiveVerifyLanePolicy {
     description?: string;
     requiredProbes?: string[];
+    promotionSensitiveRequiredProbes?: string[];
     optionalProbes?: string[];
     trackedDecisionPaths?: string[];
     promotionModules?: string[];
@@ -90,6 +99,7 @@ export interface LiveVerifyLanePolicy {
 export interface LiveVerifyLanePolicySummary {
     description?: string;
     requiredProbes: string[];
+    promotionSensitiveRequiredProbes: string[];
     optionalProbes: string[];
     trackedDecisionPaths: string[];
     promotionModules: string[];
@@ -102,6 +112,21 @@ interface ResolvedLiveVerifyPolicyProfile {
     description?: string;
     requiredProbes: Partial<Record<WorktreeLane, string[]>>;
     lanePolicies: Partial<Record<WorktreeLane, LiveVerifyLanePolicySummary>>;
+}
+
+export interface LiveVerifyPromotionDecisionBasis {
+    lane: WorktreeLane;
+    promotionModules: string[];
+    trackedDecisionPaths: string[];
+    requiredProbes: string[];
+    promotionSensitiveRequiredProbes: string[];
+    deferredRisks: string[];
+}
+
+interface ResolvedLiveVerifyPackageContext {
+    packageId?: string;
+    packageCategory: 'standard' | 'promotion-sensitive';
+    ownerLane?: WorktreeLane;
 }
 
 interface LiveVerifyMcpTransport {
@@ -241,6 +266,36 @@ function normalizeStringList(value: unknown): string[] {
         .filter(Boolean);
 }
 
+function resolveVerifyLaneFromPackageLane(value: ChangePackage['ownerLane']): WorktreeLane | undefined {
+    switch (value) {
+        case 'foundation':
+        case 'cloud-surface':
+        case 'runtime':
+        case 'node-integrations':
+        case 'dx-validation':
+            return value;
+        case 'runtime-hardening':
+            return 'runtime';
+        default:
+            return undefined;
+    }
+}
+
+export function resolveLiveVerifyPackageContext(options: LiveVerifyGateOptions): ResolvedLiveVerifyPackageContext {
+    const env = options.env ?? process.env;
+    const briefPath = options.packageBriefPath ?? env.QINIU_CHANGE_PACKAGE_BRIEF;
+    if (!briefPath) {
+        return { packageCategory: 'standard' };
+    }
+
+    const changePackage = JSON.parse(fs.readFileSync(path.resolve(briefPath), 'utf8')) as ChangePackage;
+    return {
+        packageId: changePackage.packageId,
+        packageCategory: changePackage.category === 'promotion-sensitive' ? 'promotion-sensitive' : 'standard',
+        ownerLane: resolveVerifyLaneFromPackageLane(changePackage.ownerLane),
+    };
+}
+
 export function resolveLiveVerifyPolicyProfile(options: LiveVerifyGateOptions): ResolvedLiveVerifyPolicyProfile | undefined {
     const env = options.env ?? process.env;
     const profileName = options.policyProfile ?? env.QINIU_LIVE_VERIFY_PROFILE?.trim();
@@ -274,6 +329,7 @@ export function resolveLiveVerifyPolicyProfile(options: LiveVerifyGateOptions): 
         lanePolicies[lane] = {
             description: lanePolicy?.description,
             requiredProbes: normalizeStringList(lanePolicy?.requiredProbes ?? legacyRequiredProbes[lane]),
+            promotionSensitiveRequiredProbes: normalizeStringList(lanePolicy?.promotionSensitiveRequiredProbes),
             optionalProbes: normalizeStringList(lanePolicy?.optionalProbes),
             trackedDecisionPaths: normalizeStringList(lanePolicy?.trackedDecisionPaths),
             promotionModules: normalizeStringList(lanePolicy?.promotionModules),

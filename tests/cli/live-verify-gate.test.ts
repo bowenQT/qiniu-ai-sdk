@@ -94,7 +94,7 @@ describe('CLI live verification gate', () => {
         expect(result.checks.some((check) => check.message.includes('Non-blocking live warnings remain for profile pr'))).toBe(true);
     });
 
-    it('fails when the active policy profile is missing a required probe result', async () => {
+    it('holds missing required probe results for standard packages under the active policy profile', async () => {
         const policy: LiveVerifyPolicy = {
             version: 1,
             profiles: {
@@ -123,9 +123,10 @@ describe('CLI live verification gate', () => {
             }) as any,
         });
 
-        expect(result.exitCode).toBe(1);
-        expect(result.status).toBe('fail');
-        expect(result.blockingFailures).toContain('[cloud-surface] Required probe response-api was skipped: Response API live probe was skipped.');
+        expect(result.exitCode).toBe(0);
+        expect(result.status).toBe('ok');
+        expect(result.promotionGateStatus).toBe('held');
+        expect(result.heldEvidence?.some((entry) => entry.includes('response-api'))).toBe(true);
     });
 
     it('surfaces lane policy metadata for MCP interop boundaries', async () => {
@@ -140,6 +141,7 @@ describe('CLI live verification gate', () => {
                         lanePolicies: {
                             'node-integrations': {
                                 description: 'PR keeps MCP interop evidence non-blocking until promotion approves stricter gating.',
+                                promotionSensitiveRequiredProbes: ['mcp-connect', 'mcp-read-resource', 'mcp-get-prompt'],
                                 optionalProbes: ['mcp-connect', 'mcp-host-interop'],
                                 promotionModules: ['NodeMCPHost'],
                                 trackedDecisionPaths: ['.trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json'],
@@ -157,7 +159,129 @@ describe('CLI live verification gate', () => {
 
         expect(result.lanes[0]?.policy?.promotionModules).toEqual(['NodeMCPHost']);
         expect(result.lanes[0]?.policy?.trackedDecisionPaths[0]).toContain('phase2-node-integrations-mcp-interop-evidence-policy.json');
+        expect(result.lanes[0]?.policy?.promotionSensitiveRequiredProbes).toEqual(['mcp-connect', 'mcp-read-resource', 'mcp-get-prompt']);
         expect(result.checks.some((check) => check.message.includes('[node-integrations] Tracked decision files:'))).toBe(true);
+    });
+
+    it('holds missing promotion-sensitive probes for standard packages without blocking the gate', async () => {
+        const briefPath = path.join(tmpDir, 'standard-package.json');
+        fs.writeFileSync(briefPath, JSON.stringify({
+            version: 1,
+            packageId: 'phase2/cloud-surface/responseapi-readiness-note',
+            phase: 'phase2',
+            ownerLane: 'cloud-surface',
+            category: 'standard',
+            topic: 'responseapi-readiness-note',
+            goal: 'Track ResponseAPI evidence without promotion',
+            successCriteria: ['Missing promotion evidence is held, not blocking'],
+            touchedSurfaces: ['src/cli/live-verify.ts'],
+            requiredEvidence: ['focused-verification'],
+            explicitlyOutOfScope: [],
+            expectedMergeTarget: 'main',
+            expectedBranch: 'codex/phase2/cloud-surface/responseapi-readiness-note',
+            branch: 'codex/phase2/cloud-surface/responseapi-readiness-note',
+            worktreePath: tmpDir,
+            createdAt: '2026-03-17T00:00:00.000Z',
+        }, null, 2) + '\n', 'utf8');
+
+        const result = await verifyLiveGate({
+            lanes: ['cloud-surface'],
+            packageBriefPath: briefPath,
+            policy: {
+                version: 1,
+                profiles: {
+                    pr: {
+                        description: 'PR profile',
+                        requiredProbes: {
+                            'cloud-surface': ['chat'],
+                        },
+                        lanePolicies: {
+                            'cloud-surface': {
+                                promotionSensitiveRequiredProbes: ['chat', 'response-api'],
+                                promotionModules: ['ResponseAPI'],
+                            },
+                        },
+                    },
+                },
+            },
+            policyProfile: 'pr',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(0);
+        expect(result.status).toBe('ok');
+        expect(result.promotionGateStatus).toBe('held');
+        expect(result.heldEvidence?.some((entry) => entry.includes('response-api'))).toBe(true);
+    });
+
+    it('fails promotion-sensitive packages when required live evidence is missing', async () => {
+        const briefPath = path.join(tmpDir, 'promotion-sensitive-package.json');
+        fs.writeFileSync(briefPath, JSON.stringify({
+            version: 1,
+            packageId: 'phase2/cloud-surface/responseapi-promotion-readiness',
+            phase: 'phase2',
+            ownerLane: 'cloud-surface',
+            category: 'promotion-sensitive',
+            topic: 'responseapi-promotion-readiness',
+            goal: 'Freeze ResponseAPI promotion boundary',
+            successCriteria: ['Response API promotion gate uses live evidence'],
+            touchedSurfaces: ['src/modules/response/index.ts'],
+            requiredEvidence: ['focused-verification'],
+            explicitlyOutOfScope: [],
+            expectedMergeTarget: 'main',
+            expectedBranch: 'codex/phase2/cloud-surface/responseapi-promotion-readiness',
+            branch: 'codex/phase2/cloud-surface/responseapi-promotion-readiness',
+            worktreePath: tmpDir,
+            createdAt: '2026-03-17T00:00:00.000Z',
+        }, null, 2) + '\n', 'utf8');
+
+        const result = await verifyLiveGate({
+            lanes: ['cloud-surface'],
+            packageBriefPath: briefPath,
+            policy: {
+                version: 1,
+                profiles: {
+                    pr: {
+                        description: 'PR profile',
+                        requiredProbes: {
+                            'cloud-surface': ['chat'],
+                        },
+                        lanePolicies: {
+                            'cloud-surface': {
+                                promotionSensitiveRequiredProbes: ['chat', 'response-api'],
+                                promotionModules: ['ResponseAPI'],
+                                trackedDecisionPaths: ['.trellis/decisions/phase2/responseapi.json'],
+                            },
+                        },
+                    },
+                },
+            },
+            policyProfile: 'pr',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(1);
+        expect(result.status).toBe('fail');
+        expect(result.promotionGateStatus).toBe('blocking');
+        expect(result.packageId).toBe('phase2/cloud-surface/responseapi-promotion-readiness');
     });
 
     it('keeps optional MCP host interop failures non-blocking under the PR policy', async () => {
@@ -313,14 +437,30 @@ describe('CLI live verification gate', () => {
             generatedAt: '2026-03-16T09:00:00.000Z',
             status: 'ok',
             exitCode: 0,
+            packageId: 'phase2/node-integrations/node-mcphost-promotion-readiness',
+            packageCategory: 'promotion-sensitive',
+            promotionSensitive: true,
+            promotionGateStatus: 'held',
             checks: [],
             probes: [],
+            heldEvidence: ['[node-integrations] Required probe mcp-host-interop was skipped'],
+            promotionDecisionBasis: [
+                {
+                    lane: 'node-integrations',
+                    promotionModules: ['NodeMCPHost'],
+                    trackedDecisionPaths: ['.trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json'],
+                    requiredProbes: ['mcp-connect'],
+                    promotionSensitiveRequiredProbes: ['mcp-connect', 'mcp-host-interop'],
+                    deferredRisks: ['notifications are still unit-only'],
+                },
+            ],
             lanes: [
                 {
                     lane: 'node-integrations',
                     policy: {
                         description: 'PR keeps MCP host interop non-blocking.',
                         requiredProbes: ['mcp-connect'],
+                        promotionSensitiveRequiredProbes: ['mcp-connect', 'mcp-host-interop'],
                         optionalProbes: ['mcp-host-interop'],
                         promotionModules: ['NodeMCPHost'],
                         trackedDecisionPaths: ['.trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json'],
@@ -338,11 +478,49 @@ describe('CLI live verification gate', () => {
         });
 
         expect(markdown).toContain('#### Policy');
+        expect(markdown).toContain('Package: phase2/node-integrations/node-mcphost-promotion-readiness');
+        expect(markdown).toContain('Package category: promotion-sensitive');
+        expect(markdown).toContain('Promotion gate status: held');
         expect(markdown).toContain('Required probes: mcp-connect');
+        expect(markdown).toContain('Promotion-sensitive required probes: mcp-connect, mcp-host-interop');
         expect(markdown).toContain('Optional probes: mcp-host-interop');
         expect(markdown).toContain('Promotion modules: NodeMCPHost');
         expect(markdown).toContain('Tracked decision files: .trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json');
         expect(markdown).toContain('Deferred risks: notifications are still unit-only');
+    });
+
+    it('uses the brief owner lane as the default gate lane', async () => {
+        const briefPath = path.join(tmpDir, 'package-brief.json');
+        fs.writeFileSync(briefPath, JSON.stringify({
+            version: 1,
+            packageId: 'phase2/node-integrations/node-mcphost-promotion-readiness',
+            phase: 'phase2',
+            ownerLane: 'node-integrations',
+            category: 'promotion-sensitive',
+            topic: 'node-mcphost-promotion-readiness',
+            goal: 'Freeze NodeMCPHost promotion boundary',
+            successCriteria: ['NodeMCPHost gating is explicit'],
+            touchedSurfaces: ['src/node/mcp-host.ts'],
+            requiredEvidence: ['focused-verification'],
+            explicitlyOutOfScope: [],
+            expectedMergeTarget: 'main',
+            expectedBranch: 'codex/phase2/node-integrations/node-mcphost-promotion-readiness',
+            branch: 'codex/phase2/node-integrations/node-mcphost-promotion-readiness',
+            worktreePath: tmpDir,
+            createdAt: '2026-03-17T00:00:00.000Z',
+        }, null, 2) + '\n', 'utf8');
+
+        await runCLI(
+            ['verify', 'gate', '--brief', briefPath, '--json'],
+            { env: {} },
+        );
+
+        const stdoutPayload = consoleLogSpy.mock.calls
+            .map((call) => String(call[0]))
+            .find((line) => line.includes('"packageId"'));
+        expect(stdoutPayload).toContain('"packageId": "phase2/node-integrations/node-mcphost-promotion-readiness"');
+        expect(stdoutPayload).toContain('"promotionSensitive": true');
+        expect(stdoutPayload).toContain('"lane": "node-integrations"');
     });
 
     it('wires the verify gate CLI command through runCLI', async () => {

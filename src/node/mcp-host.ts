@@ -99,11 +99,44 @@ export interface NodeMCPHostPromptMessage {
     content: unknown;
 }
 
+export interface NodeMCPHostPromotionReadinessContract {
+    officialSurface: string[];
+    requiredTransportEvidence: string[];
+    requiredHostEvidence: string[];
+    deferredRisks: readonly string[];
+    trackedDecisionPath: string;
+    decisionStatus: 'held';
+}
+
 export const DEFAULT_MCP_INTEROP_DEFERRED_RISKS = [
     'Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.',
     'OAuth discovery covers metadata endpoints only; token acquisition flows remain out of scope for this package.',
     'HTTP interop evidence is collected per server; multi-server routing remains a higher-level integration concern.',
 ] as const;
+
+export const NODE_MCPHOST_PROMOTION_READINESS_CONTRACT: NodeMCPHostPromotionReadinessContract = Object.freeze({
+    officialSurface: [
+        'probeServer',
+        'probeServerInterop',
+        'listServerTools',
+        'executeServerTool',
+        'listServerResources',
+        'readResourceContents',
+        'listServerPrompts',
+        'getPromptMessages',
+    ],
+    requiredTransportEvidence: [
+        'mcp-connect',
+        'mcp-read-resource',
+        'mcp-get-prompt',
+    ],
+    requiredHostEvidence: [
+        'mcp-host-interop',
+    ],
+    deferredRisks: DEFAULT_MCP_INTEROP_DEFERRED_RISKS,
+    trackedDecisionPath: '.trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json',
+    decisionStatus: 'held',
+});
 
 // ============================================================================
 // NodeMCPHost
