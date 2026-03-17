@@ -194,7 +194,7 @@ describe('CLI init and doctor', () => {
             { cwd: tmpRoot, env: { QINIU_API_KEY: 'sk-test' }, nodeVersion: 'v20.0.0' },
         );
 
-        expect(process.exitCode).toBe(2);
+        expect(process.exitCode).toBe(0);
         expect(consoleLogSpy).toHaveBeenCalledWith(
             expect.stringContaining('createAgent imports detected (ga, contract'),
         );
@@ -226,7 +226,7 @@ describe('CLI init and doctor', () => {
             { cwd: tmpRoot, env: { QINIU_API_KEY: 'sk-test' }, nodeVersion: 'v20.0.0' },
         );
 
-        expect(process.exitCode).toBe(2);
+        expect(process.exitCode).toBe(0);
         expect(consoleLogSpy).toHaveBeenCalledWith(
             expect.stringContaining('batch imports detected (beta, unit, validated 2026-03-15'),
         );

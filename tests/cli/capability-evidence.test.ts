@@ -8,11 +8,11 @@ import {
 describe('capability evidence helpers', () => {
     it('applies tracked promotion decisions to the baseline snapshot deterministically', () => {
         const decisions = collectPromotionDecisions(
-            ['/repo/.trellis/decisions/phase2/phase2-foundation-response.json'],
+            ['/repo/.trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json'],
             {
                 readJsonFile: () => ({
                     version: 1,
-                    packageId: 'phase2/foundation/response-promotion',
+                    packageId: 'phase3/cloud-surface/responseapi-beta-promotion',
                     generatedAt: '2026-03-16T00:00:00.000Z',
                     decisions: [
                         {
@@ -41,7 +41,7 @@ describe('capability evidence helpers', () => {
                     validationLevel: 'unit',
                 },
             ],
-        }, decisions, ['.trellis/decisions/phase2/phase2-foundation-response.json'], {
+        }, decisions, ['.trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json'], {
             path: 'artifacts/live-verify-gate.json',
             status: 'ok',
             promotionGateStatus: 'held',
@@ -79,11 +79,11 @@ describe('capability evidence helpers', () => {
 
     it('keeps tracked hold decisions even when maturity does not change', () => {
         const decisions = collectPromotionDecisions(
-            ['/repo/.trellis/decisions/phase2/phase2-node-integrations-mcp-policy.json'],
+            ['/repo/.trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json'],
             {
                 readJsonFile: () => ({
                     version: 1,
-                    packageId: 'phase2/node-integrations/mcp-policy',
+                    packageId: 'phase3/node-integrations/mcphost-held-risk-reduction',
                     generatedAt: '2026-03-16T00:00:00.000Z',
                     decisions: [
                         {
@@ -111,25 +111,25 @@ describe('capability evidence helpers', () => {
                     validationLevel: 'unit',
                 },
             ],
-        }, decisions, ['.trellis/decisions/phase2/phase2-node-integrations-mcp-policy.json']);
+        }, decisions, ['.trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json']);
 
         expect(snapshot.modules[0]?.maturity).toBe('beta');
         expect(snapshot.modules[0]?.trackedDecision?.newMaturity).toBe('beta');
         expect(snapshot.promotionDecisions).toHaveLength(1);
-        expect(snapshot.promotionDecisions[0]?.trackedPath).toContain('phase2-node-integrations-mcp-policy.json');
+        expect(snapshot.promotionDecisions[0]?.trackedPath).toContain('phase3-node-integrations-mcphost-held-risk-reduction.json');
     });
 
     it('uses the latest tracked hold decision when multiple packages reference the same module', () => {
         const decisions = collectPromotionDecisions(
             [
                 '/repo/.trellis/decisions/phase2/phase2-node-integrations-mcp-policy.json',
-                '/repo/.trellis/decisions/phase2/phase2-node-integrations-mcp-readiness.json',
+                '/repo/.trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json',
             ],
             {
                 readJsonFile: (filePath: string) => ({
                     version: 1,
-                    packageId: filePath.includes('readiness')
-                        ? 'phase2/node-integrations/node-mcphost-promotion-readiness'
+                    packageId: filePath.includes('phase3')
+                        ? 'phase3/node-integrations/mcphost-held-risk-reduction'
                         : 'phase2/node-integrations/mcp-policy',
                     generatedAt: '2026-03-17T00:00:00.000Z',
                     decisions: [
@@ -138,9 +138,9 @@ describe('capability evidence helpers', () => {
                             oldMaturity: 'beta',
                             newMaturity: 'beta',
                             evidenceBasis: [filePath],
-                            decisionSource: filePath.includes('readiness') ? 'codex' : 'antigravity',
-                            decisionAt: filePath.includes('readiness')
-                                ? '2026-03-17T13:10:00.000Z'
+                            decisionSource: filePath.includes('phase3') ? 'codex' : 'antigravity',
+                            decisionAt: filePath.includes('phase3')
+                                ? '2026-03-17T13:20:00.000Z'
                                 : '2026-03-16T10:00:00.000Z',
                         },
                     ],
@@ -162,13 +162,13 @@ describe('capability evidence helpers', () => {
             ],
         }, decisions, [
             '.trellis/decisions/phase2/phase2-node-integrations-mcp-policy.json',
-            '.trellis/decisions/phase2/phase2-node-integrations-mcp-readiness.json',
+            '.trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json',
         ]);
 
         expect(snapshot.modules[0]?.trackedDecision?.packageId).toBe(
-            'phase2/node-integrations/node-mcphost-promotion-readiness',
+            'phase3/node-integrations/mcphost-held-risk-reduction',
         );
         expect(snapshot.modules[0]?.trackedDecision?.decisionSource).toBe('codex');
-        expect(snapshot.generatedAt).toBe('2026-03-17T13:10:00.000Z');
+        expect(snapshot.generatedAt).toBe('2026-03-17T13:20:00.000Z');
     });
 });
