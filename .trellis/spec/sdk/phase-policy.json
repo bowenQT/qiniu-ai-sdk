@@ -58,6 +58,36 @@
         "Emergency overrides must be committed to this file before any new Phase 2 package is opened."
       ],
       "closeoutReportPath": "artifacts/phase2-closeout-report.md"
+    },
+    "phase3": {
+      "status": "active",
+      "allowNewPackages": true,
+      "entryCriteria": [
+        "Phase 2 is closed on main.",
+        "ResponseAPI and NodeMCPHost both have tracked held decisions.",
+        "Promotion-sensitive modules are ready to consume nightly evidence."
+      ],
+      "exitCriteria": [
+        "A dedicated nightly promotion evidence workflow exists and is stable.",
+        "ResponseAPI promotion narrows to an explicit beta-ready core subset or remains explicitly held.",
+        "NodeMCPHost held-basis is reduced or re-affirmed with new tracked evidence.",
+        "Repo-facing docs and doctor output distinguish promoted subsets from deferred/provider-only surfaces."
+      ],
+      "freezeTriggers": [
+        "Nightly promotion evidence drifts from tracked capability truth.",
+        "Promotion-sensitive packages begin expanding SDK surface beyond the approved subset.",
+        "Phase owner sets status to closeout-candidate, frozen, or closed in this file."
+      ],
+      "promotionTriggers": [
+        "A tracked promotion decision exists for the affected module.",
+        "The decision basis cites nightly or equivalent credentialed live evidence.",
+        "Verification and scorecard artifacts render the promoted subset or held basis consistently."
+      ],
+      "deferredToNextPhaseRules": [
+        "Any new cloud helper or MCP runtime surface beyond the approved subset moves to a later Phase 3 package.",
+        "GA promotion remains deferred until nightly evidence and tracked decisions both support it.",
+        "Cross-lane work touching more than two owner lanes must still be split into prerequisite packages."
+      ]
     }
   }
 }

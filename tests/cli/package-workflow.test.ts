@@ -36,6 +36,37 @@ function writePhasePolicy(
     }, null, 2) + '\n', 'utf8');
 }
 
+function writeMultiPhasePolicy(tmpDir: string): void {
+    const policyPath = path.join(tmpDir, '.trellis', 'spec', 'sdk', 'phase-policy.json');
+    fs.mkdirSync(path.dirname(policyPath), { recursive: true });
+    fs.writeFileSync(policyPath, JSON.stringify({
+        version: 1,
+        phases: {
+            phase2: {
+                status: 'closed',
+                allowNewPackages: false,
+                entryCriteria: ['Phase 2 is closed.'],
+                exitCriteria: ['Phase 2 ended.'],
+                closeoutCriteria: ['Closeout report exists.'],
+                freezeTriggers: ['Release freeze.'],
+                promotionTriggers: ['Promotion artifact recorded.'],
+                deferredToNextPhaseRules: ['Large cross-lane work gets deferred.'],
+                overrideRules: ['Tracked reopen package required.'],
+                closeoutReportPath: 'artifacts/phase2-closeout-report.md',
+            },
+            phase3: {
+                status: 'active',
+                allowNewPackages: true,
+                entryCriteria: ['Phase 3 is active.'],
+                exitCriteria: ['Nightly promotion evidence exists.'],
+                freezeTriggers: ['Phase 3 freeze.'],
+                promotionTriggers: ['Nightly evidence recorded.'],
+                deferredToNextPhaseRules: ['Large cross-lane work gets deferred.'],
+            },
+        },
+    }, null, 2) + '\n', 'utf8');
+}
+
 describe('CLI package workflow', () => {
     let tmpDir: string;
     let originalExitCode: number | undefined;
@@ -112,6 +143,33 @@ describe('CLI package workflow', () => {
         expect(payload.packageId).toBe('phase2/runtime-hardening/audit-p1-p2-fixes');
         expect(payload.expectedBranch).toBe('codex/phase2/runtime-hardening/audit-p1-p2-fixes');
         expect(payload.ownerLane).toBe('runtime-hardening');
+    });
+
+    it('defaults package init to the latest open phase in tracked policy', async () => {
+        writeMultiPhasePolicy(tmpDir);
+
+        await runCLI(
+            [
+                'package',
+                'init',
+                '--lane',
+                'dx-validation',
+                '--topic',
+                'nightly promotion matrix',
+                '--goal',
+                'Create nightly promotion evidence workflow',
+                '--success',
+                'Nightly evidence source is tracked',
+            ],
+            { cwd: tmpDir },
+        );
+
+        const outputPath = path.join(tmpDir, '.trellis', 'packages', 'phase3', 'dx-validation-nightly-promotion-matrix.json');
+        const payload = JSON.parse(fs.readFileSync(outputPath, 'utf8')) as ChangePackage;
+
+        expect(payload.phase).toBe('phase3');
+        expect(payload.packageId).toBe('phase3/dx-validation/nightly-promotion-matrix');
+        expect(payload.expectedBranch).toBe('codex/phase3/dx-validation/nightly-promotion-matrix');
     });
 
     it('records promotion-sensitive package categories in tracked briefs', async () => {

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "packageId": "phase3/cloud-surface/responseapi-beta-promotion",
+  "phase": "phase3",
+  "ownerLane": "cloud-surface",
+  "category": "promotion-sensitive",
+  "topic": "responseapi-beta-promotion",
+  "goal": "Promote only the minimum ResponseAPI core subset that has clear live evidence and keep all wider helper surface deferred.",
+  "successCriteria": [
+    "ResponseAPI core subset is explicitly narrowed to create/followUp/createTextResult/followUpTextResult.",
+    "Nightly response-api evidence becomes the only promotion basis for this package.",
+    "Doctor, scorecard, and verification report describe ResponseAPI beta status as a subset promotion, not a whole-surface promotion."
+  ],
+  "touchedSurfaces": [
+    "src/modules/response",
+    "src/cli",
+    ".trellis/decisions",
+    ".trellis/spec/sdk",
+    "docs"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "No new ResponseAPI helpers.",
+    "No promotion of JSON, messages, reasoning, chat-completion, or stream helper families.",
+    "No provider-surface expansion."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/cloud-surface/responseapi-beta-promotion",
+  "branch": "codex/phase3/cloud-surface/responseapi-beta-promotion",
+  "worktreePath": ".worktrees/phase3-responseapi-beta",
+  "createdAt": "2026-03-17T00:00:00.000Z"
+}

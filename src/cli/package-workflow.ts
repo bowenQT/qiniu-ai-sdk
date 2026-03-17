@@ -228,6 +228,23 @@ export function assertPhaseAllowsNewPackages(policy: PhasePolicy, phase: string)
     return entry;
 }
 
+function phaseSortValue(phase: string): number {
+    const match = /^phase(\d+)$/.exec(phase.trim().toLowerCase());
+    return match ? Number(match[1]) : Number.NEGATIVE_INFINITY;
+}
+
+export function resolveDefaultPhase(policy: PhasePolicy): string {
+    const openPhases = Object.entries(policy.phases)
+        .filter(([, entry]) => entry.allowNewPackages && entry.status !== 'frozen' && entry.status !== 'closed')
+        .sort((left, right) => phaseSortValue(left[0]) - phaseSortValue(right[0]));
+
+    if (openPhases.length > 0) {
+        return openPhases[openPhases.length - 1][0];
+    }
+
+    return DEFAULT_PHASE;
+}
+
 export function summarizePhasePolicyEntry(phase: string, entry: PhasePolicyEntry): string[] {
     return [
         `Phase: ${phase}`,

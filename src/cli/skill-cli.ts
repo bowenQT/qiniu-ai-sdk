@@ -48,6 +48,7 @@ import {
     parsePackageLane,
     readJsonFile,
     readPhasePolicy,
+    resolveDefaultPhase,
     renderPromotionDecisionMarkdown,
     renderReviewPacketMarkdown,
     resolveCurrentBranch,
@@ -549,7 +550,7 @@ async function runPackageCommand(args: string[], options: RunCLIOptions): Promis
             const laneValue = getArgValue(args, '--lane');
             const topic = getArgValue(args, '--topic');
             const goal = getArgValue(args, '--goal');
-            const phase = getArgValue(args, '--phase') ?? DEFAULT_PHASE;
+            const requestedPhase = getArgValue(args, '--phase');
             const categoryValue = getArgValue(args, '--category');
             const mergeTarget = getArgValue(args, '--merge-target');
             const outputPath = getArgValue(args, '--out');
@@ -568,6 +569,7 @@ async function runPackageCommand(args: string[], options: RunCLIOptions): Promis
             const lane = parsePackageLane(laneValue);
             const category = categoryValue ? parseChangePackageCategory(categoryValue) : undefined;
             const policy = readPhasePolicy(policyPath);
+            const phase = requestedPhase ?? resolveDefaultPhase(policy);
             assertPhaseAllowsNewPackages(policy, phase);
 
             const changePackage = createChangePackage({
