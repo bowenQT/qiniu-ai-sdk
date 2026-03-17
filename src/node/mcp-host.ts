@@ -55,6 +55,7 @@ export interface NodeMCPHostInteropProbeHostResult {
     resourceContents?: NodeMCPHostResourceContent[];
     promptMessages?: NodeMCPHostPromptMessage[];
     toolOutput?: string;
+    listChangedObserved?: boolean;
 }
 
 export interface NodeMCPHostInteropProbeResult {
@@ -63,6 +64,13 @@ export interface NodeMCPHostInteropProbeResult {
     host?: NodeMCPHostInteropProbeHostResult;
     deferredRisks: string[];
 }
+
+const MCP_INTEROP_LIST_CHANGED_RISK =
+    'Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.';
+const MCP_INTEROP_REDUCED_DEFERRED_RISKS = [
+    'OAuth discovery covers metadata endpoints only; token acquisition flows remain out of scope for this package.',
+    'HTTP interop evidence is collected per server; multi-server routing remains a higher-level integration concern.',
+] as const;
 
 export interface NodeMCPHostToolInfo {
     serverName: string;
@@ -109,7 +117,7 @@ export interface NodeMCPHostPromotionReadinessContract {
 }
 
 export const DEFAULT_MCP_INTEROP_DEFERRED_RISKS = [
-    'Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.',
+    MCP_INTEROP_LIST_CHANGED_RISK,
     'OAuth discovery covers metadata endpoints only; token acquisition flows remain out of scope for this package.',
     'HTTP interop evidence is collected per server; multi-server routing remains a higher-level integration concern.',
 ] as const;
@@ -133,8 +141,8 @@ export const NODE_MCPHOST_PROMOTION_READINESS_CONTRACT: NodeMCPHostPromotionRead
     requiredHostEvidence: [
         'mcp-host-interop',
     ],
-    deferredRisks: DEFAULT_MCP_INTEROP_DEFERRED_RISKS,
-    trackedDecisionPath: '.trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json',
+    deferredRisks: MCP_INTEROP_REDUCED_DEFERRED_RISKS,
+    trackedDecisionPath: '.trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json',
     decisionStatus: 'held',
 });
 
@@ -436,8 +444,20 @@ export class NodeMCPHost implements MCPHostProvider {
             || options.executeTool;
 
         if (needsHostEvidence) {
+            let listChangedObserved = false;
             result.host = await this.withConnectedServerProbeHost(server, async (host) => {
                 const hostResult: NodeMCPHostInteropProbeHostResult = {};
+                const hostClient = host.clients.get(server.name);
+
+                if (hostClient && hostClient.setNotificationHandler) {
+                    hostClient.setNotificationHandler(
+                        { method: 'notifications/tools/list_changed' } as any,
+                        async () => {
+                            listChangedObserved = true;
+                            await host.refreshTools();
+                        },
+                    );
+                }
 
                 if (options.listTools) {
                     hostResult.tools = await host.listServerTools(serverName);
@@ -466,8 +486,16 @@ export class NodeMCPHost implements MCPHostProvider {
                     );
                 }
 
+                hostResult.listChangedObserved = listChangedObserved;
+
                 return hostResult;
             });
+
+            if (result.host?.listChangedObserved) {
+                result.deferredRisks = DEFAULT_MCP_INTEROP_DEFERRED_RISKS.filter(
+                    (risk) => risk !== MCP_INTEROP_LIST_CHANGED_RISK,
+                );
+            }
         }
 
         result.transport = (await this.probeServer(serverName, options)).result;
