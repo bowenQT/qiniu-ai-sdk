@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "packageId": "phase3/node-integrations/mcphost-held-risk-reduction",
+  "generatedAt": "2026-03-17T00:00:00.000Z",
+  "decisions": [
+    {
+      "module": "NodeMCPHost",
+      "oldMaturity": "beta",
+      "newMaturity": "beta",
+      "evidenceBasis": [
+        "src/node/mcp-host.ts#NODE_MCPHOST_PROMOTION_READINESS_CONTRACT",
+        "src/node/mcp-host.ts#probeServerInterop",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.pr.lanePolicies.node-integrations",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.node-integrations",
+        "tests/node/mcp-host.test.ts"
+      ],
+      "decisionSource": "codex",
+      "decisionAt": "2026-03-17T00:00:00.000Z"
+    }
+  ]
+}

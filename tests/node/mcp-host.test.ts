@@ -8,22 +8,25 @@ import { SDK_VERSION } from '../../src/lib/version';
 // Mock @modelcontextprotocol/sdk before import
 const clientCtorCalls: Array<{ info: { name: string; version: string } }> = [];
 const hostProbeMock = vi.fn();
+const defaultListToolsResult = {
+    tools: [
+        {
+            name: 'search',
+            description: 'Search the web',
+            inputSchema: {
+                type: 'object',
+                properties: { query: { type: 'string' } },
+                required: ['query'],
+            },
+        },
+    ],
+};
+const listChangedNotificationHandlers: Array<(payload?: unknown) => void | Promise<void>> = [];
+
 const mockClientInstance = {
     connect: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
-    listTools: vi.fn().mockResolvedValue({
-        tools: [
-            {
-                name: 'search',
-                description: 'Search the web',
-                inputSchema: {
-                    type: 'object',
-                    properties: { query: { type: 'string' } },
-                    required: ['query'],
-                },
-            },
-        ],
-    }),
+    listTools: vi.fn().mockResolvedValue(defaultListToolsResult),
     callTool: vi.fn().mockResolvedValue({
         content: [{ type: 'text', text: 'search result' }],
     }),
@@ -39,7 +42,9 @@ const mockClientInstance = {
     getPrompt: vi.fn().mockResolvedValue({
         messages: [{ role: 'user', content: { type: 'text', text: 'Please summarize: hello' } }],
     }),
-    setNotificationHandler: vi.fn(),
+    setNotificationHandler: vi.fn((_spec: { method: string }, handler: (payload?: unknown) => Promise<void> | void) => {
+        listChangedNotificationHandlers.push(handler);
+    }),
 };
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => {
@@ -73,6 +78,8 @@ describe('NodeMCPHost', () => {
         vi.clearAllMocks();
         clientCtorCalls.length = 0;
         hostProbeMock.mockReset();
+        mockClientInstance.listTools.mockResolvedValue(defaultListToolsResult);
+        listChangedNotificationHandlers.length = 0;
     });
 
     it('can be instantiated with server configs', async () => {
@@ -556,6 +563,53 @@ describe('NodeMCPHost', () => {
         });
     });
 
+    it('probeServerInterop drops list_changed notification deferred risk when the event is observed', async () => {
+        const { NodeMCPHost, DEFAULT_MCP_INTEROP_DEFERRED_RISKS } = await import('../../src/node/mcp-host');
+        hostProbeMock.mockResolvedValue({
+            connection: {
+                serverName: 'http-b',
+                url: 'https://b.example.com/mcp',
+                protocolVersion: '2025-11-25',
+            },
+            tools: [{ name: 'ping', description: 'Ping', inputSchema: { type: 'object', properties: {} } }],
+            resources: [{ uri: 'file:///readme.md', name: 'readme' }],
+            prompts: [{ name: 'summarize', description: 'Summarize text' }],
+        });
+
+        const host = new NodeMCPHost({
+            servers: [
+                { name: 'http-b', transport: 'http', url: 'https://b.example.com/mcp' },
+            ],
+        });
+
+        const probe = host.probeServerInterop('http-b', {
+            listTools: true,
+        });
+
+        for (let i = 0; i < 20 && listChangedNotificationHandlers.length < 2; i += 1) {
+            await Promise.resolve();
+        }
+        expect(listChangedNotificationHandlers).toHaveLength(2);
+
+        const listChangedHandler = listChangedNotificationHandlers.at(-1);
+        await listChangedHandler?.();
+
+        const result = await probe;
+
+        expect(result.host?.tools?.[0]).toEqual({
+            serverName: 'http-b',
+            name: 'search',
+            description: 'Search the web',
+            inputSchema: {
+                type: 'object',
+                properties: { query: { type: 'string' } },
+                required: ['query'],
+            },
+        });
+        expect(result.host?.listChangedObserved).toBe(true);
+        expect(result.deferredRisks).toEqual(DEFAULT_MCP_INTEROP_DEFERRED_RISKS.slice(1));
+    });
+
     it('exposes a held promotion-readiness contract for NodeMCPHost', async () => {
         const {
             DEFAULT_MCP_INTEROP_DEFERRED_RISKS,
@@ -577,10 +631,10 @@ describe('NodeMCPHost', () => {
             'mcp-host-interop',
         ]);
         expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.deferredRisks).toEqual(
-            DEFAULT_MCP_INTEROP_DEFERRED_RISKS,
+            DEFAULT_MCP_INTEROP_DEFERRED_RISKS.slice(1),
         );
         expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.trackedDecisionPath).toBe(
-            '.trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json',
+            '.trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json',
         );
         expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.decisionStatus).toBe('held');
     });
