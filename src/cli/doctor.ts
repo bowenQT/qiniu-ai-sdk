@@ -315,7 +315,12 @@ function extractClientPropertyUsage(source: string, clientVariables: string[]): 
 function formatModuleMaturity(entry: ModuleMaturityInfo): string {
     const validatedAt = entry.validatedAt ? `, validated ${entry.validatedAt}` : '';
     const notes = entry.notes ? `, ${entry.notes}` : '';
-    return `${entry.maturity}, ${entry.validationLevel}${validatedAt}${notes}`;
+    const trackedDecision = entry.trackedDecision
+        ? entry.trackedDecision.oldMaturity === entry.trackedDecision.newMaturity
+            ? `, tracked decision ${entry.trackedDecision.newMaturity} (held)`
+            : `, tracked decision ${entry.trackedDecision.oldMaturity} -> ${entry.trackedDecision.newMaturity}`
+        : '';
+    return `${entry.maturity}, ${entry.validationLevel}${validatedAt}${trackedDecision}${notes}`;
 }
 
 function summarizeStatus(checks: DoctorCheck[]): DoctorStatus {
@@ -440,10 +445,15 @@ export function doctorProject(options: DoctorCommandOptions): DoctorCommandResul
 
     for (const [moduleName, filesWithUsage] of experimentalUsage) {
         const maturity = getModuleMaturity(moduleName);
+        const trackedDecision = maturity?.trackedDecision
+            ? maturity.trackedDecision.oldMaturity === maturity.trackedDecision.newMaturity
+                ? `, tracked decision ${maturity.trackedDecision.newMaturity} (held)`
+                : `, tracked decision ${maturity.trackedDecision.oldMaturity} -> ${maturity.trackedDecision.newMaturity}`
+            : '';
         addCheck(
             checks,
             maturity?.maturity === 'experimental' ? 'warn' : 'ok',
-            `${moduleName} usage detected (${maturity?.maturity ?? 'unknown'}):\n- ${filesWithUsage.join('\n- ')}${
+            `${moduleName} usage detected (${maturity?.maturity ?? 'unknown'}${trackedDecision}):\n- ${filesWithUsage.join('\n- ')}${
                 maturity?.docsUrl ? `\nDocs: ${maturity.docsUrl}` : ''
             }`,
         );

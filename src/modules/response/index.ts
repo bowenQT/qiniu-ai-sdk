@@ -232,6 +232,14 @@ export interface ResponseHelperContract {
     defaultBehaviors: string[];
 }
 
+export interface ResponsePromotionReadinessContract {
+    officialSurface: string[];
+    deferredHelpers: string[];
+    requiredLiveEvidence: string[];
+    trackedDecisionPath: string;
+    decisionStatus: 'held';
+}
+
 export const RESPONSE_API_HELPER_CONTRACT: ResponseHelperContract = Object.freeze({
     helperSurface: [
         'create',
@@ -286,6 +294,31 @@ export const RESPONSE_API_HELPER_CONTRACT: ResponseHelperContract = Object.freez
         'ChatMessage[] input accepts only role/content fields and rejects tool/function-role payloads.',
         'createMessageStream returns the latest assistant output message at stream completion.',
     ],
+});
+
+export const RESPONSE_API_PROMOTION_READINESS_CONTRACT: ResponsePromotionReadinessContract = Object.freeze({
+    officialSurface: [
+        'create',
+        'followUp',
+        'createTextResult/followUpTextResult',
+        'createJsonResult/followUpJsonResult',
+        'createMessagesResult/followUpMessagesResult',
+        'createChatCompletionResult/followUpChatCompletionResult',
+        'createReasoningResult/followUpReasoningResult',
+    ],
+    deferredHelpers: [
+        'createStream/followUpStream',
+        'createTextStream/followUpTextStream',
+        'createJsonStream/followUpJsonStream',
+        'createChatCompletionStream/followUpChatCompletionStream',
+        'provider-only projection helpers outside the official result-oriented surface',
+    ],
+    requiredLiveEvidence: [
+        'pr: chat,response-api',
+        'nightly: chat,response-api,response-api-stream',
+    ],
+    trackedDecisionPath: '.trellis/decisions/phase2/phase2-cloud-surface-responseapi-promotion-readiness.json',
+    decisionStatus: 'held',
 });
 
 // ============================================================================
