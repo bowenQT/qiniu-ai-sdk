@@ -5,6 +5,8 @@ export interface VerificationReportInput {
     capabilityScorecard: string;
     capabilityEvidenceSummary?: string;
     capabilityEvidenceAvailable?: boolean;
+    promotionGateSummary?: string;
+    promotionGateSummaryAvailable?: boolean;
     liveVerifySummary?: string;
     liveVerifyAvailable: boolean;
     reviewPacket?: string;
@@ -29,6 +31,22 @@ export interface CloseoutPromotionGateSummaryEntry {
     blockingFailuresCount?: number;
     heldEvidenceCount?: number;
     unavailableEvidenceCount?: number;
+}
+
+export interface CapabilityEvidenceSummaryInput {
+    generatedAt?: string;
+    decisionFiles?: string[];
+    promotionDecisions?: PromotionDecisionSummaryEntry[];
+    latestLiveVerifyGate?: {
+        path?: string;
+        status?: string;
+        packageId?: string;
+        policyProfile?: string;
+        promotionGateStatus?: CloseoutPromotionGateSummaryEntry['status'];
+        blockingFailuresCount?: number;
+        heldEvidenceCount?: number;
+        unavailableEvidenceCount?: number;
+    };
 }
 
 function trimEmbeddedHeading(content: string): string {
@@ -112,11 +130,62 @@ export function renderPromotionGateSummary(entry?: CloseoutPromotionGateSummaryE
     ].join('\n');
 }
 
+export function renderCapabilityEvidenceSummary(snapshot: CapabilityEvidenceSummaryInput): string {
+    const decisionFiles = Array.isArray(snapshot.decisionFiles) ? snapshot.decisionFiles : [];
+    const promotionDecisions = Array.isArray(snapshot.promotionDecisions) ? snapshot.promotionDecisions : [];
+    const latestGate = snapshot.latestLiveVerifyGate;
+    return [
+        '# Capability Evidence Snapshot',
+        '',
+        `Generated at: ${snapshot.generatedAt ?? 'unknown'}`,
+        `Tracked decision files: ${decisionFiles.length}`,
+        ...(decisionFiles.length > 0
+            ? [
+                '',
+                'Decision files:',
+                ...decisionFiles.map((filePath) => `- ${filePath}`),
+            ]
+            : []),
+        '',
+        `Tracked promotion decisions: ${promotionDecisions.length}`,
+        ...(promotionDecisions.length > 0
+            ? [
+                '',
+                'Decision records:',
+                ...promotionDecisions.map((decision) => {
+                    const maturity =
+                        decision.oldMaturity === decision.newMaturity
+                            ? `${decision.newMaturity} (held)`
+                            : `${decision.oldMaturity} -> ${decision.newMaturity}`;
+                    return `- ${decision.module}: ${maturity} [${decision.trackedPath ?? 'untracked'}]`;
+                }),
+            ]
+            : []),
+        ...(latestGate
+            ? [
+                '',
+                'Latest gate artifact:',
+                `- Path: ${latestGate.path ?? 'unknown'}`,
+                `- Status: ${latestGate.status ?? 'unknown'}`,
+                `- Promotion gate: ${latestGate.promotionGateStatus ?? 'unknown'}`,
+                `- Blocking failures: ${latestGate.blockingFailuresCount ?? 0}`,
+                `- Held evidence: ${latestGate.heldEvidenceCount ?? 0}`,
+                `- Unavailable evidence: ${latestGate.unavailableEvidenceCount ?? 0}`,
+                ...(latestGate.packageId ? [`- Package: ${latestGate.packageId}`] : []),
+            ]
+            : []),
+        '',
+    ].join('\n');
+}
+
 export function renderVerificationReport(input: VerificationReportInput): string {
     const capabilityScorecard = trimEmbeddedHeading(input.capabilityScorecard);
     const phasePolicySummary = input.phasePolicySummary ? trimEmbeddedHeading(input.phasePolicySummary) : undefined;
     const capabilityEvidenceSummary = input.capabilityEvidenceSummary
         ? trimEmbeddedHeading(input.capabilityEvidenceSummary)
+        : undefined;
+    const promotionGateSummary = input.promotionGateSummary
+        ? trimEmbeddedHeading(input.promotionGateSummary)
         : undefined;
     const liveVerifySummary = input.liveVerifySummary ? trimEmbeddedHeading(input.liveVerifySummary) : undefined;
     const reviewPacket = input.reviewPacket ? trimEmbeddedHeading(input.reviewPacket) : undefined;
@@ -146,6 +215,12 @@ export function renderVerificationReport(input: VerificationReportInput): string
         input.capabilityEvidenceAvailable && capabilityEvidenceSummary
             ? capabilityEvidenceSummary
             : 'Capability evidence snapshot was not produced for this run.',
+        '',
+        '## Promotion Gate Summary',
+        '',
+        input.promotionGateSummaryAvailable && promotionGateSummary
+            ? promotionGateSummary
+            : 'Promotion gate summary was not produced for this run.',
         '',
         '## Live Verification',
         '',

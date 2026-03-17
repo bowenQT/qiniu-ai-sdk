@@ -43,7 +43,11 @@ if (!existsSync(distEntry)) {
   throw new Error(`Missing build artifact: ${distEntry}. Run "npm run build" before rendering the verification report.`);
 }
 
-const { renderVerificationReport } = await import(pathToFileURL(distEntry).href);
+const {
+  renderCapabilityEvidenceSummary,
+  renderPromotionGateSummary,
+  renderVerificationReport,
+} = await import(pathToFileURL(distEntry).href);
 const capabilityScorecard = readFileSync(capabilityScorecardPath, 'utf8');
 const phasePolicyAvailable = existsSync(phasePolicyPath);
 const phasePolicySummary = phasePolicyAvailable
@@ -69,53 +73,27 @@ const capabilityEvidenceAvailable = existsSync(capabilityEvidencePath);
 const capabilityEvidenceSummary = capabilityEvidenceAvailable
   ? (() => {
       const snapshot = JSON.parse(readFileSync(capabilityEvidencePath, 'utf8'));
-      const decisionFiles = Array.isArray(snapshot.decisionFiles) ? snapshot.decisionFiles : [];
-      const promotionDecisions = Array.isArray(snapshot.promotionDecisions) ? snapshot.promotionDecisions : [];
+      return renderCapabilityEvidenceSummary(snapshot);
+    })()
+  : undefined;
+const promotionGateSummary = capabilityEvidenceAvailable
+  ? (() => {
+      const snapshot = JSON.parse(readFileSync(capabilityEvidencePath, 'utf8'));
       const latestGate = snapshot.latestLiveVerifyGate && typeof snapshot.latestLiveVerifyGate === 'object'
         ? snapshot.latestLiveVerifyGate
         : undefined;
-      return [
-        '# Capability Evidence Snapshot',
-        '',
-        `Generated at: ${snapshot.generatedAt ?? 'unknown'}`,
-        `Tracked decision files: ${decisionFiles.length}`,
-        ...(decisionFiles.length > 0
-          ? [
-              '',
-              'Decision files:',
-              ...decisionFiles.map((filePath) => `- ${filePath}`),
-            ]
-          : []),
-        '',
-        `Tracked promotion decisions: ${promotionDecisions.length}`,
-        ...(promotionDecisions.length > 0
-          ? [
-              '',
-              'Decision records:',
-              ...promotionDecisions.map((decision) => {
-                const maturity =
-                  decision.oldMaturity === decision.newMaturity
-                    ? `${decision.newMaturity} (held)`
-                    : `${decision.oldMaturity} -> ${decision.newMaturity}`;
-                return `- ${decision.module}: ${maturity} [${decision.trackedPath ?? 'untracked'}]`;
-              }),
-            ]
-          : []),
-        ...(latestGate
-          ? [
-              '',
-              'Latest gate artifact:',
-              `- Path: ${latestGate.path ?? 'unknown'}`,
-              `- Status: ${latestGate.status ?? 'unknown'}`,
-              `- Promotion gate: ${latestGate.promotionGateStatus ?? 'unknown'}`,
-              `- Blocking failures: ${latestGate.blockingFailuresCount ?? 0}`,
-              `- Held evidence: ${latestGate.heldEvidenceCount ?? 0}`,
-              `- Unavailable evidence: ${latestGate.unavailableEvidenceCount ?? 0}`,
-              ...(latestGate.packageId ? [`- Package: ${latestGate.packageId}`] : []),
-            ]
-          : []),
-        '',
-      ].join('\n');
+      return renderPromotionGateSummary(
+        latestGate?.promotionGateStatus
+          ? {
+              status: latestGate.promotionGateStatus,
+              packageId: latestGate.packageId,
+              policyProfile: latestGate.policyProfile,
+              blockingFailuresCount: latestGate.blockingFailuresCount,
+              heldEvidenceCount: latestGate.heldEvidenceCount,
+              unavailableEvidenceCount: latestGate.unavailableEvidenceCount,
+            }
+          : undefined,
+      );
     })()
   : undefined;
 const liveVerifyAvailable = existsSync(liveVerifySummaryPath);
@@ -134,6 +112,8 @@ const rendered = renderVerificationReport({
   capabilityScorecard,
   capabilityEvidenceSummary,
   capabilityEvidenceAvailable,
+  promotionGateSummary,
+  promotionGateSummaryAvailable: capabilityEvidenceAvailable,
   liveVerifySummary,
   liveVerifyAvailable,
   reviewPacket,

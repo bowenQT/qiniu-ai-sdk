@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    renderCapabilityEvidenceSummary,
     renderPromotionDecisionSummary,
     renderPromotionGateSummary,
     renderReviewPacketFallback,
@@ -15,6 +16,8 @@ describe('verification report renderer', () => {
             capabilityScorecard: '# Capability Scorecard\n\nTracked capability truth.\n',
             capabilityEvidenceAvailable: true,
             capabilityEvidenceSummary: '# Capability Evidence Snapshot\n\nTracked promotion decisions: 1.\n\nLatest gate artifact:\n- Path: artifacts/live-verify-gate.json\n- Status: ok\n- Promotion gate: unavailable\n- Blocking failures: 0\n- Held evidence: 0\n- Unavailable evidence: 1\n',
+            promotionGateSummaryAvailable: true,
+            promotionGateSummary: '# Promotion Gate Summary\n\n- Status: unavailable\n- Unavailable evidence: 1\n',
             liveVerifyAvailable: true,
             liveVerifySummary: '# Live Verification Gate\n\nLatest live evidence.\n',
             reviewPacketAvailable: true,
@@ -32,6 +35,8 @@ describe('verification report renderer', () => {
         expect(output).toContain('## Capability Evidence Snapshot');
         expect(output).toContain('Tracked promotion decisions: 1.');
         expect(output).toContain('Latest gate artifact:');
+        expect(output).toContain('## Promotion Gate Summary');
+        expect(output).toContain('- Status: unavailable');
         expect(output).toContain('## Live Verification');
         expect(output).toContain('Latest live evidence.');
         expect(output).toContain('## Review Packet');
@@ -50,6 +55,7 @@ describe('verification report renderer', () => {
             capabilityScorecard: '# Capability Scorecard\n\nTracked capability truth.\n',
             phasePolicyAvailable: false,
             capabilityEvidenceAvailable: false,
+            promotionGateSummaryAvailable: false,
             liveVerifyAvailable: false,
             reviewPacketAvailable: false,
             promotionDecisionsAvailable: false,
@@ -57,9 +63,36 @@ describe('verification report renderer', () => {
 
         expect(output).toContain('Phase policy summary was not produced for this run.');
         expect(output).toContain('Capability evidence snapshot was not produced for this run.');
+        expect(output).toContain('Promotion gate summary was not produced for this run.');
         expect(output).toContain('Live verification artifact was not produced for this run.');
         expect(output).toContain('Review packet artifact was not produced for this run.');
         expect(output).toContain('Promotion decision artifact was not produced for this run.');
+    });
+
+    it('renders capability evidence summaries from a tracked snapshot', () => {
+        const output = renderCapabilityEvidenceSummary({
+            generatedAt: '2026-03-17T00:00:00.000Z',
+            decisionFiles: ['.trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json'],
+            promotionDecisions: [
+                {
+                    module: 'NodeMCPHost',
+                    oldMaturity: 'beta',
+                    newMaturity: 'beta',
+                    trackedPath: '.trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json',
+                },
+            ],
+            latestLiveVerifyGate: {
+                path: 'artifacts/live-verify-gate.json',
+                status: 'ok',
+                promotionGateStatus: 'held',
+                heldEvidenceCount: 1,
+            },
+        });
+
+        expect(output).toContain('# Capability Evidence Snapshot');
+        expect(output).toContain('Tracked decision files: 1');
+        expect(output).toContain('NodeMCPHost: beta (held)');
+        expect(output).toContain('- Promotion gate: held');
     });
 
     it('renders tracked review handoffs as a review-packet fallback artifact', () => {
