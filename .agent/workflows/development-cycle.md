@@ -45,7 +45,7 @@ Use the using-git-worktrees skill to create an isolated development branch.
 
 ### Step 3b: Product-Scale Lane Setup (for repo-wide changes)
 ```
-If the change spans multiple subsystems, switch to the multi-agent-product-evolution workflow:
+If the change spans multiple subsystems, use the package-first-sdk-delivery skill and switch to the multi-agent-product-evolution workflow:
 - create codex/vnext-integration
 - spawn lane worktrees under .worktrees/
 - keep the root workspace focused on orchestration only
@@ -121,8 +121,8 @@ Use the gap-analysis skill to compare implementation against RFC/plan:
 ```
 Use the finishing-a-development-branch skill:
 - Verify all tests pass
-- Choose: merge, PR, or cleanup
-- Clean up worktree if needed
+- For generic feature branches: choose merge, PR, or cleanup
+- For package-first lane work: close through evidence, review handoff, and integration branch flow
 ```
 
 ---
@@ -156,12 +156,12 @@ Use the dispatching-parallel-agents skill:
 | Design | frontend-design → brainstorming |
 | RFC Review | rfc-design-review |
 | Setup | using-git-worktrees |
-| Product-scale setup | multi-agent-product-evolution |
+| Product-scale setup | package-first-sdk-delivery + multi-agent-product-evolution |
 | Planning | writing-plans |
 | Implementation | executing-plans / subagent-driven-development + test-driven-development |
 | Review | requesting-code-review |
 | Verification | verification-before-completion |
 | Gap Analysis | gap-analysis |
-| Completion | finishing-a-development-branch |
+| Completion | finishing-a-development-branch or package-first-sdk-delivery |
 | Debugging | systematic-debugging |
 | Multi-task | dispatching-parallel-agents |
