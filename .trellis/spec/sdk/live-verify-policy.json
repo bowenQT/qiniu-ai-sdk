@@ -39,7 +39,7 @@
             "NodeMCPHost"
           ],
           "trackedDecisionPaths": [
-            ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
+            ".trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json"
           ],
           "deferredRisks": [
             "Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.",
@@ -101,7 +101,7 @@
             "NodeMCPHost"
           ],
           "trackedDecisionPaths": [
-            ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
+            ".trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json"
           ],
           "deferredRisks": [
             "Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.",

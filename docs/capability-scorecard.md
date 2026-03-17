@@ -9,8 +9,8 @@ This document is generated from the SDK capability registry and is intended to m
 - Validated models: 10
 - Validated chat/image/video split: chat=5, image=2, video=3
 - Module maturity split: ga=12, beta=14, experimental=5
-- Evidence snapshot generated at: 2026-03-16T13:30:00.000Z
-- Tracked promotion decisions: 1
+- Evidence snapshot generated at: 2026-03-17T13:10:00.000Z
+- Tracked promotion decisions: 2
 
 ## Validated Models
 
@@ -67,9 +67,9 @@ This document is generated from the SDK capability registry and is intended to m
 
 | Field | Value |
 | --- | --- |
-| Generated At | 2026-03-16T13:30:00.000Z |
-| Tracked Decision Files | 1 |
-| Tracked Promotion Decisions | 1 |
+| Generated At | 2026-03-17T13:10:00.000Z |
+| Tracked Decision Files | 2 |
+| Tracked Promotion Decisions | 2 |
 | Latest Gate Artifact |  |
 | Latest Gate Status |  |
 | Latest Promotion Gate |  |

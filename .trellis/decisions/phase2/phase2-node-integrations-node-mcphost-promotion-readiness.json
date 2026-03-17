@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "packageId": "phase2/node-integrations/node-mcphost-promotion-readiness",
+  "generatedAt": "2026-03-16T17:23:07.498Z",
+  "decisions": [
+    {
+      "module": "NodeMCPHost",
+      "oldMaturity": "beta",
+      "newMaturity": "beta",
+      "evidenceBasis": [
+        "src/node/mcp-host.ts#NODE_MCPHOST_PROMOTION_READINESS_CONTRACT",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.pr.lanePolicies.node-integrations",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.node-integrations",
+        "tests/node/mcp-host.test.ts"
+      ],
+      "decisionSource": "codex",
+      "decisionAt": "2026-03-17T13:10:00.000Z"
+    }
+  ]
+}
