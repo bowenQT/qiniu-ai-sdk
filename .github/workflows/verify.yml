@@ -23,6 +23,7 @@ jobs:
       QINIU_REVIEW_PACKET_OUTPUT: artifacts/review-packet.md
       QINIU_PROMOTION_DECISIONS_OUTPUT: artifacts/promotion-decisions.md
       QINIU_VERIFICATION_REPORT_OUTPUT: artifacts/verification-report.md
+      QINIU_PHASE2_CLOSEOUT_REPORT_OUTPUT: artifacts/phase2-closeout-report.md
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,6 +56,10 @@ jobs:
         if: always()
         run: npm run generate:verification-report
 
+      - name: Render Phase 2 closeout report
+        if: always()
+        run: npm run generate:phase2-closeout-report
+
       - name: Upload live verification artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -66,4 +71,5 @@ jobs:
             artifacts/review-packet.md
             artifacts/promotion-decisions.md
             artifacts/verification-report.md
+            artifacts/phase2-closeout-report.md
           if-no-files-found: ignore

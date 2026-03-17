@@ -10,7 +10,11 @@ import type {
     ReviewPacket,
 } from '../../src/cli/package-workflow';
 
-function writePhasePolicy(tmpDir: string, allowNewPackages: boolean, status: 'active' | 'frozen' | 'closed' = 'active'): void {
+function writePhasePolicy(
+    tmpDir: string,
+    allowNewPackages: boolean,
+    status: 'active' | 'closeout-candidate' | 'frozen' | 'closed' = 'active',
+): void {
     const policyPath = path.join(tmpDir, '.trellis', 'spec', 'sdk', 'phase-policy.json');
     fs.mkdirSync(path.dirname(policyPath), { recursive: true });
     fs.writeFileSync(policyPath, JSON.stringify({
@@ -21,9 +25,12 @@ function writePhasePolicy(tmpDir: string, allowNewPackages: boolean, status: 'ac
                 allowNewPackages,
                 entryCriteria: ['Phase 2 is active.'],
                 exitCriteria: ['Package-first delivery is the default.'],
+                closeoutCriteria: ['Closeout report exists.'],
                 freezeTriggers: ['Release freeze.'],
                 promotionTriggers: ['Promotion artifact recorded.'],
                 deferredToNextPhaseRules: ['Large cross-lane work gets deferred.'],
+                overrideRules: ['Tracked reopen package required.'],
+                closeoutReportPath: 'artifacts/phase2-closeout-report.md',
             },
         },
     }, null, 2) + '\n', 'utf8');
@@ -145,6 +152,49 @@ describe('CLI package workflow', () => {
                 'frozen change',
                 '--goal',
                 'Should not open',
+                '--success',
+                'No-op',
+            ],
+            { cwd: tmpDir },
+        )).rejects.toThrow('does not allow new change packages');
+    });
+
+    it('allows closeout-candidate status while package creation remains enabled', async () => {
+        writePhasePolicy(tmpDir, true, 'closeout-candidate');
+
+        await runCLI(
+            [
+                'package',
+                'init',
+                '--lane',
+                'foundation',
+                '--topic',
+                'closeout metadata refresh',
+                '--goal',
+                'Refresh closeout metadata',
+                '--success',
+                'Closeout metadata stays tracked',
+            ],
+            { cwd: tmpDir },
+        );
+
+        const outputPath = path.join(tmpDir, '.trellis', 'packages', 'phase2', 'foundation-closeout-metadata-refresh.json');
+        expect(fs.existsSync(outputPath)).toBe(true);
+    });
+
+    it('rejects creating a new package when phase policy enters closeout-candidate with new packages disabled', async () => {
+        writePhasePolicy(tmpDir, false, 'closeout-candidate');
+
+        await expect(runCLI(
+            [
+                'package',
+                'init',
+                '--lane',
+                'foundation',
+                '--topic',
+                'closeout freeze',
+                '--goal',
+                'Should stay frozen during closeout',
                 '--success',
                 'No-op',
             ],

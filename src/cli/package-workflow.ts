@@ -11,7 +11,7 @@ export type PackageLane =
     | 'dx-validation';
 export type ChangePackageCategory = 'standard' | 'promotion-sensitive';
 export type PackageDecisionMaturity = 'ga' | 'beta' | 'experimental';
-export type PhasePolicyStatus = 'planning' | 'active' | 'frozen' | 'closed';
+export type PhasePolicyStatus = 'planning' | 'active' | 'closeout-candidate' | 'frozen' | 'closed';
 
 const PACKAGE_LANES: PackageLane[] = [
     'foundation',
@@ -104,6 +104,9 @@ export interface PhasePolicyEntry {
     freezeTriggers: string[];
     promotionTriggers: string[];
     deferredToNextPhaseRules: string[];
+    closeoutCriteria?: string[];
+    overrideRules?: string[];
+    closeoutReportPath?: string;
 }
 
 export interface PhasePolicy {
@@ -223,6 +226,17 @@ export function assertPhaseAllowsNewPackages(policy: PhasePolicy, phase: string)
         throw new Error(`Phase "${phase}" is ${entry.status} and does not allow new change packages.`);
     }
     return entry;
+}
+
+export function summarizePhasePolicyEntry(phase: string, entry: PhasePolicyEntry): string[] {
+    return [
+        `Phase: ${phase}`,
+        `Status: ${entry.status}`,
+        `New packages allowed: ${entry.allowNewPackages ? 'yes' : 'no'}`,
+        ...(entry.closeoutReportPath ? [`Closeout report: ${entry.closeoutReportPath}`] : []),
+        ...(entry.closeoutCriteria?.length ? [`Closeout criteria: ${entry.closeoutCriteria.length}`] : []),
+        ...(entry.overrideRules?.length ? [`Override rules: ${entry.overrideRules.length}`] : []),
+    ];
 }
 
 function currentBranch(cwd: string): string {

@@ -10,6 +10,7 @@ import type { ChangePackage } from './package-workflow';
 
 export type LiveVerifyStatus = 'ok' | 'warn' | 'fail';
 export type LiveVerifyProbeStatus = LiveVerifyStatus | 'skipped';
+export type LiveVerifyPromotionGateStatus = 'pass' | 'held' | 'block' | 'unavailable';
 
 export interface LiveVerifyCheck {
     level: LiveVerifyStatus;
@@ -46,9 +47,11 @@ export interface LiveVerifyGateResult extends LiveVerifyResult {
     packageId?: string;
     packageCategory?: 'standard' | 'promotion-sensitive';
     promotionSensitive?: boolean;
-    promotionGateStatus?: 'clear' | 'held' | 'blocking';
+    promotionGateStatus?: LiveVerifyPromotionGateStatus;
     heldEvidence?: string[];
+    unavailableEvidence?: string[];
     promotionDecisionBasis?: LiveVerifyPromotionDecisionBasis[];
+    promotionDecisionSummary?: LiveVerifyPromotionDecisionSummary;
 }
 
 export interface LiveVerifyOptions {
@@ -121,6 +124,15 @@ export interface LiveVerifyPromotionDecisionBasis {
     requiredProbes: string[];
     promotionSensitiveRequiredProbes: string[];
     deferredRisks: string[];
+}
+
+export interface LiveVerifyPromotionDecisionSummary {
+    status: LiveVerifyPromotionGateStatus;
+    promotionSensitive: boolean;
+    blockingFailuresCount: number;
+    heldEvidenceCount: number;
+    unavailableEvidenceCount: number;
+    basisCount: number;
 }
 
 interface ResolvedLiveVerifyPackageContext {

@@ -38,6 +38,7 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
     const policyProfile = resolveLiveVerifyPolicyProfile(options);
     const blockingFailures: string[] = [];
     const heldEvidence: string[] = [];
+    const unavailableEvidence: string[] = [];
     const promotionDecisionBasis = new Map<string, LiveVerifyPromotionDecisionBasis>();
     const collectGateProbes = (): LiveVerifyProbe[] => laneResults.flatMap((entry) => entry.result.probes);
 
@@ -150,8 +151,8 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
                         blockingFailures.push(message);
                         addGateCheck(checks, 'fail', message);
                     } else {
-                        heldEvidence.push(message);
-                        addGateCheck(checks, 'warn', `${message} (held until promotion-sensitive package supplies live evidence)`);
+                        unavailableEvidence.push(message);
+                        addGateCheck(checks, 'warn', `${message} (unavailable until a credentialed run supplies live evidence)`);
                     }
                     continue;
                 }
@@ -160,9 +161,12 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
                     if (promotionSensitive) {
                         blockingFailures.push(message);
                         addGateCheck(checks, 'fail', message);
+                    } else if (probe.status === 'skipped') {
+                        unavailableEvidence.push(message);
+                        addGateCheck(checks, 'warn', `${message} (unavailable until a credentialed run supplies live evidence)`);
                     } else {
                         heldEvidence.push(message);
-                        addGateCheck(checks, 'warn', `${message} (held until promotion-sensitive package supplies live evidence)`);
+                        addGateCheck(checks, 'warn', `${message} (held until tracked promotion decisions approve stronger evidence)`);
                     }
                 }
             }
@@ -174,8 +178,8 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
                         blockingFailures.push(message);
                         addGateCheck(checks, 'fail', message);
                     } else {
-                        heldEvidence.push(message);
-                        addGateCheck(checks, 'warn', `${message} (held until promotion-sensitive package supplies live evidence)`);
+                        unavailableEvidence.push(message);
+                        addGateCheck(checks, 'warn', `${message} (unavailable until a promotion-sensitive package supplies live evidence)`);
                     }
                     continue;
                 }
@@ -184,14 +188,33 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
                     if (promotionSensitive) {
                         blockingFailures.push(message);
                         addGateCheck(checks, 'fail', message);
+                    } else if (probe.status === 'skipped') {
+                        unavailableEvidence.push(message);
+                        addGateCheck(checks, 'warn', `${message} (unavailable until a promotion-sensitive package supplies live evidence)`);
                     } else {
                         heldEvidence.push(message);
-                        addGateCheck(checks, 'warn', `${message} (held until promotion-sensitive package supplies live evidence)`);
+                        addGateCheck(checks, 'warn', `${message} (held until tracked promotion decisions approve stronger evidence)`);
                     }
                 }
             }
         }
     }
+
+    const promotionGateStatus = blockingFailures.length > 0
+        ? 'block'
+        : unavailableEvidence.length > 0
+            ? 'unavailable'
+            : heldEvidence.length > 0
+                ? 'held'
+                : 'pass';
+    const promotionDecisionSummary = {
+        status: promotionGateStatus,
+        promotionSensitive,
+        blockingFailuresCount: blockingFailures.length,
+        heldEvidenceCount: heldEvidence.length,
+        unavailableEvidenceCount: unavailableEvidence.length,
+        basisCount: promotionDecisionBasis.size,
+    } as const;
 
     if (strict) {
         const blocking = laneResults.filter((entry) => entry.result.exitCode !== 0);
@@ -214,9 +237,11 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
                 packageId: packageContext.packageId,
                 packageCategory: packageContext.packageCategory,
                 promotionSensitive,
-                promotionGateStatus: 'blocking',
+                promotionGateStatus,
                 heldEvidence,
+                unavailableEvidence,
                 promotionDecisionBasis: [...promotionDecisionBasis.values()],
+                promotionDecisionSummary,
             };
         }
     }
@@ -240,12 +265,21 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
             packageId: packageContext.packageId,
             packageCategory: packageContext.packageCategory,
             promotionSensitive,
-            promotionGateStatus: 'blocking',
+            promotionGateStatus,
             heldEvidence,
+            unavailableEvidence,
             promotionDecisionBasis: [...promotionDecisionBasis.values()],
+            promotionDecisionSummary,
         };
     }
 
+    if (unavailableEvidence.length > 0) {
+        addGateCheck(
+            checks,
+            'warn',
+            'Required live evidence is unavailable for at least one module; ordinary packages may proceed, but promotion-sensitive packages would block until a credentialed run records the probes.',
+        );
+    }
     if (heldEvidence.length > 0) {
         addGateCheck(
             checks,
@@ -275,8 +309,10 @@ export async function verifyLiveGate(options: LiveVerifyGateOptions): Promise<Li
         packageId: packageContext.packageId,
         packageCategory: packageContext.packageCategory,
         promotionSensitive,
-        promotionGateStatus: heldEvidence.length > 0 ? 'held' : 'clear',
+        promotionGateStatus,
         heldEvidence,
+        unavailableEvidence,
         promotionDecisionBasis: [...promotionDecisionBasis.values()],
+        promotionDecisionSummary,
     };
 }

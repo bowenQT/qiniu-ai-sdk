@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "packageId": "phase2/dx-validation/phase2-closeout-report",
+  "phase": "phase2",
+  "ownerLane": "dx-validation",
+  "topic": "phase2-closeout-report",
+  "goal": "Generate a single Phase 2 closeout artifact that summarizes phase state, held decisions, deferred risks, and whether the repository is ready to stop opening Phase 2 packages and plan Phase 3.",
+  "successCriteria": [
+    "A single closeout report renders phase policy state, promotion-sensitive modules, held decisions, deferred risks, and Phase 3 readiness.",
+    "The closeout report is published by CI and linked from tracked review handoff output.",
+    "Release owner and antigravity can use the closeout report instead of replaying transcripts to determine whether Phase 2 can close."
+  ],
+  "touchedSurfaces": [
+    "src/cli/verification-report.ts",
+    "scripts/render-verification-report.mjs",
+    ".github/workflows/verify.yml",
+    ".trellis/integrations",
+    ".trellis/spec/sdk/verification-matrix.md"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Introducing new SDK runtime or provider features.",
+    "Replacing the verification report with a completely new artifact family."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/dx-validation/phase2-closeout-report",
+  "branch": "codex/phase2/dx-validation/phase2-closeout-report",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase2-closeout-report",
+  "createdAt": "2026-03-17T16:00:00.000Z"
+}

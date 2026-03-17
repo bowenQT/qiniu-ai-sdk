@@ -118,6 +118,7 @@ export function summarizeLiveVerifyGateArtifact(gateArtifact, gatePath) {
     promotionGateStatus: gateArtifact.promotionGateStatus,
     blockingFailuresCount: Array.isArray(gateArtifact.blockingFailures) ? gateArtifact.blockingFailures.length : 0,
     heldEvidenceCount: Array.isArray(gateArtifact.heldEvidence) ? gateArtifact.heldEvidence.length : 0,
+    unavailableEvidenceCount: Array.isArray(gateArtifact.unavailableEvidence) ? gateArtifact.unavailableEvidence.length : 0,
   };
 }
 

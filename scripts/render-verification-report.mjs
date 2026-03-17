@@ -9,6 +9,10 @@ const capabilityScorecardPath = resolve(
   process.cwd(),
   process.env.QINIU_CAPABILITY_SCORECARD_PATH || 'docs/capability-scorecard.md',
 );
+const phasePolicyPath = resolve(
+  process.cwd(),
+  process.env.QINIU_PHASE_POLICY_PATH || '.trellis/spec/sdk/phase-policy.json',
+);
 const capabilityEvidencePath = resolve(
   process.cwd(),
   process.env.QINIU_CAPABILITY_EVIDENCE_PATH || '.trellis/spec/sdk/capability-evidence.json',
@@ -39,56 +43,57 @@ if (!existsSync(distEntry)) {
   throw new Error(`Missing build artifact: ${distEntry}. Run "npm run build" before rendering the verification report.`);
 }
 
-const { renderVerificationReport } = await import(pathToFileURL(distEntry).href);
+const {
+  renderCapabilityEvidenceSummary,
+  renderPromotionGateSummary,
+  renderVerificationReport,
+} = await import(pathToFileURL(distEntry).href);
 const capabilityScorecard = readFileSync(capabilityScorecardPath, 'utf8');
+const phasePolicyAvailable = existsSync(phasePolicyPath);
+const phasePolicySummary = phasePolicyAvailable
+  ? (() => {
+      const payload = JSON.parse(readFileSync(phasePolicyPath, 'utf8'));
+      const entry = payload?.phases?.phase2;
+      if (!entry) {
+        return '# Phase Policy\n\nPhase 2 policy entry was not found.\n';
+      }
+      return [
+        '# Phase Policy',
+        '',
+        `- Status: ${entry.status ?? 'unknown'}`,
+        `- New packages allowed: ${entry.allowNewPackages ? 'yes' : 'no'}`,
+        ...(entry.closeoutReportPath ? [`- Closeout report: ${entry.closeoutReportPath}`] : []),
+        ...(Array.isArray(entry.closeoutCriteria) ? [`- Closeout criteria: ${entry.closeoutCriteria.length}`] : []),
+        ...(Array.isArray(entry.overrideRules) ? [`- Override rules: ${entry.overrideRules.length}`] : []),
+        '',
+      ].join('\n');
+    })()
+  : undefined;
 const capabilityEvidenceAvailable = existsSync(capabilityEvidencePath);
 const capabilityEvidenceSummary = capabilityEvidenceAvailable
   ? (() => {
       const snapshot = JSON.parse(readFileSync(capabilityEvidencePath, 'utf8'));
-      const decisionFiles = Array.isArray(snapshot.decisionFiles) ? snapshot.decisionFiles : [];
-      const promotionDecisions = Array.isArray(snapshot.promotionDecisions) ? snapshot.promotionDecisions : [];
+      return renderCapabilityEvidenceSummary(snapshot);
+    })()
+  : undefined;
+const promotionGateSummary = capabilityEvidenceAvailable
+  ? (() => {
+      const snapshot = JSON.parse(readFileSync(capabilityEvidencePath, 'utf8'));
       const latestGate = snapshot.latestLiveVerifyGate && typeof snapshot.latestLiveVerifyGate === 'object'
         ? snapshot.latestLiveVerifyGate
         : undefined;
-      return [
-        '# Capability Evidence Snapshot',
-        '',
-        `Generated at: ${snapshot.generatedAt ?? 'unknown'}`,
-        `Tracked decision files: ${decisionFiles.length}`,
-        ...(decisionFiles.length > 0
-          ? [
-              '',
-              'Decision files:',
-              ...decisionFiles.map((filePath) => `- ${filePath}`),
-            ]
-          : []),
-        '',
-        `Tracked promotion decisions: ${promotionDecisions.length}`,
-        ...(promotionDecisions.length > 0
-          ? [
-              '',
-              'Decision records:',
-              ...promotionDecisions.map((decision) => {
-                const maturity =
-                  decision.oldMaturity === decision.newMaturity
-                    ? `${decision.newMaturity} (held)`
-                    : `${decision.oldMaturity} -> ${decision.newMaturity}`;
-                return `- ${decision.module}: ${maturity} [${decision.trackedPath ?? 'untracked'}]`;
-              }),
-            ]
-          : []),
-        ...(latestGate
-          ? [
-              '',
-              'Latest gate artifact:',
-              `- Path: ${latestGate.path ?? 'unknown'}`,
-              `- Status: ${latestGate.status ?? 'unknown'}`,
-              `- Promotion gate: ${latestGate.promotionGateStatus ?? 'unknown'}`,
-              ...(latestGate.packageId ? [`- Package: ${latestGate.packageId}`] : []),
-            ]
-          : []),
-        '',
-      ].join('\n');
+      return renderPromotionGateSummary(
+        latestGate?.promotionGateStatus
+          ? {
+              status: latestGate.promotionGateStatus,
+              packageId: latestGate.packageId,
+              policyProfile: latestGate.policyProfile,
+              blockingFailuresCount: latestGate.blockingFailuresCount,
+              heldEvidenceCount: latestGate.heldEvidenceCount,
+              unavailableEvidenceCount: latestGate.unavailableEvidenceCount,
+            }
+          : undefined,
+      );
     })()
   : undefined;
 const liveVerifyAvailable = existsSync(liveVerifySummaryPath);
@@ -102,9 +107,13 @@ const promotionDecisions = promotionDecisionsAvailable
 
 const rendered = renderVerificationReport({
   generatedAt: new Date().toISOString(),
+  phasePolicySummary,
+  phasePolicyAvailable,
   capabilityScorecard,
   capabilityEvidenceSummary,
   capabilityEvidenceAvailable,
+  promotionGateSummary,
+  promotionGateSummaryAvailable: capabilityEvidenceAvailable,
   liveVerifySummary,
   liveVerifyAvailable,
   reviewPacket,

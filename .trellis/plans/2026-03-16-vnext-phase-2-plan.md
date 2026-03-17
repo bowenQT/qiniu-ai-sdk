@@ -12,6 +12,9 @@ Batch 2 is closed on the current `main` baseline:
 The next execution queue for this phase is tracked in:
 [2026-03-17-vnext-phase-2-batch-3.md](./2026-03-17-vnext-phase-2-batch-3.md)
 
+The current closeout queue for this phase is tracked in:
+[2026-03-17-vnext-phase-2-batch-4.md](./2026-03-17-vnext-phase-2-batch-4.md)
+
 ## Phase Goal
 
 Make bounded change packages, deterministic evidence flow, and tracked phase boundaries the default
