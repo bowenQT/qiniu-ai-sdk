@@ -1,7 +1,8 @@
 import type { ModuleMaturityInfo } from './capability-types';
 
-export const CAPABILITY_EVIDENCE_GENERATED_AT = "2026-03-16T13:30:00.000Z";
+export const CAPABILITY_EVIDENCE_GENERATED_AT = "2026-03-17T12:30:00.000Z";
 export const CAPABILITY_EVIDENCE_DECISION_FILES = [
+  ".trellis/decisions/phase2/phase2-cloud-surface-responseapi-promotion-readiness.json",
   ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
 ] as const;
 export const LATEST_LIVE_VERIFY_GATE = null;
@@ -19,6 +20,21 @@ export const TRACKED_PROMOTION_DECISIONS = [
     "decisionSource": "antigravity",
     "decisionAt": "2026-03-16T13:30:00.000Z",
     "trackedPath": ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json"
+  },
+  {
+    "packageId": "phase2/cloud-surface/responseapi-promotion-readiness",
+    "module": "ResponseAPI",
+    "oldMaturity": "experimental",
+    "newMaturity": "experimental",
+    "evidenceBasis": [
+      "src/modules/response/index.ts#RESPONSE_API_PROMOTION_READINESS_CONTRACT",
+      ".trellis/spec/sdk/live-verify-policy.json#profiles.pr.lanePolicies.cloud-surface",
+      ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.cloud-surface",
+      "tests/unit/modules/response.test.ts"
+    ],
+    "decisionSource": "codex",
+    "decisionAt": "2026-03-17T12:30:00.000Z",
+    "trackedPath": ".trellis/decisions/phase2/phase2-cloud-surface-responseapi-promotion-readiness.json"
   }
 ] as const;
 export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
@@ -245,7 +261,22 @@ export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
     "sourceUpdatedAt": "2026-03-14",
     "validatedAt": "2026-03-15",
     "validationLevel": "unit",
-    "notes": "Provider-only surface is covered by dedicated unit suites; live verification remains opt-in."
+    "notes": "Provider-only surface is covered by dedicated unit suites; live verification remains opt-in.",
+    "trackedDecision": {
+      "packageId": "phase2/cloud-surface/responseapi-promotion-readiness",
+      "module": "ResponseAPI",
+      "oldMaturity": "experimental",
+      "newMaturity": "experimental",
+      "evidenceBasis": [
+        "src/modules/response/index.ts#RESPONSE_API_PROMOTION_READINESS_CONTRACT",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.pr.lanePolicies.cloud-surface",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.cloud-surface",
+        "tests/unit/modules/response.test.ts"
+      ],
+      "decisionSource": "codex",
+      "decisionAt": "2026-03-17T12:30:00.000Z",
+      "trackedPath": ".trellis/decisions/phase2/phase2-cloud-surface-responseapi-promotion-readiness.json"
+    }
   },
   {
     "name": "crew",

@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { QiniuAI } from '../../../src/client';
 import {
     RESPONSE_API_HELPER_CONTRACT,
+    RESPONSE_API_PROMOTION_READINESS_CONTRACT,
     extractResponseOutputMessage,
     extractResponseOutputMessages,
     extractResponseOutputText,
@@ -119,6 +120,28 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         expect(RESPONSE_API_HELPER_CONTRACT.verificationEvidence).toContain(
             'tests/unit/modules/response.test.ts',
         );
+    });
+
+    it('exposes an explicit held promotion-readiness contract for ResponseAPI', () => {
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.officialSurface).toEqual(expect.arrayContaining([
+            'create',
+            'followUp',
+            'createTextResult/followUpTextResult',
+            'createJsonResult/followUpJsonResult',
+        ]));
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.deferredHelpers).toEqual(expect.arrayContaining([
+            'createStream/followUpStream',
+            'createTextStream/followUpTextStream',
+            'createJsonStream/followUpJsonStream',
+        ]));
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.requiredLiveEvidence).toEqual([
+            'pr: chat,response-api',
+            'nightly: chat,response-api,response-api-stream',
+        ]);
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.trackedDecisionPath).toBe(
+            '.trellis/decisions/phase2/phase2-cloud-surface-responseapi-promotion-readiness.json',
+        );
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.decisionStatus).toBe('held');
     });
 
     it('should return structured reasoning payloads via createReasoningResult()', async () => {

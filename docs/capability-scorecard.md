@@ -9,8 +9,8 @@ This document is generated from the SDK capability registry and is intended to m
 - Validated models: 10
 - Validated chat/image/video split: chat=5, image=2, video=3
 - Module maturity split: ga=12, beta=14, experimental=5
-- Evidence snapshot generated at: 2026-03-16T13:30:00.000Z
-- Tracked promotion decisions: 1
+- Evidence snapshot generated at: 2026-03-17T12:30:00.000Z
+- Tracked promotion decisions: 2
 
 ## Validated Models
 
@@ -61,15 +61,15 @@ This document is generated from the SDK capability registry and is intended to m
 | ai-tools | experimental |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | crew | experimental |  | static |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
 | QiniuMCPServer | experimental |  | unit |  |  | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
-| ResponseAPI | experimental |  | unit | 2026-03-15 | Provider-only surface is covered by dedicated unit suites; live verification remains opt-in. | https://apidocs.qnaigc.com/417773141e0 |
+| ResponseAPI | experimental | experimental (held) | unit | 2026-03-15 | Provider-only surface is covered by dedicated unit suites; live verification remains opt-in. | https://apidocs.qnaigc.com/417773141e0 |
 
 ## Tracked Evidence Snapshot
 
 | Field | Value |
 | --- | --- |
-| Generated At | 2026-03-16T13:30:00.000Z |
-| Tracked Decision Files | 1 |
-| Tracked Promotion Decisions | 1 |
+| Generated At | 2026-03-17T12:30:00.000Z |
+| Tracked Decision Files | 2 |
+| Tracked Promotion Decisions | 2 |
 | Latest Gate Artifact |  |
 | Latest Gate Status |  |
 | Latest Promotion Gate |  |

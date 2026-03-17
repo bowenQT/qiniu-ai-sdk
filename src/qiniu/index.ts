@@ -148,6 +148,7 @@ export type {
 export {
     ResponseAPI,
     RESPONSE_API_HELPER_CONTRACT,
+    RESPONSE_API_PROMOTION_READINESS_CONTRACT,
     parseResponseOutputJson,
     extractResponseOutputText,
     extractResponseReasoningSummaryText,
@@ -159,6 +160,7 @@ export {
 } from '../modules/response';
 export type {
     ResponseHelperContract,
+    ResponsePromotionReadinessContract,
     ResponseCreateRequest,
     ResponseCreateResponse,
     ResponseInputMessage,
