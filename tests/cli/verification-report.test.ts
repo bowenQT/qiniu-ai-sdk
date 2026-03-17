@@ -10,6 +10,8 @@ describe('verification report renderer', () => {
     it('combines the capability scorecard and live verification summary', () => {
         const output = renderVerificationReport({
             generatedAt: '2026-03-16T00:00:00.000Z',
+            phasePolicyAvailable: true,
+            phasePolicySummary: '# Phase Policy\n\n- Status: closeout-candidate\n- New packages allowed: no\n',
             capabilityScorecard: '# Capability Scorecard\n\nTracked capability truth.\n',
             capabilityEvidenceAvailable: true,
             capabilityEvidenceSummary: '# Capability Evidence Snapshot\n\nTracked promotion decisions: 1.\n\nLatest gate artifact:\n- Path: artifacts/live-verify-gate.json\n- Status: ok\n- Promotion gate: unavailable\n- Blocking failures: 0\n- Held evidence: 0\n- Unavailable evidence: 1\n',
@@ -23,6 +25,8 @@ describe('verification report renderer', () => {
 
         expect(output).toContain('# Verification Report');
         expect(output).toContain('Generated at: 2026-03-16T00:00:00.000Z');
+        expect(output).toContain('## Phase Policy');
+        expect(output).toContain('- Status: closeout-candidate');
         expect(output).toContain('## Capability Scorecard');
         expect(output).toContain('Tracked capability truth.');
         expect(output).toContain('## Capability Evidence Snapshot');
@@ -44,12 +48,14 @@ describe('verification report renderer', () => {
         const output = renderVerificationReport({
             generatedAt: '2026-03-16T00:00:00.000Z',
             capabilityScorecard: '# Capability Scorecard\n\nTracked capability truth.\n',
+            phasePolicyAvailable: false,
             capabilityEvidenceAvailable: false,
             liveVerifyAvailable: false,
             reviewPacketAvailable: false,
             promotionDecisionsAvailable: false,
         });
 
+        expect(output).toContain('Phase policy summary was not produced for this run.');
         expect(output).toContain('Capability evidence snapshot was not produced for this run.');
         expect(output).toContain('Live verification artifact was not produced for this run.');
         expect(output).toContain('Review packet artifact was not produced for this run.');

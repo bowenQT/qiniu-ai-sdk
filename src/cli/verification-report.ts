@@ -1,5 +1,7 @@
 export interface VerificationReportInput {
     generatedAt: string;
+    phasePolicySummary?: string;
+    phasePolicyAvailable?: boolean;
     capabilityScorecard: string;
     capabilityEvidenceSummary?: string;
     capabilityEvidenceAvailable?: boolean;
@@ -112,6 +114,7 @@ export function renderPromotionGateSummary(entry?: CloseoutPromotionGateSummaryE
 
 export function renderVerificationReport(input: VerificationReportInput): string {
     const capabilityScorecard = trimEmbeddedHeading(input.capabilityScorecard);
+    const phasePolicySummary = input.phasePolicySummary ? trimEmbeddedHeading(input.phasePolicySummary) : undefined;
     const capabilityEvidenceSummary = input.capabilityEvidenceSummary
         ? trimEmbeddedHeading(input.capabilityEvidenceSummary)
         : undefined;
@@ -127,6 +130,12 @@ export function renderVerificationReport(input: VerificationReportInput): string
         `Generated at: ${input.generatedAt}`,
         '',
         'This artifact combines tracked capability truth, package review artifacts, tracked promotion decisions, and the latest live verification evidence and policy boundaries produced in CI.',
+        '',
+        '## Phase Policy',
+        '',
+        input.phasePolicyAvailable && phasePolicySummary
+            ? phasePolicySummary
+            : 'Phase policy summary was not produced for this run.',
         '',
         '## Capability Scorecard',
         '',

@@ -9,6 +9,10 @@ const capabilityScorecardPath = resolve(
   process.cwd(),
   process.env.QINIU_CAPABILITY_SCORECARD_PATH || 'docs/capability-scorecard.md',
 );
+const phasePolicyPath = resolve(
+  process.cwd(),
+  process.env.QINIU_PHASE_POLICY_PATH || '.trellis/spec/sdk/phase-policy.json',
+);
 const capabilityEvidencePath = resolve(
   process.cwd(),
   process.env.QINIU_CAPABILITY_EVIDENCE_PATH || '.trellis/spec/sdk/capability-evidence.json',
@@ -41,6 +45,26 @@ if (!existsSync(distEntry)) {
 
 const { renderVerificationReport } = await import(pathToFileURL(distEntry).href);
 const capabilityScorecard = readFileSync(capabilityScorecardPath, 'utf8');
+const phasePolicyAvailable = existsSync(phasePolicyPath);
+const phasePolicySummary = phasePolicyAvailable
+  ? (() => {
+      const payload = JSON.parse(readFileSync(phasePolicyPath, 'utf8'));
+      const entry = payload?.phases?.phase2;
+      if (!entry) {
+        return '# Phase Policy\n\nPhase 2 policy entry was not found.\n';
+      }
+      return [
+        '# Phase Policy',
+        '',
+        `- Status: ${entry.status ?? 'unknown'}`,
+        `- New packages allowed: ${entry.allowNewPackages ? 'yes' : 'no'}`,
+        ...(entry.closeoutReportPath ? [`- Closeout report: ${entry.closeoutReportPath}`] : []),
+        ...(Array.isArray(entry.closeoutCriteria) ? [`- Closeout criteria: ${entry.closeoutCriteria.length}`] : []),
+        ...(Array.isArray(entry.overrideRules) ? [`- Override rules: ${entry.overrideRules.length}`] : []),
+        '',
+      ].join('\n');
+    })()
+  : undefined;
 const capabilityEvidenceAvailable = existsSync(capabilityEvidencePath);
 const capabilityEvidenceSummary = capabilityEvidenceAvailable
   ? (() => {
@@ -105,6 +129,8 @@ const promotionDecisions = promotionDecisionsAvailable
 
 const rendered = renderVerificationReport({
   generatedAt: new Date().toISOString(),
+  phasePolicySummary,
+  phasePolicyAvailable,
   capabilityScorecard,
   capabilityEvidenceSummary,
   capabilityEvidenceAvailable,

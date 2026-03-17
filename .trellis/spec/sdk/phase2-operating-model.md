@@ -74,6 +74,15 @@ may be opened. When a phase reaches its exit criteria:
 
 This rule lives in tracked repo policy, not only in chat instructions.
 
+Phase stop states are tracked as:
+
+- `active`: normal bounded-package delivery
+- `closeout-candidate`: closeout evidence is being assembled and should not be mixed with new
+  strategic direction changes without an explicit override
+- `frozen`: no new packages by default; only closeout, release, and next-phase planning may
+  continue
+- `closed`: all new work moves to the next phase
+
 ## Evidence Rules
 
 Evidence is a first-class input. Package-level artifacts, live verify output, and the verification

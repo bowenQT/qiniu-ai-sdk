@@ -101,6 +101,12 @@ interface ProjectPackageJson {
     peerDependencies?: Record<string, string>;
 }
 
+interface LocalPhasePolicyEntry {
+    status: string;
+    allowNewPackages: boolean;
+    closeoutReportPath?: string;
+}
+
 function addCheck(checks: DoctorCheck[], level: DoctorStatus, message: string): void {
     checks.push({ level, message });
 }
@@ -148,6 +154,22 @@ function readProjectPackageJson(projectDir: string): ProjectPackageJson {
         return JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as ProjectPackageJson;
     } catch {
         return {};
+    }
+}
+
+function readLocalPhasePolicy(projectDir: string): LocalPhasePolicyEntry | undefined {
+    const policyPath = path.join(projectDir, '.trellis', 'spec', 'sdk', 'phase-policy.json');
+    if (!fs.existsSync(policyPath)) {
+        return undefined;
+    }
+
+    try {
+        const payload = JSON.parse(fs.readFileSync(policyPath, 'utf8')) as {
+            phases?: Record<string, LocalPhasePolicyEntry | undefined>;
+        };
+        return payload.phases?.phase2;
+    } catch {
+        return undefined;
     }
 }
 
@@ -353,6 +375,15 @@ export function doctorProject(options: DoctorCommandOptions): DoctorCommandResul
 
     if (lane) {
         addCheck(checks, 'ok', `Detected worktree lane: ${lane}.`);
+    }
+
+    const localPhasePolicy = readLocalPhasePolicy(projectDir);
+    if (localPhasePolicy) {
+        addCheck(
+            checks,
+            localPhasePolicy.status === 'frozen' || localPhasePolicy.status === 'closed' ? 'warn' : 'ok',
+            `Tracked phase2 policy: ${localPhasePolicy.status} (allow new packages: ${localPhasePolicy.allowNewPackages ? 'yes' : 'no'})${localPhasePolicy.closeoutReportPath ? `, closeout report ${localPhasePolicy.closeoutReportPath}` : ''}.`,
+        );
     }
 
     const requiredPeerDeps = new Set<string>();

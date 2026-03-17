@@ -33,10 +33,15 @@
         "Verification report can trace module promotion back to explicit evidence artifacts.",
         "New package creation can be frozen via tracked phase policy without ad hoc transcript rules."
       ],
+      "closeoutCriteria": [
+        "Promotion gate semantics are frozen as pass, held, block, or unavailable.",
+        "Capability truth drift is blocked in CI.",
+        "A single Phase 2 closeout report exists for release-owner and antigravity review."
+      ],
       "freezeTriggers": [
         "Release stabilization requires stopping new package creation.",
         "Evidence drift appears between scorecard, live verify, and verification report.",
-        "Phase owner sets status to frozen or closed in this file."
+        "Phase owner sets status to closeout-candidate, frozen, or closed in this file."
       ],
       "promotionTriggers": [
         "A promotion decision artifact exists for the affected module.",
@@ -47,7 +52,12 @@
         "Cross-lane work touching more than two owner lanes must be split into prerequisite packages.",
         "Surface-expansion work without bounded success criteria must stay out of the current package.",
         "Unverified maturity changes must remain deferred until a promotion decision artifact exists."
-      ]
+      ],
+      "overrideRules": [
+        "Only a tracked closeout or reopen package may change status or allowNewPackages for Phase 2.",
+        "Emergency overrides must be committed to this file before any new Phase 2 package is opened."
+      ],
+      "closeoutReportPath": "artifacts/phase2-closeout-report.md"
     }
   }
 }
