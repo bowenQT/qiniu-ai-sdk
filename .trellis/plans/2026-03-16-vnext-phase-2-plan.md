@@ -1,7 +1,9 @@
 # vNext Phase 2 Plan
 
-Phase 2 starts from the stable Phase 1 baseline and moves the repository to a package-first
-operating model.
+Phase 2 is now closed on the stable `main` baseline at `dd901a7`.
+
+This phase moved the repository to a package-first operating model and established deterministic
+evidence, promotion, and closeout artifacts as tracked repo assets.
 
 Batch 1 is closed on the current `main` baseline:
 [2026-03-16-vnext-phase-2-batch-1.md](./2026-03-16-vnext-phase-2-batch-1.md)
@@ -9,11 +11,14 @@ Batch 1 is closed on the current `main` baseline:
 Batch 2 is closed on the current `main` baseline:
 [2026-03-16-vnext-phase-2-batch-2.md](./2026-03-16-vnext-phase-2-batch-2.md)
 
-The next execution queue for this phase is tracked in:
+The final execution queue for this phase was tracked in:
 [2026-03-17-vnext-phase-2-batch-3.md](./2026-03-17-vnext-phase-2-batch-3.md)
 
-The current closeout queue for this phase is tracked in:
+The closeout queue for this phase was tracked in:
 [2026-03-17-vnext-phase-2-batch-4.md](./2026-03-17-vnext-phase-2-batch-4.md)
+
+The final closeout checkpoint is summarized in:
+[../integrations/2026-03-17-phase2-closeout-review-handoff.md](../integrations/2026-03-17-phase2-closeout-review-handoff.md)
 
 ## Phase Goal
 
@@ -52,3 +57,9 @@ way Codex and antigravity collaborate in this repository.
 - review packet and promotion decision artifacts are generated through repo scripts
 - CI can publish a verification report that references both tracked truth and latest evidence
 - new package creation can be frozen by tracked phase policy instead of transcript-only instructions
+
+## Final Status
+
+- Phase 2 policy state: `closed`
+- Phase 2 closeout report path: `artifacts/phase2-closeout-report.md`
+- Next step: start Phase 3 direction review from the closed Phase 2 baseline

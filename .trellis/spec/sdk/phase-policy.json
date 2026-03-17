@@ -21,7 +21,7 @@
       ]
     },
     "phase2": {
-      "status": "closeout-candidate",
+      "status": "closed",
       "allowNewPackages": false,
       "entryCriteria": [
         "Phase 1 is closed and merged to main.",
