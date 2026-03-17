@@ -90,6 +90,7 @@
     "generate:review-packet": "node scripts/render-review-packet.mjs",
     "generate:promotion-decisions": "node scripts/render-promotion-decisions.mjs",
     "generate:verification-report": "node scripts/render-verification-report.mjs",
+    "generate:phase2-closeout-report": "node scripts/render-phase2-closeout-report.mjs",
     "test:truth-drift": "node scripts/verify-capability-truth-drift.mjs",
     "build": "npm run prebuild && npm run build:cjs && npm run build:esm",
     "build:cjs": "tsc -p tsconfig.json",

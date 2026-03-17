@@ -182,6 +182,26 @@ describe('CLI package workflow', () => {
         expect(fs.existsSync(outputPath)).toBe(true);
     });
 
+    it('rejects creating a new package when phase policy enters closeout-candidate with new packages disabled', async () => {
+        writePhasePolicy(tmpDir, false, 'closeout-candidate');
+
+        await expect(runCLI(
+            [
+                'package',
+                'init',
+                '--lane',
+                'foundation',
+                '--topic',
+                'closeout freeze',
+                '--goal',
+                'Should stay frozen during closeout',
+                '--success',
+                'No-op',
+            ],
+            { cwd: tmpDir },
+        )).rejects.toThrow('does not allow new change packages');
+    });
+
     it('writes an evidence bundle and inherits surfaces from the package brief', async () => {
         const briefPath = path.join(tmpDir, 'brief.json');
         fs.writeFileSync(briefPath, JSON.stringify({

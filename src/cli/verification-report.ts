@@ -49,6 +49,37 @@ export interface CapabilityEvidenceSummaryInput {
     };
 }
 
+export interface Phase2CloseoutModuleEntry {
+    module: string;
+    maturity: string;
+    validationLevel?: string;
+    decisionStatus: 'held' | 'promoted' | 'untracked';
+    trackedPath?: string;
+    decisionSource?: string;
+    decisionAt?: string;
+    deferredRisks?: string[];
+}
+
+export interface Phase2PlanningReadinessResult {
+    ready: boolean;
+    reasons: string[];
+}
+
+export interface Phase2CloseoutReportInput {
+    generatedAt: string;
+    phaseStatus: string;
+    allowNewPackages: boolean;
+    policyPath?: string;
+    closeoutReportPath?: string;
+    verificationReportPath?: string;
+    closeoutCriteria?: string[];
+    overrideRules?: string[];
+    promotionGateStatus?: CloseoutPromotionGateSummaryEntry['status'];
+    modules: Phase2CloseoutModuleEntry[];
+    remainingDeferredRisks: string[];
+    readiness: Phase2PlanningReadinessResult;
+}
+
 function trimEmbeddedHeading(content: string): string {
     const trimmed = content.trim();
     return trimmed.replace(/^# .+\n+/, '');
@@ -174,6 +205,109 @@ export function renderCapabilityEvidenceSummary(snapshot: CapabilityEvidenceSumm
                 ...(latestGate.packageId ? [`- Package: ${latestGate.packageId}`] : []),
             ]
             : []),
+        '',
+    ].join('\n');
+}
+
+export function evaluatePhase2PlanningReadiness(options: {
+    phaseStatus: string;
+    allowNewPackages: boolean;
+    promotionGateStatus?: CloseoutPromotionGateSummaryEntry['status'];
+    modules: Phase2CloseoutModuleEntry[];
+}): Phase2PlanningReadinessResult {
+    const reasons: string[] = [];
+    if (options.phaseStatus === 'active') {
+        reasons.push('Phase 2 policy is still active.');
+    }
+    if (options.allowNewPackages) {
+        reasons.push('Phase 2 policy still allows new packages.');
+    }
+    if (options.promotionGateStatus === 'block') {
+        reasons.push('Latest promotion gate status is block.');
+    }
+    for (const entry of options.modules) {
+        if (entry.decisionStatus === 'untracked') {
+            reasons.push(`Missing tracked promotion decision for ${entry.module}.`);
+        }
+    }
+    return {
+        ready: reasons.length === 0,
+        reasons,
+    };
+}
+
+export function renderPhase2CloseoutReport(input: Phase2CloseoutReportInput): string {
+    return [
+        '# Phase 2 Closeout Report',
+        '',
+        `Generated at: ${input.generatedAt}`,
+        '',
+        'This artifact summarizes the tracked closeout state for Phase 2 so release owners and antigravity can decide whether the repository should stop opening Phase 2 packages and move to Phase 3 planning.',
+        '',
+        '## Phase Policy',
+        '',
+        `- Status: ${input.phaseStatus}`,
+        `- New packages allowed: ${input.allowNewPackages ? 'yes' : 'no'}`,
+        ...(input.policyPath ? [`- Policy path: ${input.policyPath}`] : []),
+        ...(input.closeoutReportPath ? [`- Closeout report path: ${input.closeoutReportPath}`] : []),
+        ...(input.verificationReportPath ? [`- Verification report path: ${input.verificationReportPath}`] : []),
+        ...(input.closeoutCriteria && input.closeoutCriteria.length > 0
+            ? [
+                '',
+                'Closeout criteria:',
+                ...input.closeoutCriteria.map((criterion) => `- ${criterion}`),
+            ]
+            : []),
+        ...(input.overrideRules && input.overrideRules.length > 0
+            ? [
+                '',
+                'Override rules:',
+                ...input.overrideRules.map((rule) => `- ${rule}`),
+            ]
+            : []),
+        '',
+        '## Promotion-sensitive Modules',
+        '',
+        ...(input.modules.length > 0
+            ? input.modules.flatMap((entry) => [
+                `### ${entry.module}`,
+                '',
+                `- Maturity: ${entry.maturity}`,
+                `- Validation: ${entry.validationLevel ?? 'unknown'}`,
+                `- Decision: ${entry.decisionStatus}`,
+                ...(entry.decisionSource ? [`- Decision source: ${entry.decisionSource}`] : []),
+                ...(entry.decisionAt ? [`- Decision at: ${entry.decisionAt}`] : []),
+                ...(entry.trackedPath ? [`- Tracked decision: ${entry.trackedPath}`] : []),
+                ...(entry.deferredRisks && entry.deferredRisks.length > 0
+                    ? [
+                        '- Deferred risks:',
+                        ...entry.deferredRisks.map((risk) => `  - ${risk}`),
+                    ]
+                    : []),
+                '',
+            ])
+            : ['No promotion-sensitive modules were identified for Phase 2.', '']),
+        '## Remaining Deferred Risks',
+        '',
+        ...(input.remainingDeferredRisks.length > 0
+            ? input.remainingDeferredRisks.map((risk) => `- ${risk}`)
+            : ['- No remaining deferred risks recorded.']),
+        '',
+        '## Phase 3 Planning Readiness',
+        '',
+        `- Ready: ${input.readiness.ready ? 'yes' : 'no'}`,
+        ...(input.promotionGateStatus ? [`- Latest promotion gate status: ${input.promotionGateStatus}`] : []),
+        ...(input.readiness.reasons.length > 0
+            ? [
+                '',
+                'Blocking reasons:',
+                ...input.readiness.reasons.map((reason) => `- ${reason}`),
+            ]
+            : [
+                '',
+                'Blocking reasons:',
+                '- None. Phase 2 is ready to move into Phase 3 planning.',
+            ]),
         '',
     ].join('\n');
 }

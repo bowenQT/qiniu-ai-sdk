@@ -21,8 +21,8 @@
       ]
     },
     "phase2": {
-      "status": "active",
-      "allowNewPackages": true,
+      "status": "closeout-candidate",
+      "allowNewPackages": false,
       "entryCriteria": [
         "Phase 1 is closed and merged to main.",
         "Package-first CLI and tracked workflow docs exist in the repository.",
