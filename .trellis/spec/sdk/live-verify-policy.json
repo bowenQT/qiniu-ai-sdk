@@ -19,10 +19,11 @@
             "ResponseAPI"
           ],
           "trackedDecisionPaths": [
-            ".trellis/decisions/phase2/phase2-cloud-surface-responseapi-promotion-readiness.json"
+            ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json"
           ],
           "deferredRisks": [
-            "Response API stream promotion still depends on a separate tracked decision and nightly evidence."
+            "Response API stream promotion still depends on a separate tracked decision and nightly evidence.",
+            "JSON, messages, reasoning, chat-completion, and other provider-only ResponseAPI helpers remain deferred."
           ]
         },
         "node-integrations": {
@@ -42,10 +43,9 @@
             "NodeMCPHost"
           ],
           "trackedDecisionPaths": [
-            ".trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json"
+            ".trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json"
           ],
           "deferredRisks": [
-            "Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.",
             "OAuth discovery covers metadata endpoints only; token acquisition flows remain out of scope for this package.",
             "HTTP interop evidence is collected per server; multi-server routing remains a higher-level integration concern."
           ]
@@ -74,17 +74,17 @@
           "description": "Nightly policy keeps ResponseAPI promotion scoped to the narrowest live-backed contract.",
           "promotionSensitiveRequiredProbes": [
             "chat",
-            "response-api",
-            "response-api-stream"
+            "response-api"
           ],
           "promotionModules": [
             "ResponseAPI"
           ],
           "trackedDecisionPaths": [
-            ".trellis/decisions/phase2/phase2-cloud-surface-responseapi-promotion-readiness.json"
+            ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json"
           ],
           "deferredRisks": [
-            "Higher-level ResponseAPI helper variants remain provider-only until a separate promotion package narrows their contract."
+            "Response API stream promotion still depends on a separate tracked decision and nightly evidence.",
+            "JSON, messages, reasoning, chat-completion, and other provider-only ResponseAPI helpers remain deferred."
           ]
         },
         "node-integrations": {
@@ -107,10 +107,9 @@
             "NodeMCPHost"
           ],
           "trackedDecisionPaths": [
-            ".trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json"
+            ".trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json"
           ],
           "deferredRisks": [
-            "Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.",
             "OAuth discovery covers metadata endpoints only; token acquisition flows remain out of scope for this package.",
             "HTTP interop evidence is collected per server; multi-server routing remains a higher-level integration concern."
           ]

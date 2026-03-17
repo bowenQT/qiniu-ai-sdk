@@ -107,6 +107,11 @@ interface LocalPhasePolicyEntry {
     closeoutReportPath?: string;
 }
 
+interface LocalPhasePolicySummary {
+    phaseName: string;
+    entry: LocalPhasePolicyEntry;
+}
+
 function addCheck(checks: DoctorCheck[], level: DoctorStatus, message: string): void {
     checks.push({ level, message });
 }
@@ -157,7 +162,16 @@ function readProjectPackageJson(projectDir: string): ProjectPackageJson {
     }
 }
 
-function readLocalPhasePolicy(projectDir: string): LocalPhasePolicyEntry | undefined {
+function comparePhaseNames(left: string, right: string): number {
+    const leftNumber = Number.parseInt(left.replace(/^phase/, ''), 10);
+    const rightNumber = Number.parseInt(right.replace(/^phase/, ''), 10);
+    if (!Number.isNaN(leftNumber) && !Number.isNaN(rightNumber) && leftNumber !== rightNumber) {
+        return leftNumber - rightNumber;
+    }
+    return left.localeCompare(right);
+}
+
+function readLocalPhasePolicy(projectDir: string): LocalPhasePolicySummary | undefined {
     const policyPath = path.join(projectDir, '.trellis', 'spec', 'sdk', 'phase-policy.json');
     if (!fs.existsSync(policyPath)) {
         return undefined;
@@ -167,7 +181,16 @@ function readLocalPhasePolicy(projectDir: string): LocalPhasePolicyEntry | undef
         const payload = JSON.parse(fs.readFileSync(policyPath, 'utf8')) as {
             phases?: Record<string, LocalPhasePolicyEntry | undefined>;
         };
-        return payload.phases?.phase2;
+        const entries = Object.entries(payload.phases ?? {})
+            .filter((entry): entry is [string, LocalPhasePolicyEntry] => Boolean(entry[1]))
+            .sort(([left], [right]) => comparePhaseNames(left, right));
+        if (entries.length === 0) {
+            return undefined;
+        }
+
+        const openEntry = [...entries].reverse().find(([, entry]) => entry.status !== 'closed');
+        const [phaseName, entry] = openEntry ?? entries[entries.length - 1];
+        return { phaseName, entry };
     } catch {
         return undefined;
     }
@@ -381,8 +404,8 @@ export function doctorProject(options: DoctorCommandOptions): DoctorCommandResul
     if (localPhasePolicy) {
         addCheck(
             checks,
-            localPhasePolicy.status === 'frozen' || localPhasePolicy.status === 'closed' ? 'warn' : 'ok',
-            `Tracked phase2 policy: ${localPhasePolicy.status} (allow new packages: ${localPhasePolicy.allowNewPackages ? 'yes' : 'no'})${localPhasePolicy.closeoutReportPath ? `, closeout report ${localPhasePolicy.closeoutReportPath}` : ''}.`,
+            localPhasePolicy.entry.status === 'frozen' || localPhasePolicy.entry.status === 'closed' ? 'warn' : 'ok',
+            `Tracked ${localPhasePolicy.phaseName} policy: ${localPhasePolicy.entry.status} (allow new packages: ${localPhasePolicy.entry.allowNewPackages ? 'yes' : 'no'})${localPhasePolicy.entry.closeoutReportPath ? `, closeout report ${localPhasePolicy.entry.closeoutReportPath}` : ''}.`,
         );
     }
 

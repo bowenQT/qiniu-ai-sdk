@@ -213,6 +213,7 @@ interface LiveVerifyMcpHostInteropResult {
         resourceContents?: Array<{ text?: string; mimeType?: string }>;
         promptMessages?: Array<{ role?: string; content: unknown }>;
         toolOutput?: string;
+        listChangedObserved?: boolean;
     };
     deferredRisks?: string[];
 }
@@ -802,29 +803,60 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
 
         if (env.QINIU_LIVE_VERIFY_RESPONSE_API === '1') {
             const responseClient = client.response as {
-                createText?: (params: { model: string; input: string; include?: string[] }) => Promise<string | undefined>;
-                create?: (params: { model: string; input: string; include?: string[] }) => Promise<{ output_text?: string }>;
+                createTextResult?: (params: { model: string; input: string; include?: string[] }) => Promise<{
+                    response: { id: string; output_text?: string };
+                    outputText?: string;
+                }>;
+                followUpTextResult?: (params: {
+                    model: string;
+                    input: string;
+                    previousResponseId: string;
+                    include?: string[];
+                }) => Promise<{
+                    response: { id: string; output_text?: string };
+                    outputText?: string;
+                }>;
                 createTextStream?: (params: { model: string; input: string; include?: string[] }) => AsyncGenerator<string, { outputText: string }, unknown>;
             };
 
-            const responseText = responseClient.createText
-                ? await responseClient.createText({
-                    model: env.QINIU_LIVE_VERIFY_RESPONSE_MODEL || 'gpt-5.2',
-                    input: 'Reply with the single word response.',
-                    include: ['reasoning.encrypted_content'],
-                })
-                : (await responseClient.create?.({
-                    model: env.QINIU_LIVE_VERIFY_RESPONSE_MODEL || 'gpt-5.2',
-                    input: 'Reply with the single word response.',
-                    include: ['reasoning.encrypted_content'],
-                }))?.output_text;
+            if (!responseClient.createTextResult || !responseClient.followUpTextResult) {
+                throw new Error(
+                    'Response API live probe requires createTextResult() and followUpTextResult() support in the current SDK build',
+                );
+            }
+
+            const responseModel = env.QINIU_LIVE_VERIFY_RESPONSE_MODEL || 'gpt-5.2';
+            const created = await responseClient.createTextResult({
+                model: responseModel,
+                input: 'Reply with the single word response.',
+                include: ['reasoning.encrypted_content'],
+            });
+            const responseText = created.outputText ?? created.response.output_text;
+            const followedUp = await responseClient.followUpTextResult({
+                model: responseModel,
+                input: 'Reply with the single word followup.',
+                previousResponseId: created.response.id,
+                include: ['reasoning.encrypted_content'],
+            });
+            const followUpText = followedUp.outputText ?? followedUp.response.output_text;
 
             addCheck(
                 checks,
                 'ok',
-                `Response API probe succeeded: ${responseText ?? '[non-text]'}`,
+                `Response API probe succeeded: create ${created.response.id} -> ${responseText ?? '[non-text]'}, followUp ${followedUp.response.id} -> ${followUpText ?? '[non-text]'}`,
             );
-            addProbe(probes, options.lane, 'response-api', 'ok', `Response API probe succeeded: ${responseText ?? '[non-text]'}`);
+            addProbe(
+                probes,
+                options.lane,
+                'response-api',
+                'ok',
+                `Response API probe succeeded: create ${created.response.id} -> ${responseText ?? '[non-text]'}, followUp ${followedUp.response.id} -> ${followUpText ?? '[non-text]'}`,
+                {
+                    officialSurface: ['create', 'followUp', 'createTextResult', 'followUpTextResult'],
+                    createResponseId: created.response.id,
+                    followUpResponseId: followedUp.response.id,
+                },
+            );
 
             if (env.QINIU_LIVE_VERIFY_RESPONSE_STREAM === '1') {
                 if (!responseClient.createTextStream) {
@@ -1810,6 +1842,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                             hostToolCount: interopResult.host?.tools?.length,
                             hostResourceCount: interopResult.host?.resources?.length,
                             hostPromptCount: interopResult.host?.prompts?.length,
+                            listChangedObserved: interopResult.host?.listChangedObserved ?? false,
                             deferredRisks: interopResult.deferredRisks,
                         },
                     );
@@ -1849,6 +1882,13 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                             checks,
                             'ok',
                             `MCP host interoperability deferred risks recorded: ${interopResult.deferredRisks.length} items`,
+                        );
+                    }
+                    if (interopResult.host?.listChangedObserved) {
+                        addCheck(
+                            checks,
+                            'ok',
+                            'MCP host notifications/list_changed live evidence observed.',
                         );
                     }
                 } catch (error) {

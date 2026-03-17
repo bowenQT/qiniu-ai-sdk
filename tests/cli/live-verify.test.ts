@@ -269,14 +269,26 @@ describe('CLI live verification helpers', () => {
                     }),
                 },
                 response: {
-                    createText: async () => 'response',
+                    createTextResult: async () => ({
+                        response: { id: 'resp-create-1', output_text: 'response' },
+                        outputText: 'response',
+                    }),
+                    followUpTextResult: async () => ({
+                        response: { id: 'resp-followup-1', output_text: 'followup' },
+                        outputText: 'followup',
+                    }),
                 },
             }) as any,
         });
 
         expect(result.exitCode).toBe(2);
-        expect(result.checks.some((check) => check.message.includes('Response API probe succeeded: response'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Response API probe succeeded: create resp-create-1 -> response, followUp resp-followup-1 -> followup'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API stream live probe was skipped'))).toBe(true);
+        expect(result.probes.find((probe) => probe.id === 'response-api')?.details).toEqual({
+            officialSurface: ['create', 'followUp', 'createTextResult', 'followUpTextResult'],
+            createResponseId: 'resp-create-1',
+            followUpResponseId: 'resp-followup-1',
+        });
     });
 
     it('runs the optional Response API stream probe when explicitly enabled', async () => {
@@ -308,7 +320,14 @@ describe('CLI live verification helpers', () => {
                     }),
                 },
                 response: {
-                    createText: async () => 'response',
+                    createTextResult: async () => ({
+                        response: { id: 'resp-create-1', output_text: 'response' },
+                        outputText: 'response',
+                    }),
+                    followUpTextResult: async () => ({
+                        response: { id: 'resp-followup-1', output_text: 'followup' },
+                        outputText: 'followup',
+                    }),
                     createTextStream: mockTextStream,
                 },
                 batch: {
@@ -324,7 +343,7 @@ describe('CLI live verification helpers', () => {
         });
 
         expect(result.exitCode).toBe(2);
-        expect(result.checks.some((check) => check.message.includes('Response API probe succeeded: response'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Response API probe succeeded: create resp-create-1 -> response, followUp resp-followup-1 -> followup'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API stream probe succeeded: stream-response'))).toBe(true);
     });
 
@@ -944,8 +963,9 @@ describe('CLI live verification helpers', () => {
                         resourceContents: [{ text: '# Hello', mimeType: 'text/markdown' }],
                         promptMessages: [{ role: 'user', content: { type: 'text', text: 'Please summarize hello' } }],
                         toolOutput: 'pong',
+                        listChangedObserved: true,
                     },
-                    deferredRisks: ['notifications are still unit-only'],
+                    deferredRisks: ['oauth token acquisition remains out of scope'],
                 }),
             }),
         });
@@ -958,6 +978,7 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('MCP host prompt get probe succeeded: 1 messages'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP host tool execution probe succeeded: ping -> pong'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('MCP host interoperability deferred risks recorded: 1 items'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('MCP host notifications/list_changed live evidence observed.'))).toBe(true);
         const hostProbe = result.probes.find((probe) => probe.id === 'mcp-host-interop');
         expect(hostProbe?.status).toBe('ok');
         expect(hostProbe?.details).toEqual({
@@ -969,7 +990,8 @@ describe('CLI live verification helpers', () => {
             hostToolCount: 1,
             hostResourceCount: 1,
             hostPromptCount: 1,
-            deferredRisks: ['notifications are still unit-only'],
+            listChangedObserved: true,
+            deferredRisks: ['oauth token acquisition remains out of scope'],
         });
     });
 });

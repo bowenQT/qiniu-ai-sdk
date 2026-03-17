@@ -48,18 +48,40 @@ const {
   renderPromotionGateSummary,
   renderVerificationReport,
 } = await import(pathToFileURL(distEntry).href);
+
+function comparePhaseNames(left, right) {
+  const leftNumber = Number.parseInt(String(left).replace(/^phase/, ''), 10);
+  const rightNumber = Number.parseInt(String(right).replace(/^phase/, ''), 10);
+  if (!Number.isNaN(leftNumber) && !Number.isNaN(rightNumber) && leftNumber !== rightNumber) {
+    return leftNumber - rightNumber;
+  }
+  return String(left).localeCompare(String(right));
+}
+
+function resolvePhasePolicyEntry(phases) {
+  const entries = Object.entries(phases ?? {})
+    .filter((entry) => Boolean(entry[1]))
+    .sort(([left], [right]) => comparePhaseNames(left, right));
+  if (entries.length === 0) {
+    return undefined;
+  }
+  return [...entries].reverse().find(([, entry]) => entry.status !== 'closed') ?? entries[entries.length - 1];
+}
+
 const capabilityScorecard = readFileSync(capabilityScorecardPath, 'utf8');
 const phasePolicyAvailable = existsSync(phasePolicyPath);
 const phasePolicySummary = phasePolicyAvailable
   ? (() => {
       const payload = JSON.parse(readFileSync(phasePolicyPath, 'utf8'));
-      const entry = payload?.phases?.phase2;
-      if (!entry) {
-        return '# Phase Policy\n\nPhase 2 policy entry was not found.\n';
+      const resolved = resolvePhasePolicyEntry(payload?.phases);
+      if (!resolved) {
+        return '# Phase Policy\n\nTracked phase policy entry was not found.\n';
       }
+      const [phaseName, entry] = resolved;
       return [
         '# Phase Policy',
         '',
+        `- Phase: ${phaseName}`,
         `- Status: ${entry.status ?? 'unknown'}`,
         `- New packages allowed: ${entry.allowNewPackages ? 'yes' : 'no'}`,
         ...(entry.closeoutReportPath ? [`- Closeout report: ${entry.closeoutReportPath}`] : []),
