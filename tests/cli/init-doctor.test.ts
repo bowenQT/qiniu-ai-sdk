@@ -199,10 +199,10 @@ describe('CLI init and doctor', () => {
             expect.stringContaining('createAgent imports detected (ga, contract'),
         );
         expect(consoleLogSpy).toHaveBeenCalledWith(
-            expect.stringContaining('ResponseAPI usage detected (experimental, tracked decision experimental (held))'),
+            expect.stringContaining('ResponseAPI usage detected (beta, tracked decision experimental -> beta)'),
         );
         expect(consoleLogSpy).toHaveBeenCalledWith(
-            expect.stringContaining('tracked decision experimental (held)'),
+            expect.stringContaining('tracked decision experimental -> beta'),
         );
     });
 
@@ -234,7 +234,7 @@ describe('CLI init and doctor', () => {
             expect.stringContaining('admin imports detected (beta, unit, validated 2026-03-15'),
         );
         expect(consoleLogSpy).toHaveBeenCalledWith(
-            expect.stringContaining('ResponseAPI imports detected (experimental, unit, validated 2026-03-15, tracked decision experimental (held)'),
+            expect.stringContaining('ResponseAPI imports detected (beta, unit, validated 2026-03-15, tracked decision experimental -> beta'),
         );
     });
 

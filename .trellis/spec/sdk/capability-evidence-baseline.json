@@ -159,7 +159,8 @@
       "maturity": "beta",
       "docsUrl": "https://modelcontextprotocol.io/specification/2025-11-25/basic/transports",
       "sourceUpdatedAt": "2026-03-14",
-      "validationLevel": "unit"
+      "validationLevel": "unit",
+      "notes": "Beta is held on remaining deferred risks: OAuth token acquisition and multi-server routing."
     },
     {
       "name": "sandbox",
@@ -210,7 +211,7 @@
       "sourceUpdatedAt": "2026-03-14",
       "validatedAt": "2026-03-15",
       "validationLevel": "unit",
-      "notes": "Provider-only surface is covered by dedicated unit suites; live verification remains opt-in."
+      "notes": "Core subset (create/followUp/createTextResult/followUpTextResult) is promoted via tracked decision; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only."
     },
     {
       "name": "crew",
