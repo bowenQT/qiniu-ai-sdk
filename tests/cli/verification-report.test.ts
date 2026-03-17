@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     renderPromotionDecisionSummary,
+    renderPromotionGateSummary,
     renderReviewPacketFallback,
     renderVerificationReport,
 } from '../../src/cli/verification-report';
@@ -11,7 +12,7 @@ describe('verification report renderer', () => {
             generatedAt: '2026-03-16T00:00:00.000Z',
             capabilityScorecard: '# Capability Scorecard\n\nTracked capability truth.\n',
             capabilityEvidenceAvailable: true,
-            capabilityEvidenceSummary: '# Capability Evidence Snapshot\n\nTracked promotion decisions: 1.\n\nLatest gate artifact:\n- Path: artifacts/live-verify-gate.json\n- Status: ok\n- Promotion gate: held\n',
+            capabilityEvidenceSummary: '# Capability Evidence Snapshot\n\nTracked promotion decisions: 1.\n\nLatest gate artifact:\n- Path: artifacts/live-verify-gate.json\n- Status: ok\n- Promotion gate: unavailable\n- Blocking failures: 0\n- Held evidence: 0\n- Unavailable evidence: 1\n',
             liveVerifyAvailable: true,
             liveVerifySummary: '# Live Verification Gate\n\nLatest live evidence.\n',
             reviewPacketAvailable: true,
@@ -81,5 +82,22 @@ describe('verification report renderer', () => {
         expect(output).toContain('## NodeMCPHost');
         expect(output).toContain('beta (held)');
         expect(output).toContain('antigravity');
+    });
+
+    it('renders a machine-readable promotion gate summary', () => {
+        const output = renderPromotionGateSummary({
+            status: 'unavailable',
+            packageId: 'phase2/dx-validation/promotion-gate-hardening',
+            policyProfile: 'pr',
+            blockingFailuresCount: 0,
+            heldEvidenceCount: 0,
+            unavailableEvidenceCount: 2,
+        });
+
+        expect(output).toContain('# Promotion Gate Summary');
+        expect(output).toContain('- Status: unavailable');
+        expect(output).toContain('- Package: phase2/dx-validation/promotion-gate-hardening');
+        expect(output).toContain('- Policy profile: pr');
+        expect(output).toContain('- Unavailable evidence: 2');
     });
 });

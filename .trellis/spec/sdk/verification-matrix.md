@@ -4,7 +4,7 @@ Use this matrix before claiming completion.
 
 | Change Area | Minimum Verification |
 | --- | --- |
-| `.github/workflows/**`, `scripts/run-live-verify-gate.mjs`, `src/cli/live-verify.ts`, `.trellis/spec/sdk/live-verify-policy.json` | `npm test -- tests/cli/live-verify.test.ts tests/cli/live-verify-gate.test.ts`, `npm run build`, a local `node scripts/run-live-verify-gate.mjs` smoke, and when promotion gating changes, `node bin/qiniu-ai.mjs verify gate --brief <brief> --profile <profile> --policy .trellis/spec/sdk/live-verify-policy.json --json` |
+| `.github/workflows/**`, `scripts/run-live-verify-gate.mjs`, `src/cli/live-verify.ts`, `.trellis/spec/sdk/live-verify-policy.json` | `npm test -- tests/cli/live-verify.test.ts tests/cli/live-verify-gate.test.ts tests/cli/verification-report.test.ts`, `npm run build`, a local `node scripts/run-live-verify-gate.mjs` smoke, and when promotion gating changes, `node bin/qiniu-ai.mjs verify gate --brief <brief> --profile <profile> --policy .trellis/spec/sdk/live-verify-policy.json --json` |
 | `src/cli/package-workflow.ts`, `scripts/render-review-packet.mjs`, `scripts/render-promotion-decisions.mjs`, `scripts/render-capability-evidence-snapshot.mjs`, package-first workflow docs | `npm test -- tests/cli/package-workflow.test.ts tests/cli/verification-report.test.ts`, `npm run build`, and local render smoke for review/promotion/evidence artifacts |
 | `.agent/**`, `.trellis/**`, `AGENTS.md`, `.claude/CLAUDE.md` | `git check-ignore -v` on tracked and ignored paths, `rg 'docs/plans/' .agent`, and manual link/path review |
 | `package.json`, exports, `tsconfig*.json`, entrypoints | `npm run build` and `npm test` |

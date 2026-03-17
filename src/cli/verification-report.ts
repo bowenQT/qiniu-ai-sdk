@@ -20,6 +20,15 @@ export interface PromotionDecisionSummaryEntry {
     decisionAt?: string;
 }
 
+export interface CloseoutPromotionGateSummaryEntry {
+    status: 'pass' | 'held' | 'block' | 'unavailable';
+    packageId?: string;
+    policyProfile?: string;
+    blockingFailuresCount?: number;
+    heldEvidenceCount?: number;
+    unavailableEvidenceCount?: number;
+}
+
 function trimEmbeddedHeading(content: string): string {
     const trimmed = content.trim();
     return trimmed.replace(/^# .+\n+/, '');
@@ -77,6 +86,28 @@ export function renderPromotionDecisionSummary(
         lines.push('');
     }
     return lines.join('\n');
+}
+
+export function renderPromotionGateSummary(entry?: CloseoutPromotionGateSummaryEntry): string {
+    if (!entry) {
+        return [
+            '# Promotion Gate Summary',
+            '',
+            'No live-verify promotion gate artifact was produced for this run.',
+            '',
+        ].join('\n');
+    }
+    return [
+        '# Promotion Gate Summary',
+        '',
+        `- Status: ${entry.status}`,
+        ...(entry.packageId ? [`- Package: ${entry.packageId}`] : []),
+        ...(entry.policyProfile ? [`- Policy profile: ${entry.policyProfile}`] : []),
+        `- Blocking failures: ${entry.blockingFailuresCount ?? 0}`,
+        `- Held evidence: ${entry.heldEvidenceCount ?? 0}`,
+        `- Unavailable evidence: ${entry.unavailableEvidenceCount ?? 0}`,
+        '',
+    ].join('\n');
 }
 
 export function renderVerificationReport(input: VerificationReportInput): string {

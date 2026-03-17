@@ -84,6 +84,9 @@ const capabilityEvidenceSummary = capabilityEvidenceAvailable
               `- Path: ${latestGate.path ?? 'unknown'}`,
               `- Status: ${latestGate.status ?? 'unknown'}`,
               `- Promotion gate: ${latestGate.promotionGateStatus ?? 'unknown'}`,
+              `- Blocking failures: ${latestGate.blockingFailuresCount ?? 0}`,
+              `- Held evidence: ${latestGate.heldEvidenceCount ?? 0}`,
+              `- Unavailable evidence: ${latestGate.unavailableEvidenceCount ?? 0}`,
               ...(latestGate.packageId ? [`- Package: ${latestGate.packageId}`] : []),
             ]
           : []),

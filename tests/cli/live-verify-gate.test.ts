@@ -94,7 +94,7 @@ describe('CLI live verification gate', () => {
         expect(result.checks.some((check) => check.message.includes('Non-blocking live warnings remain for profile pr'))).toBe(true);
     });
 
-    it('holds missing required probe results for standard packages under the active policy profile', async () => {
+    it('marks missing required probe results as unavailable for standard packages under the active policy profile', async () => {
         const policy: LiveVerifyPolicy = {
             version: 1,
             profiles: {
@@ -125,8 +125,9 @@ describe('CLI live verification gate', () => {
 
         expect(result.exitCode).toBe(0);
         expect(result.status).toBe('ok');
-        expect(result.promotionGateStatus).toBe('held');
-        expect(result.heldEvidence?.some((entry) => entry.includes('response-api'))).toBe(true);
+        expect(result.promotionGateStatus).toBe('unavailable');
+        expect(result.unavailableEvidence?.some((entry) => entry.includes('response-api'))).toBe(true);
+        expect(result.promotionDecisionSummary?.status).toBe('unavailable');
     });
 
     it('surfaces lane policy metadata for MCP interop boundaries', async () => {
@@ -163,7 +164,7 @@ describe('CLI live verification gate', () => {
         expect(result.checks.some((check) => check.message.includes('[node-integrations] Tracked decision files:'))).toBe(true);
     });
 
-    it('holds missing promotion-sensitive probes for standard packages without blocking the gate', async () => {
+    it('marks missing promotion-sensitive probes as unavailable for standard packages without blocking the gate', async () => {
         const briefPath = path.join(tmpDir, 'standard-package.json');
         fs.writeFileSync(briefPath, JSON.stringify({
             version: 1,
@@ -173,7 +174,7 @@ describe('CLI live verification gate', () => {
             category: 'standard',
             topic: 'responseapi-readiness-note',
             goal: 'Track ResponseAPI evidence without promotion',
-            successCriteria: ['Missing promotion evidence is held, not blocking'],
+            successCriteria: ['Missing promotion evidence is unavailable, not blocking'],
             touchedSurfaces: ['src/cli/live-verify.ts'],
             requiredEvidence: ['focused-verification'],
             explicitlyOutOfScope: [],
@@ -219,8 +220,9 @@ describe('CLI live verification gate', () => {
 
         expect(result.exitCode).toBe(0);
         expect(result.status).toBe('ok');
-        expect(result.promotionGateStatus).toBe('held');
-        expect(result.heldEvidence?.some((entry) => entry.includes('response-api'))).toBe(true);
+        expect(result.promotionGateStatus).toBe('unavailable');
+        expect(result.unavailableEvidence?.some((entry) => entry.includes('response-api'))).toBe(true);
+        expect(result.promotionDecisionSummary?.status).toBe('unavailable');
     });
 
     it('fails promotion-sensitive packages when required live evidence is missing', async () => {
@@ -280,8 +282,62 @@ describe('CLI live verification gate', () => {
 
         expect(result.exitCode).toBe(1);
         expect(result.status).toBe('fail');
-        expect(result.promotionGateStatus).toBe('blocking');
+        expect(result.promotionGateStatus).toBe('block');
         expect(result.packageId).toBe('phase2/cloud-surface/responseapi-promotion-readiness');
+        expect(result.promotionDecisionSummary?.status).toBe('block');
+    });
+
+    it('keeps failed required probes in held status for standard packages when live evidence exists but is not promotable', async () => {
+        const result = await verifyLiveGate({
+            lanes: ['node-integrations'],
+            policy: {
+                version: 1,
+                profiles: {
+                    pr: {
+                        description: 'PR profile',
+                        lanePolicies: {
+                            'node-integrations': {
+                                requiredProbes: ['mcp-host-interop'],
+                                optionalProbes: ['mcp-host-interop'],
+                                promotionModules: ['NodeMCPHost'],
+                            },
+                        },
+                    },
+                },
+            },
+            policyProfile: 'pr',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_MCP_URL: 'https://example.com/mcp',
+                QINIU_LIVE_VERIFY_MCP_HOST: '1',
+            },
+            createNodeClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'node' } }],
+                    }),
+                },
+            }) as any,
+            createMcpTransport: () => ({
+                probe: async () => ({
+                    connection: {
+                        serverName: 'live-verify-mcp',
+                        url: 'https://example.com/mcp',
+                        protocolVersion: '2025-11-25',
+                    },
+                }),
+            }) as any,
+            createMcpHost: () => ({
+                probeServerInterop: async () => {
+                    throw new Error('host interop unavailable');
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(0);
+        expect(result.promotionGateStatus).toBe('held');
+        expect(result.heldEvidence?.some((entry) => entry.includes('mcp-host-interop'))).toBe(true);
+        expect(result.promotionDecisionSummary?.status).toBe('held');
     });
 
     it('keeps optional MCP host interop failures non-blocking under the PR policy', async () => {
@@ -441,6 +497,14 @@ describe('CLI live verification gate', () => {
             packageCategory: 'promotion-sensitive',
             promotionSensitive: true,
             promotionGateStatus: 'held',
+            promotionDecisionSummary: {
+                status: 'held',
+                promotionSensitive: true,
+                blockingFailuresCount: 0,
+                heldEvidenceCount: 1,
+                unavailableEvidenceCount: 0,
+                basisCount: 1,
+            },
             checks: [],
             probes: [],
             heldEvidence: ['[node-integrations] Required probe mcp-host-interop was skipped'],
@@ -481,6 +545,8 @@ describe('CLI live verification gate', () => {
         expect(markdown).toContain('Package: phase2/node-integrations/node-mcphost-promotion-readiness');
         expect(markdown).toContain('Package category: promotion-sensitive');
         expect(markdown).toContain('Promotion gate status: held');
+        expect(markdown).toContain('## Promotion Decision Summary');
+        expect(markdown).toContain('Unavailable evidence items: 0');
         expect(markdown).toContain('Required probes: mcp-connect');
         expect(markdown).toContain('Promotion-sensitive required probes: mcp-connect, mcp-host-interop');
         expect(markdown).toContain('Optional probes: mcp-host-interop');

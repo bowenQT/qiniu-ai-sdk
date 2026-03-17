@@ -15,6 +15,18 @@ export function renderLiveVerifyGateMarkdown(result: LiveVerifyGateResult): stri
         '',
     ];
 
+    if (result.promotionDecisionSummary) {
+        lines.push('## Promotion Decision Summary');
+        lines.push('');
+        lines.push(`- Status: ${result.promotionDecisionSummary.status}`);
+        lines.push(`- Promotion-sensitive package: ${result.promotionDecisionSummary.promotionSensitive ? 'yes' : 'no'}`);
+        lines.push(`- Blocking failures: ${result.promotionDecisionSummary.blockingFailuresCount}`);
+        lines.push(`- Held evidence items: ${result.promotionDecisionSummary.heldEvidenceCount}`);
+        lines.push(`- Unavailable evidence items: ${result.promotionDecisionSummary.unavailableEvidenceCount}`);
+        lines.push(`- Decision basis entries: ${result.promotionDecisionSummary.basisCount}`);
+        lines.push('');
+    }
+
     if (result.blockingFailures && result.blockingFailures.length > 0) {
         lines.push('## Blocking Failures');
         lines.push('');
@@ -28,6 +40,15 @@ export function renderLiveVerifyGateMarkdown(result: LiveVerifyGateResult): stri
         lines.push('## Held Evidence');
         lines.push('');
         for (const item of result.heldEvidence) {
+            lines.push(`- ${item}`);
+        }
+        lines.push('');
+    }
+
+    if (result.unavailableEvidence && result.unavailableEvidence.length > 0) {
+        lines.push('## Unavailable Evidence');
+        lines.push('');
+        for (const item of result.unavailableEvidence) {
             lines.push(`- ${item}`);
         }
         lines.push('');

@@ -23,9 +23,10 @@ export interface LiveVerifyGateEvidenceInfo {
     policyProfile?: string;
     packageId?: string;
     packageCategory?: 'standard' | 'promotion-sensitive';
-    promotionGateStatus?: 'clear' | 'held' | 'blocking';
+    promotionGateStatus?: 'pass' | 'held' | 'block' | 'unavailable';
     blockingFailuresCount?: number;
     heldEvidenceCount?: number;
+    unavailableEvidenceCount?: number;
 }
 
 export interface ModelCapabilityInfo extends ModelInfo {
