@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "packageId": "phase2/cloud-surface/responseapi-promotion-readiness",
+  "phase": "phase2",
+  "ownerLane": "cloud-surface",
+  "category": "promotion-sensitive",
+  "topic": "responseapi-promotion-readiness",
+  "goal": "Define a narrow, auditable official boundary for ResponseAPI and record a tracked readiness decision instead of continuing unbounded helper expansion.",
+  "successCriteria": [
+    "ResponseAPI promotion candidates and deferred helpers are explicit and machine-readable.",
+    "Doctor, scorecard, verification report, and promotion decision artifacts agree on the current ResponseAPI status.",
+    "The package can record a held decision without widening the provider-only ResponseAPI surface."
+  ],
+  "touchedSurfaces": [
+    "src/modules/response/index.ts",
+    "src/cli/doctor.ts",
+    ".trellis/decisions/phase2",
+    ".trellis/spec/sdk/live-verify-policy.json",
+    "docs/capability-scorecard.md",
+    "src/cli/verification-report.ts"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Adding new ResponseAPI helpers or broadening the default provider surface.",
+    "Auto-promoting ResponseAPI without a tracked decision artifact and matching evidence basis."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/cloud-surface/responseapi-promotion-readiness",
+  "branch": "codex/phase2/cloud-surface/responseapi-promotion-readiness",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase2-response-readiness",
+  "createdAt": "2026-03-17T10:00:00.000Z"
+}

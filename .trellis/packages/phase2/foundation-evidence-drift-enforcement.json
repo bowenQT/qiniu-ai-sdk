@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "packageId": "phase2/foundation/evidence-drift-enforcement",
+  "phase": "phase2",
+  "ownerLane": "foundation",
+  "topic": "evidence-drift-enforcement",
+  "goal": "Turn capability truth drift into a hard CI failure by compiling and checking capability-evidence, generated truth, scorecard, and verification-report sections from the same tracked evidence sources.",
+  "successCriteria": [
+    "Capability truth compiles deterministically from baseline, tracked decisions, and latest gate artifact.",
+    "Capability-evidence snapshot, generated truth source, scorecard, and verification-report truth sections fail CI when they drift apart.",
+    "Release review can trust that tracked truth and rendered docs are generated from the same evidence set."
+  ],
+  "touchedSurfaces": [
+    ".trellis/spec/sdk/capability-evidence.json",
+    "src/lib/capability-evidence.generated.ts",
+    "docs/capability-scorecard.md",
+    "scripts/render-capability-evidence-snapshot.mjs",
+    "scripts/render-capability-scorecard.mjs",
+    "scripts/render-verification-report.mjs",
+    "scripts/lib/capability-evidence.mjs"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Remote docs scraping as a primary truth source.",
+    "Changing tracked maturity decisions inside the drift-enforcement package."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/foundation/evidence-drift-enforcement",
+  "branch": "codex/phase2/foundation/evidence-drift-enforcement",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase2-evidence-drift",
+  "createdAt": "2026-03-17T16:00:00.000Z"
+}

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "packageId": "phase3/foundation/nightly-evidence-ingestion",
+  "phase": "phase3",
+  "ownerLane": "foundation",
+  "category": "promotion-sensitive",
+  "topic": "nightly-evidence-ingestion",
+  "goal": "Compile the latest nightly promotion evidence into tracked capability truth so future promotions depend on auditable nightly artifacts rather than transcript-only claims.",
+  "successCriteria": [
+    "Latest nightly gate artifact can be consumed by capability truth, verification report, and scorecard metadata.",
+    "Missing or stale nightly evidence fails clearly instead of silently falling back to older truth.",
+    "The existing PR verify flow and artifact semantics remain unchanged."
+  ],
+  "touchedSurfaces": [
+    "scripts",
+    "src/lib",
+    "src/cli",
+    ".trellis/spec/sdk",
+    "docs"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "artifact-smoke",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "No ResponseAPI runtime changes.",
+    "No NodeMCPHost runtime changes.",
+    "No redesign of the nightly workflow schema from Phase 3 Batch 1."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/foundation/nightly-evidence-ingestion",
+  "branch": "codex/phase3/foundation/nightly-evidence-ingestion",
+  "worktreePath": ".worktrees/phase3-nightly-evidence",
+  "createdAt": "2026-03-18T00:00:00.000Z"
+}

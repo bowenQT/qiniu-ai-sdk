@@ -301,6 +301,13 @@ describe('MCPHttpTransport', () => {
             terminateSession: true,
         });
 
+        expect(result.connection).toEqual({
+            serverName: 'server-probe',
+            url: 'https://mcp.example.com/mcp',
+            protocolVersion: '2025-11-25',
+            sessionId: undefined,
+            lastEventId: undefined,
+        });
         expect(result.tools?.[0]?.name).toBe('ping');
         expect(result.resources?.[0]).toEqual({
             uri: 'file:///readme.md',

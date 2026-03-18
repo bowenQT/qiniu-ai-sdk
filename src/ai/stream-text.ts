@@ -282,23 +282,34 @@ export function streamText(options: StreamTextOptions): StreamTextResult {
         steps: stepsPromise,
         toDataStreamResponse(opts?: { headers?: Record<string, string> }): Response {
             const fullStream = createFilteredStream(state, () => true, (e) => e);
-            // Note: createFilteredStream already handles activeConsumers counting via lazy iteration
+            const iterator = fullStream[Symbol.asyncIterator]();
+            let cancelled = false;
 
             const encoder = new TextEncoder();
             const readable = new ReadableStream({
                 async start(controller) {
                     try {
-                        for await (const event of fullStream) {
+                        while (!cancelled) {
+                            const { value: event, done } = await iterator.next();
+                            if (done || cancelled) {
+                                break;
+                            }
                             const data = JSON.stringify(event);
                             controller.enqueue(encoder.encode(`data: ${data}\n\n`));
                         }
                         controller.close();
                     } catch (err) {
-                        controller.error(err);
+                        if (!cancelled) {
+                            controller.error(err);
+                        }
+                    } finally {
+                        await iterator.return?.();
                     }
                 },
-                // Note: no cancel() needed — breaking the for-await triggers
-                // the generator's return(), which calls state.onReturn() exactly once.
+                async cancel() {
+                    cancelled = true;
+                    await iterator.return?.();
+                },
             });
 
             return new Response(readable, {
@@ -333,6 +344,7 @@ function createFilteredStream<T>(
     let returned = false;
     let iteratorCreated = false;
     let pendingError: Error | null = null;
+    let pendingWaiter: { resolve: () => void } | null = null;
 
     const iterable: AsyncIterable<T> = {
         [Symbol.asyncIterator]() {
@@ -349,6 +361,10 @@ function createFilteredStream<T>(
 
     const generator: AsyncIterator<T> = {
         async next(): Promise<IteratorResult<T>> {
+            if (returned) {
+                return { value: undefined as any, done: true };
+            }
+
             // Throw pending error from previous iteration
             if (pendingError) {
                 const err = pendingError;
@@ -358,8 +374,16 @@ function createFilteredStream<T>(
             }
 
             while (true) {
+                if (returned) {
+                    return { value: undefined as any, done: true };
+                }
+
                 // Process buffered events
                 while (cursor < state.events.length) {
+                    if (returned) {
+                        return { value: undefined as any, done: true };
+                    }
+
                     const event = state.events[cursor++];
 
                     // Terminal: error event
@@ -399,13 +423,31 @@ function createFilteredStream<T>(
 
                 // Wait for new events
                 await new Promise<void>(resolve => {
-                    state.waiters.push({ resolve });
+                    const waiter = {
+                        resolve: () => {
+                            if (pendingWaiter === waiter) {
+                                pendingWaiter = null;
+                            }
+                            resolve();
+                        },
+                    };
+                    pendingWaiter = waiter;
+                    state.waiters.push(waiter);
                 });
             }
         },
         async return() {
             if (!returned) {
                 returned = true;
+                if (pendingWaiter) {
+                    const waiterIndex = state.waiters.indexOf(pendingWaiter);
+                    if (waiterIndex >= 0) {
+                        state.waiters.splice(waiterIndex, 1);
+                    }
+                    const waiter = pendingWaiter;
+                    pendingWaiter = null;
+                    waiter.resolve();
+                }
                 state.onReturn(cursor);
             }
             return { value: undefined as any, done: true };

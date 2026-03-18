@@ -48,6 +48,26 @@ export interface NodeMCPHostProbeResult {
     result: MCPProbeResult;
 }
 
+export interface NodeMCPHostInteropProbeHostResult {
+    tools?: NodeMCPHostToolInfo[];
+    resources?: NodeMCPHostResourceInfo[];
+    prompts?: NodeMCPHostPromptInfo[];
+    resourceContents?: NodeMCPHostResourceContent[];
+    promptMessages?: NodeMCPHostPromptMessage[];
+    toolOutput?: string;
+    listChangedObserved?: boolean;
+}
+
+export interface NodeMCPHostInteropProbeResult {
+    serverName: string;
+    transport?: MCPProbeResult;
+    host?: NodeMCPHostInteropProbeHostResult;
+    deferredRisks: string[];
+}
+
+const MCP_INTEROP_LIST_CHANGED_RISK =
+    'Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.';
+
 export interface NodeMCPHostToolInfo {
     serverName: string;
     name: string;
@@ -82,6 +102,47 @@ export interface NodeMCPHostPromptMessage {
     role?: string;
     content: unknown;
 }
+
+export interface NodeMCPHostPromotionReadinessContract {
+    officialSurface: string[];
+    requiredTransportEvidence: string[];
+    requiredHostEvidence: string[];
+    deferredRisks: readonly string[];
+    trackedDecisionPath: string;
+    decisionStatus: 'held';
+}
+
+export const DEFAULT_MCP_INTEROP_DEFERRED_RISKS = [
+    MCP_INTEROP_LIST_CHANGED_RISK,
+    'NodeMCPHost only forwards already-resolved HTTP bearer tokens through `token` or `tokenProvider`; OAuth discovery, authorization, refresh, callback, and device-code flows remain out of scope for this package.',
+    'HTTP interop evidence is collected per server; cross-server routing remains a higher-level integration concern.',
+] as const;
+
+const MCP_INTEROP_REDUCED_DEFERRED_RISKS = DEFAULT_MCP_INTEROP_DEFERRED_RISKS.slice(1);
+
+export const NODE_MCPHOST_PROMOTION_READINESS_CONTRACT: NodeMCPHostPromotionReadinessContract = Object.freeze({
+    officialSurface: [
+        'probeServer',
+        'probeServerInterop',
+        'listServerTools',
+        'executeServerTool',
+        'listServerResources',
+        'readResourceContents',
+        'listServerPrompts',
+        'getPromptMessages',
+    ],
+    requiredTransportEvidence: [
+        'mcp-connect',
+        'mcp-read-resource',
+        'mcp-get-prompt',
+    ],
+    requiredHostEvidence: [
+        'mcp-host-interop',
+    ],
+    deferredRisks: MCP_INTEROP_REDUCED_DEFERRED_RISKS,
+    trackedDecisionPath: '.trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json',
+    decisionStatus: 'held',
+});
 
 // ============================================================================
 // NodeMCPHost
@@ -354,6 +415,92 @@ export class NodeMCPHost implements MCPHostProvider {
     }
 
     /**
+     * Probe a single configured HTTP MCP server through both transport and host surfaces.
+     * This is useful for collecting bounded interoperability evidence without reopening the
+     * broader Node platform surface.
+     */
+    async probeServerInterop(serverName: string, options: MCPProbeOptions = {}): Promise<NodeMCPHostInteropProbeResult> {
+        const server = this.config.servers.find((candidate) => candidate.name === serverName);
+        if (!server) {
+            throw new Error(`MCP server "${serverName}" not found`);
+        }
+
+        if (server.transport !== 'http') {
+            throw new Error(`MCP server "${serverName}" does not use HTTP transport and cannot be probed`);
+        }
+
+        const result: NodeMCPHostInteropProbeResult = {
+            serverName,
+            deferredRisks: [...DEFAULT_MCP_INTEROP_DEFERRED_RISKS],
+        };
+
+        const needsHostEvidence = options.listTools
+            || options.listResources
+            || options.listPrompts
+            || options.readResource
+            || options.getPrompt
+            || options.executeTool;
+
+        if (needsHostEvidence) {
+            let listChangedObserved = false;
+            result.host = await this.withConnectedServerProbeHost(server, async (host) => {
+                const hostResult: NodeMCPHostInteropProbeHostResult = {};
+                const hostClient = host.clients.get(server.name);
+
+                if (hostClient && hostClient.setNotificationHandler) {
+                    hostClient.setNotificationHandler(
+                        { method: 'notifications/tools/list_changed' } as any,
+                        async () => {
+                            listChangedObserved = true;
+                            await host.refreshTools();
+                        },
+                    );
+                }
+
+                if (options.listTools) {
+                    hostResult.tools = await host.listServerTools(serverName);
+                }
+                if (options.listResources) {
+                    hostResult.resources = await host.listServerResources(serverName);
+                }
+                if (options.listPrompts) {
+                    hostResult.prompts = await host.listServerPrompts(serverName);
+                }
+                if (options.readResource) {
+                    hostResult.resourceContents = await host.readResourceContents(serverName, options.readResource.uri);
+                }
+                if (options.getPrompt) {
+                    hostResult.promptMessages = await host.getPromptMessages(
+                        serverName,
+                        options.getPrompt.name,
+                        options.getPrompt.args,
+                    );
+                }
+                if (options.executeTool) {
+                    hostResult.toolOutput = await host.executeServerTool(
+                        serverName,
+                        options.executeTool.name,
+                        options.executeTool.args ?? {},
+                    );
+                }
+
+                hostResult.listChangedObserved = listChangedObserved;
+
+                return hostResult;
+            });
+
+            if (result.host?.listChangedObserved) {
+                result.deferredRisks = DEFAULT_MCP_INTEROP_DEFERRED_RISKS.filter(
+                    (risk) => risk !== MCP_INTEROP_LIST_CHANGED_RISK,
+                );
+            }
+        }
+
+        result.transport = (await this.probeServer(serverName, options)).result;
+        return result;
+    }
+
+    /**
      * Probe configured HTTP MCP servers using the shared MCPHttpTransport helper surface.
      * Stdio servers are skipped because they do not expose the same resumable HTTP semantics.
      */
@@ -384,6 +531,7 @@ export class NodeMCPHost implements MCPHostProvider {
             });
         }
 
+        // NodeMCPHost does not initiate OAuth; it only forwards already-resolved bearer tokens.
         const token = server.token ?? await server.tokenProvider?.();
         const headers = buildHttpHeaders(server, token);
 
@@ -392,6 +540,28 @@ export class NodeMCPHost implements MCPHostProvider {
                 headers,
             },
         });
+    }
+
+    private async withConnectedServerProbeHost<T>(
+        server: MCPServerConfig,
+        run: (host: NodeMCPHost) => Promise<T>,
+    ): Promise<T> {
+        if (this.clients.has(server.name)) {
+            return run(this);
+        }
+
+        const ephemeralHost = new NodeMCPHost({
+            servers: [server],
+            clientName: this.config.clientName,
+            clientVersion: this.config.clientVersion,
+        });
+        await ephemeralHost.connect();
+
+        try {
+            return await run(ephemeralHost);
+        } finally {
+            await ephemeralHost.dispose();
+        }
     }
 
     private async refreshTools(): Promise<void> {

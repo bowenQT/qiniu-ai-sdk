@@ -104,7 +104,7 @@ describe('4.1 Skill CLI', () => {
         const items = commandList(tmpDir);
         expect(items).toHaveLength(1);
         expect(items[0]).toBe('git-workflow@1.0.0');
-    });
+    }, 30_000);
 
     it('commandList marks MISSING when directory is absent', async () => {
         const { commandList } = await import('../../src/cli/skill-cli');

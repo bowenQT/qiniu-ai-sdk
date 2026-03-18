@@ -1,6 +1,6 @@
 ---
 name: using-git-worktrees
-description: Use when starting feature work that needs isolation from current workspace or before executing implementation plans - creates isolated git worktrees with smart directory selection and safety verification
+description: Use when starting feature work that needs isolation from the current workspace or before executing implementation plans. In this repository, prefer qiniu-ai worktree commands for lane or package-first delivery; fall back to generic git worktree flows only for non-package branches.
 ---
 
 # Using Git Worktrees
@@ -12,6 +12,23 @@ Git worktrees create isolated workspaces sharing the same repository, allowing w
 **Core principle:** Systematic directory selection + safety verification = reliable isolation.
 
 **Announce at start:** "I'm using the using-git-worktrees skill to set up an isolated workspace."
+
+## Repo Override: Qiniu AI SDK
+
+In this repository, lane-based or package-first work should not start with raw `git worktree add`.
+
+If the task mentions a phase, lane, package, review handoff, or `codex/<phase>/<lane>/<topic>` branch naming:
+
+1. switch to the `package-first-sdk-delivery` skill
+2. prefer:
+
+```bash
+qiniu-ai worktree init --dir <repo-root>
+qiniu-ai worktree spawn --lane <lane> --dir <repo-root>
+qiniu-ai worktree status --dir <repo-root>
+```
+
+Use the generic flow below only when the work is a normal isolated branch with no package semantics.
 
 ## Directory Selection Process
 

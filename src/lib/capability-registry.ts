@@ -8,10 +8,14 @@ import {
 import {
     ANTHROPIC_DOCS_URL,
     CHAT_DOCS_URL,
+    CAPABILITY_EVIDENCE_DECISION_FILES,
+    CAPABILITY_EVIDENCE_GENERATED_AT,
     CURATED_MODEL_VALIDATION,
     DOCS_SYNC_DATE,
     IMAGE_DOCS_URL,
+    LATEST_LIVE_VERIFY_GATE,
     MODULE_MATURITY_SOURCE,
+    TRACKED_PROMOTION_DECISIONS,
     VIDEO_DOCS_URL,
 } from './capability-source';
 export type {
@@ -27,6 +31,7 @@ import type {
     ListModelsOptions,
     ModelCapabilityInfo,
     ModuleMaturityInfo,
+    TrackedPromotionDecisionInfo,
 } from './capability-types';
 
 const FEATURED_MODEL_INFO_BY_ID = new Map(
@@ -141,6 +146,10 @@ const MODULE_MATURITY_INDEX = new Map(
     MODULE_MATURITY_REGISTRY.map((entry) => [entry.name.toLowerCase(), entry] as const),
 );
 
+const TRACKED_PROMOTION_DECISION_INDEX = new Map(
+    TRACKED_PROMOTION_DECISIONS.map((decision) => [decision.module.toLowerCase(), decision] as const),
+);
+
 export function listModels(options: ListModelsOptions = {}): ModelCapabilityInfo[] {
     return MODEL_CAPABILITY_REGISTRY.filter((model) => {
         if (options.type && model.type !== options.type) return false;
@@ -160,4 +169,24 @@ export function listModuleMaturities(): ModuleMaturityInfo[] {
 
 export function getModuleMaturity(name: string): ModuleMaturityInfo | undefined {
     return MODULE_MATURITY_INDEX.get(name.toLowerCase());
+}
+
+export function listTrackedPromotionDecisions(): readonly TrackedPromotionDecisionInfo[] {
+    return TRACKED_PROMOTION_DECISIONS;
+}
+
+export function getTrackedPromotionDecision(name: string): TrackedPromotionDecisionInfo | undefined {
+    return TRACKED_PROMOTION_DECISION_INDEX.get(name.toLowerCase());
+}
+
+export function getCapabilityEvidenceMetadata(): {
+    generatedAt: string;
+    decisionFiles: readonly string[];
+    latestLiveVerifyGate: typeof LATEST_LIVE_VERIFY_GATE;
+} {
+    return {
+        generatedAt: CAPABILITY_EVIDENCE_GENERATED_AT,
+        decisionFiles: CAPABILITY_EVIDENCE_DECISION_FILES,
+        latestLiveVerifyGate: LATEST_LIVE_VERIFY_GATE,
+    };
 }

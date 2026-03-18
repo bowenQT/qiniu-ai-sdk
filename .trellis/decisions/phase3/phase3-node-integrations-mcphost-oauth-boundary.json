@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "packageId": "phase3/node-integrations/mcphost-oauth-boundary",
+  "generatedAt": "2026-03-18T00:00:00.000Z",
+  "decisions": [
+    {
+      "module": "NodeMCPHost",
+      "oldMaturity": "beta",
+      "newMaturity": "beta",
+      "evidenceBasis": [
+        "src/node/mcp-host.ts#NODE_MCPHOST_PROMOTION_READINESS_CONTRACT",
+        "src/node/mcp-host.ts#createTransport",
+        "tests/node/mcp-host.test.ts"
+      ],
+      "decisionSource": "codex",
+      "decisionAt": "2026-03-18T00:00:00.000Z"
+    }
+  ]
+}

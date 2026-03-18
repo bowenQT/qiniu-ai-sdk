@@ -1,9 +1,12 @@
 ---
 name: systematic-debugging
-description: Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes
+description: Four-phase debugging framework that ensures root cause investigation before attempting fixes. Never jump to solutions.
 ---
 
 # Systematic Debugging
+
+This tracked copy should stay semantically aligned with the shared `systematic-debugging` skill.
+Keep repo-local references in this directory working, but do not create a separate debugging doctrine here.
 
 ## Overview
 

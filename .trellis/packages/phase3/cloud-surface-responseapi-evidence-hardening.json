@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "packageId": "phase3/cloud-surface/responseapi-evidence-hardening",
+  "phase": "phase3",
+  "ownerLane": "cloud-surface",
+  "category": "promotion-sensitive",
+  "topic": "responseapi-evidence-hardening",
+  "goal": "Tighten the ResponseAPI beta basis around real nightly evidence so the promoted subset is clearly evidence-backed instead of only decision-backed.",
+  "successCriteria": [
+    "ResponseAPI beta status is explicitly tied to nightly evidence freshness for the core subset.",
+    "Doctor, scorecard, and verification report can distinguish evidence-backed beta from temporarily unverified beta.",
+    "Deferred helper families remain clearly outside the promoted subset."
+  ],
+  "touchedSurfaces": [
+    "src/modules/response",
+    "src/cli",
+    ".trellis/decisions",
+    ".trellis/spec/sdk",
+    "docs"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "nightly-evidence-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "No new ResponseAPI helpers.",
+    "No promotion of stream, JSON, messages, reasoning, or chat-completion helper families.",
+    "No provider surface expansion."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/cloud-surface/responseapi-evidence-hardening",
+  "branch": "codex/phase3/cloud-surface/responseapi-evidence-hardening",
+  "worktreePath": ".worktrees/phase3-response-evidence",
+  "createdAt": "2026-03-18T00:00:00.000Z"
+}

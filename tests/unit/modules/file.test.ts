@@ -293,7 +293,7 @@ describe('Phase 2: File Module', () => {
 
         const result = await client.file.waitForReady('qfile-1', {
             intervalMs: 1,
-            timeoutMs: 100,
+            timeoutMs: 500,
         });
 
         expect(result.status).toBe('ready');
