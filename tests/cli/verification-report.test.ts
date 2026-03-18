@@ -1,14 +1,64 @@
 import { describe, expect, it } from 'vitest';
 import {
     renderCapabilityEvidenceSummary,
+    renderFinalPromotionGateSummary,
     renderPromotionDecisionSummary,
     renderPromotionGateSummary,
     renderReviewPacketFallback,
     renderVerificationReport,
+    toFinalPromotionGateSummaryJson,
 } from '../../src/cli/verification-report';
 
 describe('verification report renderer', () => {
     it('combines the capability scorecard and live verification summary', () => {
+        const finalPromotionGateSummary = renderFinalPromotionGateSummary({
+            generatedAt: '2026-03-16T00:00:00.000Z',
+            packageId: 'phase3/dx-validation/final-promotion-gate',
+            policyProfile: 'phase3',
+            decisionFiles: ['.trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json'],
+            entries: [
+                {
+                    targetKind: 'prompt',
+                    targetName: 'prompt-policy revision',
+                    oldState: 'candidate',
+                    newState: 'staging',
+                    decisionStatus: 'promote',
+                    decisionSource: 'antigravity',
+                    decisionAt: '2026-03-16T12:00:00.000Z',
+                    evidenceRefs: ['artifact:prompt-policy-revision'],
+                },
+                {
+                    targetKind: 'policy',
+                    targetName: 'guardrail policy',
+                    oldState: 'staging',
+                    newState: 'production',
+                    decisionStatus: 'hold',
+                    blockers: ['Awaiting final approval.'],
+                    warnings: ['Budget tracker review pending.'],
+                },
+                {
+                    targetKind: 'skill',
+                    targetName: 'skill promotion',
+                    oldState: 'quarantine',
+                    newState: 'production',
+                    decisionStatus: 'promote',
+                    trackedPath: '.trellis/skills/skill-promotion.json',
+                    evidenceRefs: ['trial:skill-promotion', 'benchmark:skill-promotion-bench'],
+                },
+            ],
+            evalCandidateReport: {
+                reportId: 'eval-candidate-1',
+                generatedAt: '2026-03-16T12:30:00.000Z',
+                baselineId: 'baseline-1',
+                candidateId: 'candidate-2',
+                decision: 'pass',
+                gateStatus: 'pass',
+                blockingFailuresCount: 0,
+                warningCount: 0,
+                artifactRefs: ['artifact:eval-candidate-report'],
+            },
+        });
+
         const output = renderVerificationReport({
             generatedAt: '2026-03-16T00:00:00.000Z',
             phasePolicyAvailable: true,
@@ -24,6 +74,8 @@ describe('verification report renderer', () => {
             reviewPacket: '# Review Packet\n\nBounded package summary.\n',
             promotionDecisionsAvailable: true,
             promotionDecisions: '# Promotion Decisions\n\nRecorded maturity changes.\n',
+            finalPromotionGateSummaryAvailable: true,
+            finalPromotionGateSummary,
         });
 
         expect(output).toContain('# Verification Report');
@@ -43,6 +95,11 @@ describe('verification report renderer', () => {
         expect(output).toContain('Bounded package summary.');
         expect(output).toContain('## Promotion Decisions');
         expect(output).toContain('Recorded maturity changes.');
+        expect(output).toContain('## Final Promotion Gate Summary');
+        expect(output).toContain('## Prompt Decisions');
+        expect(output).toContain('## Policy Decisions');
+        expect(output).toContain('## Skill Promotions');
+        expect(output).toContain('Eval Candidate Report');
         expect(output).not.toContain('## Capability Scorecard\n\n# Capability Scorecard');
         expect(output).not.toContain('## Capability Evidence Snapshot\n\n# Capability Evidence Snapshot');
         expect(output).not.toContain('## Live Verification\n\n# Live Verification Gate');
@@ -67,6 +124,7 @@ describe('verification report renderer', () => {
         expect(output).toContain('Live verification artifact was not produced for this run.');
         expect(output).toContain('Review packet artifact was not produced for this run.');
         expect(output).toContain('Promotion decision artifact was not produced for this run.');
+        expect(output).toContain('Final promotion gate summary was not produced for this run.');
     });
 
     it('renders capability evidence summaries from a tracked snapshot', () => {
@@ -138,5 +196,63 @@ describe('verification report renderer', () => {
         expect(output).toContain('- Package: phase2/dx-validation/promotion-gate-hardening');
         expect(output).toContain('- Policy profile: pr');
         expect(output).toContain('- Unavailable evidence: 2');
+    });
+
+    it('renders a unified final promotion gate summary and derived JSON artifact', () => {
+        const input = {
+            generatedAt: '2026-03-18T00:00:00.000Z',
+            packageId: 'phase3/dx-validation/final-promotion-gate',
+            policyProfile: 'phase3',
+            decisionFiles: [
+                '.trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json',
+            ],
+            entries: [
+                {
+                    targetKind: 'prompt' as const,
+                    targetName: 'prompt policy revision',
+                    oldState: 'candidate',
+                    newState: 'staging',
+                    decisionStatus: 'promote' as const,
+                    decisionSource: 'antigravity',
+                    decisionAt: '2026-03-18T10:00:00.000Z',
+                    evidenceRefs: ['artifact:prompt-policy'],
+                },
+                {
+                    targetKind: 'skill' as const,
+                    targetName: 'skill promotion',
+                    oldState: 'quarantine',
+                    newState: 'production',
+                    decisionStatus: 'hold' as const,
+                    warnings: ['Awaiting sandbox validation.'],
+                },
+            ],
+            evalCandidateReport: {
+                reportId: 'eval-candidate-2',
+                baselineId: 'baseline-2',
+                candidateId: 'candidate-2',
+                decision: 'warn',
+                gateStatus: 'warn',
+                warningCount: 1,
+                artifactRefs: ['artifact:eval-candidate'],
+            },
+        };
+
+        const markdown = renderFinalPromotionGateSummary(input);
+        const json = JSON.parse(toFinalPromotionGateSummaryJson(input)) as {
+            overallStatus: string;
+            promptCount: number;
+            policyCount: number;
+            skillCount: number;
+        };
+
+        expect(markdown).toContain('# Final Promotion Gate Summary');
+        expect(markdown).toContain('- Overall status: held');
+        expect(markdown).toContain('## Prompt Decisions');
+        expect(markdown).toContain('## Skill Promotions');
+        expect(markdown).toContain('Awaiting sandbox validation.');
+        expect(json.overallStatus).toBe('held');
+        expect(json.promptCount).toBe(1);
+        expect(json.policyCount).toBe(0);
+        expect(json.skillCount).toBe(1);
     });
 });

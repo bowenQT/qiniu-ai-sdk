@@ -13,6 +13,8 @@ export interface VerificationReportInput {
     reviewPacketAvailable?: boolean;
     promotionDecisions?: string;
     promotionDecisionsAvailable?: boolean;
+    finalPromotionGateSummary?: string;
+    finalPromotionGateSummaryAvailable?: boolean;
 }
 
 export interface PromotionDecisionSummaryEntry {
@@ -31,6 +33,53 @@ export interface CloseoutPromotionGateSummaryEntry {
     blockingFailuresCount?: number;
     heldEvidenceCount?: number;
     unavailableEvidenceCount?: number;
+}
+
+export type FinalPromotionGateDecisionStatus = 'promote' | 'hold' | 'reject' | 'unavailable';
+
+export interface FinalPromotionGateSummaryEntry {
+    targetKind: 'prompt' | 'policy' | 'skill';
+    targetName: string;
+    oldState: string;
+    newState: string;
+    decisionStatus: FinalPromotionGateDecisionStatus;
+    trackedPath?: string;
+    decisionSource?: string;
+    decisionAt?: string;
+    evidenceRefs?: string[];
+    blockers?: string[];
+    warnings?: string[];
+}
+
+export interface FinalPromotionGateEvalCandidateSummary {
+    reportId?: string;
+    generatedAt?: string;
+    baselineId?: string;
+    candidateId?: string;
+    decision?: string;
+    gateStatus?: string;
+    blockingFailuresCount?: number;
+    warningCount?: number;
+    artifactRefs?: string[];
+    blockers?: string[];
+    warnings?: string[];
+}
+
+export interface FinalPromotionGateSummaryInput {
+    generatedAt: string;
+    packageId?: string;
+    policyProfile?: string;
+    overallStatus?: CloseoutPromotionGateSummaryEntry['status'];
+    decisionFiles?: string[];
+    entries: FinalPromotionGateSummaryEntry[];
+    evalCandidateReport?: FinalPromotionGateEvalCandidateSummary;
+}
+
+export interface FinalPromotionGateSummary extends FinalPromotionGateSummaryInput {
+    overallStatus: CloseoutPromotionGateSummaryEntry['status'];
+    promptCount: number;
+    policyCount: number;
+    skillCount: number;
 }
 
 export interface CapabilityEvidenceSummaryInput {
@@ -83,6 +132,198 @@ export interface Phase2CloseoutReportInput {
 function trimEmbeddedHeading(content: string): string {
     const trimmed = content.trim();
     return trimmed.replace(/^# .+\n+/, '');
+}
+
+function deriveFinalPromotionGateStatus(input: FinalPromotionGateSummaryInput): CloseoutPromotionGateSummaryEntry['status'] {
+    if (input.overallStatus) {
+        return input.overallStatus;
+    }
+
+    if (input.entries.length === 0 && !input.evalCandidateReport) {
+        return 'unavailable';
+    }
+
+    let sawHold = false;
+    let sawUnavailable = false;
+
+    for (const entry of input.entries) {
+        if (entry.decisionStatus === 'reject' || entry.blockers?.length) {
+            return 'block';
+        }
+        if (entry.decisionStatus === 'hold' || entry.warnings?.length) {
+            sawHold = true;
+        }
+        if (entry.decisionStatus === 'unavailable') {
+            sawUnavailable = true;
+        }
+    }
+
+    const evalCandidateReport = input.evalCandidateReport;
+    if (evalCandidateReport) {
+        if ((evalCandidateReport.blockingFailuresCount ?? 0) > 0) {
+            return 'block';
+        }
+        if (evalCandidateReport.decision === 'fail' || evalCandidateReport.gateStatus === 'fail') {
+            return 'block';
+        }
+        if ((evalCandidateReport.warningCount ?? 0) > 0 || evalCandidateReport.decision === 'warn' || evalCandidateReport.gateStatus === 'warn') {
+            sawHold = true;
+        }
+        if (!evalCandidateReport.decision && !evalCandidateReport.gateStatus && !evalCandidateReport.blockingFailuresCount && !evalCandidateReport.warningCount) {
+            sawUnavailable = sawUnavailable || input.entries.length === 0;
+        }
+    }
+
+    if (sawHold) {
+        return 'held';
+    }
+    if (sawUnavailable) {
+        return 'unavailable';
+    }
+    return 'pass';
+}
+
+export function normalizeFinalPromotionGateSummary(input: FinalPromotionGateSummaryInput): FinalPromotionGateSummary {
+    const promptCount = input.entries.filter((entry) => entry.targetKind === 'prompt').length;
+    const policyCount = input.entries.filter((entry) => entry.targetKind === 'policy').length;
+    const skillCount = input.entries.filter((entry) => entry.targetKind === 'skill').length;
+    return {
+        ...input,
+        overallStatus: deriveFinalPromotionGateStatus(input),
+        promptCount,
+        policyCount,
+        skillCount,
+    };
+}
+
+function renderFinalPromotionGateEntry(entry: FinalPromotionGateSummaryEntry): string[] {
+    return [
+        `### ${entry.targetName}`,
+        '',
+        `- Target kind: ${entry.targetKind}`,
+        entry.oldState === entry.newState
+            ? `- State: ${entry.newState} (held)`
+            : `- State: ${entry.oldState} -> ${entry.newState}`,
+        `- Decision: ${entry.decisionStatus}`,
+        ...(entry.decisionSource ? [`- Source: ${entry.decisionSource}`] : []),
+        ...(entry.decisionAt ? [`- Decision at: ${entry.decisionAt}`] : []),
+        ...(entry.trackedPath ? [`- Tracked file: ${entry.trackedPath}`] : []),
+        ...(entry.evidenceRefs && entry.evidenceRefs.length > 0
+            ? [
+                '- Evidence:',
+                ...entry.evidenceRefs.map((ref) => `  - ${ref}`),
+            ]
+            : []),
+        ...(entry.blockers && entry.blockers.length > 0
+            ? [
+                '- Blockers:',
+                ...entry.blockers.map((blocker) => `  - ${blocker}`),
+            ]
+            : []),
+        ...(entry.warnings && entry.warnings.length > 0
+            ? [
+                '- Warnings:',
+                ...entry.warnings.map((warning) => `  - ${warning}`),
+            ]
+            : []),
+        '',
+    ];
+}
+
+function renderFinalPromotionGateEntries(
+    entries: FinalPromotionGateSummaryEntry[],
+    targetKind: FinalPromotionGateSummaryEntry['targetKind'],
+    emptyMessage: string,
+): string[] {
+    const filtered = entries.filter((entry) => entry.targetKind === targetKind);
+    if (filtered.length === 0) {
+        return [emptyMessage, ''];
+    }
+
+    return filtered.flatMap((entry) => renderFinalPromotionGateEntry(entry));
+}
+
+export function renderFinalPromotionGateSummary(input: FinalPromotionGateSummaryInput): string {
+    const summary = normalizeFinalPromotionGateSummary(input);
+    const evalCandidateReportLines = summary.evalCandidateReport
+        ? [
+            summary.evalCandidateReport.reportId ? `- Report: ${summary.evalCandidateReport.reportId}` : undefined,
+            summary.evalCandidateReport.generatedAt ? `- Generated at: ${summary.evalCandidateReport.generatedAt}` : undefined,
+            summary.evalCandidateReport.baselineId ? `- Baseline: ${summary.evalCandidateReport.baselineId}` : undefined,
+            summary.evalCandidateReport.candidateId ? `- Candidate: ${summary.evalCandidateReport.candidateId}` : undefined,
+            summary.evalCandidateReport.decision ? `- Decision: ${summary.evalCandidateReport.decision}` : undefined,
+            summary.evalCandidateReport.gateStatus ? `- Gate status: ${summary.evalCandidateReport.gateStatus}` : undefined,
+            `- Blocking failures: ${summary.evalCandidateReport.blockingFailuresCount ?? 0}`,
+            `- Warnings: ${summary.evalCandidateReport.warningCount ?? 0}`,
+            ...(summary.evalCandidateReport.blockers && summary.evalCandidateReport.blockers.length > 0
+                ? [
+                    'Blocking reasons:',
+                    ...summary.evalCandidateReport.blockers.map((blocker) => `- ${blocker}`),
+                ]
+                : []),
+            ...(summary.evalCandidateReport.warnings && summary.evalCandidateReport.warnings.length > 0
+                ? [
+                    'Warnings:',
+                    ...summary.evalCandidateReport.warnings.map((warning) => `- ${warning}`),
+                ]
+                : []),
+            ...(summary.evalCandidateReport.artifactRefs && summary.evalCandidateReport.artifactRefs.length > 0
+                ? [
+                    'Artifact refs:',
+                    ...summary.evalCandidateReport.artifactRefs.map((ref) => `- ${ref}`),
+                ]
+                : []),
+        ].filter((line): line is string => line !== undefined)
+        : ['No eval candidate report was provided.'];
+
+    return [
+        '# Final Promotion Gate Summary',
+        '',
+        `Generated at: ${summary.generatedAt}`,
+        `- Overall status: ${summary.overallStatus}`,
+        ...(summary.packageId ? [`- Package: ${summary.packageId}`] : []),
+        ...(summary.policyProfile ? [`- Policy profile: ${summary.policyProfile}`] : []),
+        `- Prompt decisions: ${summary.promptCount}`,
+        `- Policy decisions: ${summary.policyCount}`,
+        `- Skill promotions: ${summary.skillCount}`,
+        ...(summary.decisionFiles && summary.decisionFiles.length > 0
+            ? [
+                '',
+                'Decision files:',
+                ...summary.decisionFiles.map((filePath) => `- ${filePath}`),
+            ]
+            : []),
+        '',
+        '## Eval Candidate Report',
+        '',
+        ...evalCandidateReportLines,
+        '',
+        '## Prompt Decisions',
+        '',
+        ...renderFinalPromotionGateEntries(
+            summary.entries,
+            'prompt',
+            'No prompt promotion decisions were recorded.',
+        ),
+        '## Policy Decisions',
+        '',
+        ...renderFinalPromotionGateEntries(
+            summary.entries,
+            'policy',
+            'No policy promotion decisions were recorded.',
+        ),
+        '## Skill Promotions',
+        '',
+        ...renderFinalPromotionGateEntries(
+            summary.entries,
+            'skill',
+            'No skill promotion decisions were recorded.',
+        ),
+    ].join('\n');
+}
+
+export function toFinalPromotionGateSummaryJson(input: FinalPromotionGateSummaryInput): string {
+    return JSON.stringify(normalizeFinalPromotionGateSummary(input), null, 2) + '\n';
 }
 
 export function renderReviewPacketFallback(options?: {
@@ -326,6 +567,9 @@ export function renderVerificationReport(input: VerificationReportInput): string
     const promotionDecisions = input.promotionDecisions
         ? trimEmbeddedHeading(input.promotionDecisions)
         : undefined;
+    const finalPromotionGateSummary = input.finalPromotionGateSummary
+        ? trimEmbeddedHeading(input.finalPromotionGateSummary)
+        : undefined;
 
     return [
         '# Verification Report',
@@ -373,6 +617,12 @@ export function renderVerificationReport(input: VerificationReportInput): string
         input.promotionDecisionsAvailable && promotionDecisions
             ? promotionDecisions
             : 'Promotion decision artifact was not produced for this run.',
+        '',
+        '## Final Promotion Gate Summary',
+        '',
+        input.finalPromotionGateSummaryAvailable && finalPromotionGateSummary
+            ? finalPromotionGateSummary
+            : 'Final promotion gate summary was not produced for this run.',
         '',
     ].join('\n');
 }
