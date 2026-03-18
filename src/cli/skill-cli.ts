@@ -885,7 +885,7 @@ async function runVerifyCommand(args: string[], options: RunCLIOptions): Promise
         return;
     }
 
-    if (jsonMode && !outputPath) {
+    if (jsonMode) {
         console.log(JSON.stringify(result, null, 2));
     } else if (subcommand === 'eval') {
         console.log(renderEvalGateMarkdown(result as Awaited<ReturnType<typeof runEvalGate>>));
