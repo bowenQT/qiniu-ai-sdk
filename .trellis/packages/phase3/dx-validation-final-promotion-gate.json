@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "packageId": "phase3/dx-validation/final-promotion-gate",
+  "phase": "phase3",
+  "ownerLane": "dx-validation",
+  "category": "standard",
+  "topic": "final-promotion-gate",
+  "goal": "Unify promotion gate artifacts for prompt, policy, and skill changes",
+  "successCriteria": [
+    "Promotion outputs summarize readiness for prompt, policy, and skill candidates in one contract.",
+    "Review packets and verification reports can consume the same promotion decision artifact."
+  ],
+  "touchedSurfaces": [
+    "src/cli",
+    "scripts",
+    "tests/cli",
+    ".trellis/spec/sdk"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/dx-validation/final-promotion-gate",
+  "branch": "codex/phase3/dx-validation/final-promotion-gate",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase3-final-promotion-gate",
+  "createdAt": "2026-03-18T13:18:19.784Z"
+}

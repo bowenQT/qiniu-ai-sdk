@@ -33,6 +33,10 @@ const promotionDecisionsPath = resolve(
   process.cwd(),
   process.env.QINIU_PROMOTION_DECISIONS_OUTPUT || 'artifacts/promotion-decisions.md',
 );
+const finalPromotionGateSummaryPath = resolve(
+  process.cwd(),
+  process.env.QINIU_FINAL_PROMOTION_GATE_SUMMARY_OUTPUT || 'artifacts/final-promotion-gate.md',
+);
 
 if (!existsSync(capabilityScorecardPath)) {
   throw new Error(`Missing capability scorecard: ${capabilityScorecardPath}`);
@@ -126,6 +130,10 @@ const promotionDecisionsAvailable = existsSync(promotionDecisionsPath);
 const promotionDecisions = promotionDecisionsAvailable
   ? readFileSync(promotionDecisionsPath, 'utf8')
   : undefined;
+const finalPromotionGateSummaryAvailable = existsSync(finalPromotionGateSummaryPath);
+const finalPromotionGateSummary = finalPromotionGateSummaryAvailable
+  ? readFileSync(finalPromotionGateSummaryPath, 'utf8')
+  : undefined;
 
 const rendered = renderVerificationReport({
   generatedAt: new Date().toISOString(),
@@ -142,6 +150,8 @@ const rendered = renderVerificationReport({
   reviewPacketAvailable,
   promotionDecisions,
   promotionDecisionsAvailable,
+  finalPromotionGateSummary,
+  finalPromotionGateSummaryAvailable,
 });
 
 mkdirSync(dirname(outputPath), { recursive: true });
