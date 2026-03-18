@@ -552,6 +552,7 @@ import type { RegisteredTool, ToolParameters } from '../lib/tool-registry';
 import type { Skill } from '../modules/skills/types';
 import type { SessionStore } from './session-store';
 import { serializeState } from './graph/checkpointer';
+import type { ControlPlaneRunMetadata, PricePolicy, TraceStore } from './control-plane';
 
 /**
  * Extended options for graph-based generation.
@@ -585,6 +586,12 @@ export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
     skillReferenceMode?: 'none' | 'summary' | 'full';
     /** Token-level event callback for streaming */
     onTokenEvent?: (event: TokenEvent) => void;
+    /** Optional structured trace sink for control-plane integrations */
+    traceStore?: TraceStore;
+    /** Optional model pricing lookup for per-step cost attribution */
+    pricePolicy?: PricePolicy;
+    /** Optional run metadata/revision references attached to emitted traces */
+    runMetadata?: ControlPlaneRunMetadata;
 }
 
 /**
@@ -650,6 +657,9 @@ export async function generateTextWithGraph(
         sessionStore,
         guardrails,
         onTokenEvent,
+        traceStore,
+        pricePolicy,
+        runMetadata,
     } = options;
 
     // Resolve agentId for guardrail attribution
@@ -818,6 +828,9 @@ export async function generateTextWithGraph(
         agentId: resolvedAgentId,
         skillReferenceMode: options.skillReferenceMode,
         onTokenEvent,
+        traceStore,
+        pricePolicy,
+        runMetadata,
     });
 
     // Execute graph
