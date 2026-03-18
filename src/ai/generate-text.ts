@@ -552,7 +552,14 @@ import type { RegisteredTool, ToolParameters } from '../lib/tool-registry';
 import type { Skill } from '../modules/skills/types';
 import type { SessionStore } from './session-store';
 import { serializeState } from './graph/checkpointer';
-import type { ControlPlaneRunMetadata, PricePolicy, TraceStore } from './control-plane';
+import type {
+    ControlPlaneRunMetadata,
+    CriticPolicy,
+    PricePolicy,
+    ReflectionLimits,
+    TraceStore,
+    VerifierPolicy,
+} from './control-plane';
 
 /**
  * Extended options for graph-based generation.
@@ -592,6 +599,12 @@ export interface GenerateTextWithGraphOptions extends GenerateTextOptions {
     pricePolicy?: PricePolicy;
     /** Optional run metadata/revision references attached to emitted traces */
     runMetadata?: ControlPlaneRunMetadata;
+    /** Optional critic policy for bounded reflection scaffolding */
+    criticPolicy?: CriticPolicy;
+    /** Optional verifier policy for bounded reflection scaffolding */
+    verifierPolicy?: VerifierPolicy;
+    /** Optional stop conditions for bounded reflection scaffolding */
+    reflectionLimits?: ReflectionLimits;
 }
 
 /**
@@ -660,6 +673,9 @@ export async function generateTextWithGraph(
         traceStore,
         pricePolicy,
         runMetadata,
+        criticPolicy,
+        verifierPolicy,
+        reflectionLimits,
     } = options;
 
     // Resolve agentId for guardrail attribution
@@ -831,6 +847,9 @@ export async function generateTextWithGraph(
         traceStore,
         pricePolicy,
         runMetadata,
+        criticPolicy,
+        verifierPolicy,
+        reflectionLimits,
     });
 
     // Execute graph

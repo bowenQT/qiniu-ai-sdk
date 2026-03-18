@@ -37,6 +37,10 @@ const finalPromotionGateSummaryPath = resolve(
   process.cwd(),
   process.env.QINIU_FINAL_PROMOTION_GATE_SUMMARY_OUTPUT || 'artifacts/final-promotion-gate.md',
 );
+const finalPromotionGateInputPath = resolve(
+  process.cwd(),
+  process.env.QINIU_FINAL_PROMOTION_GATE_INPUT || 'artifacts/final-promotion-gate.json',
+);
 
 if (!existsSync(capabilityScorecardPath)) {
   throw new Error(`Missing capability scorecard: ${capabilityScorecardPath}`);
@@ -49,6 +53,7 @@ if (!existsSync(distEntry)) {
 
 const {
   renderCapabilityEvidenceSummary,
+  renderFinalPromotionGateSummary,
   renderPromotionGateSummary,
   renderVerificationReport,
 } = await import(pathToFileURL(distEntry).href);
@@ -130,10 +135,18 @@ const promotionDecisionsAvailable = existsSync(promotionDecisionsPath);
 const promotionDecisions = promotionDecisionsAvailable
   ? readFileSync(promotionDecisionsPath, 'utf8')
   : undefined;
-const finalPromotionGateSummaryAvailable = existsSync(finalPromotionGateSummaryPath);
-const finalPromotionGateSummary = finalPromotionGateSummaryAvailable
+let finalPromotionGateSummaryAvailable = existsSync(finalPromotionGateSummaryPath);
+let finalPromotionGateSummary = finalPromotionGateSummaryAvailable
   ? readFileSync(finalPromotionGateSummaryPath, 'utf8')
   : undefined;
+
+if (!finalPromotionGateSummaryAvailable && existsSync(finalPromotionGateInputPath)) {
+  const payload = JSON.parse(readFileSync(finalPromotionGateInputPath, 'utf8'));
+  finalPromotionGateSummary = renderFinalPromotionGateSummary(payload);
+  mkdirSync(dirname(finalPromotionGateSummaryPath), { recursive: true });
+  writeFileSync(finalPromotionGateSummaryPath, finalPromotionGateSummary, 'utf8');
+  finalPromotionGateSummaryAvailable = true;
+}
 
 const rendered = renderVerificationReport({
   generatedAt: new Date().toISOString(),

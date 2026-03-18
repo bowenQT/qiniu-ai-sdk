@@ -42,7 +42,16 @@ import {
     createTraceUsage,
     estimateTraceCost,
 } from './control-plane';
-import type { ControlPlaneRunMetadata, PricePolicy, RunTrace, TraceStep, TraceStore } from './control-plane';
+import type {
+    ControlPlaneRunMetadata,
+    CriticPolicy,
+    PricePolicy,
+    ReflectionLimits,
+    RunTrace,
+    TraceStep,
+    TraceStore,
+    VerifierPolicy,
+} from './control-plane';
 
 /** AgentGraph options */
 export interface AgentGraphOptions {
@@ -85,6 +94,12 @@ export interface AgentGraphOptions {
     pricePolicy?: PricePolicy;
     /** Optional run metadata/revision references attached to emitted traces */
     runMetadata?: ControlPlaneRunMetadata;
+    /** Optional critic policy for bounded reflection scaffolding */
+    criticPolicy?: CriticPolicy;
+    /** Optional verifier policy for bounded reflection scaffolding */
+    verifierPolicy?: VerifierPolicy;
+    /** Optional stop conditions for bounded reflection scaffolding */
+    reflectionLimits?: ReflectionLimits;
 }
 
 /** Token-level event emitted during graph execution */

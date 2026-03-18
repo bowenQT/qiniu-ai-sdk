@@ -134,6 +134,21 @@ function trimEmbeddedHeading(content: string): string {
     return trimmed.replace(/^# .+\n+/, '');
 }
 
+function hasFinalPromotionGateEvalOutcome(
+    evalCandidateReport?: FinalPromotionGateEvalCandidateSummary,
+): boolean {
+    if (!evalCandidateReport) {
+        return false;
+    }
+
+    return evalCandidateReport.decision !== undefined
+        || evalCandidateReport.gateStatus !== undefined
+        || evalCandidateReport.blockingFailuresCount !== undefined
+        || evalCandidateReport.warningCount !== undefined
+        || (evalCandidateReport.blockers?.length ?? 0) > 0
+        || (evalCandidateReport.warnings?.length ?? 0) > 0;
+}
+
 function deriveFinalPromotionGateStatus(input: FinalPromotionGateSummaryInput): CloseoutPromotionGateSummaryEntry['status'] {
     if (input.overallStatus) {
         return input.overallStatus;
@@ -160,6 +175,9 @@ function deriveFinalPromotionGateStatus(input: FinalPromotionGateSummaryInput): 
 
     const evalCandidateReport = input.evalCandidateReport;
     if (evalCandidateReport) {
+        if (!hasFinalPromotionGateEvalOutcome(evalCandidateReport)) {
+            sawUnavailable = true;
+        }
         if ((evalCandidateReport.blockingFailuresCount ?? 0) > 0) {
             return 'block';
         }
@@ -168,9 +186,6 @@ function deriveFinalPromotionGateStatus(input: FinalPromotionGateSummaryInput): 
         }
         if ((evalCandidateReport.warningCount ?? 0) > 0 || evalCandidateReport.decision === 'warn' || evalCandidateReport.gateStatus === 'warn') {
             sawHold = true;
-        }
-        if (!evalCandidateReport.decision && !evalCandidateReport.gateStatus && !evalCandidateReport.blockingFailuresCount && !evalCandidateReport.warningCount) {
-            sawUnavailable = sawUnavailable || input.entries.length === 0;
         }
     }
 
@@ -245,32 +260,35 @@ function renderFinalPromotionGateEntries(
 
 export function renderFinalPromotionGateSummary(input: FinalPromotionGateSummaryInput): string {
     const summary = normalizeFinalPromotionGateSummary(input);
-    const evalCandidateReportLines = summary.evalCandidateReport
+    const evalCandidateReport = hasFinalPromotionGateEvalOutcome(summary.evalCandidateReport)
+        ? summary.evalCandidateReport
+        : undefined;
+    const evalCandidateReportLines = evalCandidateReport
         ? [
-            summary.evalCandidateReport.reportId ? `- Report: ${summary.evalCandidateReport.reportId}` : undefined,
-            summary.evalCandidateReport.generatedAt ? `- Generated at: ${summary.evalCandidateReport.generatedAt}` : undefined,
-            summary.evalCandidateReport.baselineId ? `- Baseline: ${summary.evalCandidateReport.baselineId}` : undefined,
-            summary.evalCandidateReport.candidateId ? `- Candidate: ${summary.evalCandidateReport.candidateId}` : undefined,
-            summary.evalCandidateReport.decision ? `- Decision: ${summary.evalCandidateReport.decision}` : undefined,
-            summary.evalCandidateReport.gateStatus ? `- Gate status: ${summary.evalCandidateReport.gateStatus}` : undefined,
-            `- Blocking failures: ${summary.evalCandidateReport.blockingFailuresCount ?? 0}`,
-            `- Warnings: ${summary.evalCandidateReport.warningCount ?? 0}`,
-            ...(summary.evalCandidateReport.blockers && summary.evalCandidateReport.blockers.length > 0
+            evalCandidateReport.reportId ? `- Report: ${evalCandidateReport.reportId}` : undefined,
+            evalCandidateReport.generatedAt ? `- Generated at: ${evalCandidateReport.generatedAt}` : undefined,
+            evalCandidateReport.baselineId ? `- Baseline: ${evalCandidateReport.baselineId}` : undefined,
+            evalCandidateReport.candidateId ? `- Candidate: ${evalCandidateReport.candidateId}` : undefined,
+            evalCandidateReport.decision ? `- Decision: ${evalCandidateReport.decision}` : undefined,
+            evalCandidateReport.gateStatus ? `- Gate status: ${evalCandidateReport.gateStatus}` : undefined,
+            `- Blocking failures: ${evalCandidateReport.blockingFailuresCount ?? 0}`,
+            `- Warnings: ${evalCandidateReport.warningCount ?? 0}`,
+            ...(evalCandidateReport.blockers && evalCandidateReport.blockers.length > 0
                 ? [
                     'Blocking reasons:',
-                    ...summary.evalCandidateReport.blockers.map((blocker) => `- ${blocker}`),
+                    ...evalCandidateReport.blockers.map((blocker) => `- ${blocker}`),
                 ]
                 : []),
-            ...(summary.evalCandidateReport.warnings && summary.evalCandidateReport.warnings.length > 0
+            ...(evalCandidateReport.warnings && evalCandidateReport.warnings.length > 0
                 ? [
                     'Warnings:',
-                    ...summary.evalCandidateReport.warnings.map((warning) => `- ${warning}`),
+                    ...evalCandidateReport.warnings.map((warning) => `- ${warning}`),
                 ]
                 : []),
-            ...(summary.evalCandidateReport.artifactRefs && summary.evalCandidateReport.artifactRefs.length > 0
+            ...(evalCandidateReport.artifactRefs && evalCandidateReport.artifactRefs.length > 0
                 ? [
                     'Artifact refs:',
-                    ...summary.evalCandidateReport.artifactRefs.map((ref) => `- ${ref}`),
+                    ...evalCandidateReport.artifactRefs.map((ref) => `- ${ref}`),
                 ]
                 : []),
         ].filter((line): line is string => line !== undefined)

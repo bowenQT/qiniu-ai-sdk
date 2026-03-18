@@ -48,6 +48,14 @@ export interface GuardrailPolicyStore {
     delete?(policyId: string): Promise<void> | void;
 }
 
+export interface GuardrailPolicyHistoryStore extends GuardrailPolicyStore {
+    list(policyId: string): Promise<GuardrailPolicyRecord[]> | GuardrailPolicyRecord[];
+    getRevision(
+        policyId: string,
+        revisionId: string,
+    ): Promise<GuardrailPolicyRecord | null> | GuardrailPolicyRecord | null;
+}
+
 export interface GuardrailPolicyPromotionDecisionInput {
     artifactRefs?: string[];
     decidedAt?: string;
@@ -55,19 +63,32 @@ export interface GuardrailPolicyPromotionDecisionInput {
     metadata?: Record<string, unknown>;
 }
 
-export class InMemoryGuardrailPolicyStore implements GuardrailPolicyStore {
+export class InMemoryGuardrailPolicyStore implements GuardrailPolicyHistoryStore {
     private readonly records = new Map<string, GuardrailPolicyRecord>();
+    private readonly revisions = new Map<string, Map<string, GuardrailPolicyRecord>>();
 
     get(policyId: string): GuardrailPolicyRecord | null {
         return this.records.get(policyId) ?? null;
     }
 
+    list(policyId: string): GuardrailPolicyRecord[] {
+        return [...(this.revisions.get(policyId)?.values() ?? [])];
+    }
+
+    getRevision(policyId: string, revisionId: string): GuardrailPolicyRecord | null {
+        return this.revisions.get(policyId)?.get(revisionId) ?? null;
+    }
+
     put(record: GuardrailPolicyRecord): void {
         this.records.set(record.policyId, record);
+        const revisions = this.revisions.get(record.policyId) ?? new Map<string, GuardrailPolicyRecord>();
+        revisions.set(record.revision.revisionId, record);
+        this.revisions.set(record.policyId, revisions);
     }
 
     delete(policyId: string): void {
         this.records.delete(policyId);
+        this.revisions.delete(policyId);
     }
 }
 

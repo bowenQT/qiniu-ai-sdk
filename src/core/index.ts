@@ -172,6 +172,7 @@ export {
     ACTION_PRIORITY,
 } from '../ai/guardrails';
 export type {
+    GuardrailPolicyHistoryStore,
     GuardrailPolicyEvaluationInput,
     GuardrailPolicyEvaluationResult,
     GuardrailPolicyEvaluationStatus,

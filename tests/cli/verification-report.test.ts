@@ -275,4 +275,38 @@ describe('verification report renderer', () => {
         expect(markdown).toContain('- Decision: reject');
         expect(markdown).not.toContain('- State: staging (held)');
     });
+
+    it('treats empty eval candidate payloads as unavailable rather than passing silently', () => {
+        const json = JSON.parse(toFinalPromotionGateSummaryJson({
+            generatedAt: '2026-03-18T00:00:00.000Z',
+            entries: [],
+            evalCandidateReport: {},
+        })) as {
+            overallStatus: string;
+        };
+
+        const markdown = renderFinalPromotionGateSummary({
+            generatedAt: '2026-03-18T00:00:00.000Z',
+            entries: [],
+            evalCandidateReport: {},
+        });
+
+        expect(json.overallStatus).toBe('unavailable');
+        expect(markdown).toContain('No eval candidate report was provided.');
+    });
+
+    it('marks summary as unavailable when eval candidate metadata lacks an outcome', () => {
+        const json = JSON.parse(toFinalPromotionGateSummaryJson({
+            generatedAt: '2026-03-18T00:00:00.000Z',
+            entries: [],
+            evalCandidateReport: {
+                reportId: 'eval-candidate-3',
+                generatedAt: '2026-03-18T12:00:00.000Z',
+            },
+        })) as {
+            overallStatus: string;
+        };
+
+        expect(json.overallStatus).toBe('unavailable');
+    });
 });

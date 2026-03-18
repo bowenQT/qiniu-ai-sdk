@@ -17,7 +17,7 @@ import type { Skill } from '../modules/skills/types';
 import type { ApprovalConfig } from './tool-approval';
 import type { MemoryManager } from './memory';
 import type { SessionStore } from './session-store';
-import type { PricePolicy, TraceStore } from './control-plane';
+import type { CriticPolicy, PricePolicy, ReflectionLimits, TraceStore, VerifierPolicy } from './control-plane';
 import type { ControlPlaneRunMetadata } from './control-plane/runtime';
 
 // ============================================================================
@@ -85,6 +85,12 @@ export interface StreamTextOptions {
     pricePolicy?: PricePolicy;
     /** Optional run metadata/revision references attached to emitted traces */
     runMetadata?: ControlPlaneRunMetadata;
+    /** Optional critic policy for bounded reflection scaffolding */
+    criticPolicy?: CriticPolicy;
+    /** Optional verifier policy for bounded reflection scaffolding */
+    verifierPolicy?: VerifierPolicy;
+    /** Optional stop conditions for bounded reflection scaffolding */
+    reflectionLimits?: ReflectionLimits;
 }
 
 export interface StreamTextResult {
@@ -229,6 +235,9 @@ export function streamText(options: StreamTextOptions): StreamTextResult {
         traceStore: options.traceStore,
         pricePolicy: options.pricePolicy,
         runMetadata: options.runMetadata,
+        criticPolicy: options.criticPolicy,
+        verifierPolicy: options.verifierPolicy,
+        reflectionLimits: options.reflectionLimits,
         onStepFinish: options.onStepFinish,
         onNodeEnter: options.onNodeEnter,
         onNodeExit: options.onNodeExit,

@@ -28,6 +28,7 @@ export {
     evaluateGuardrailPolicy,
 } from './governance';
 export type {
+    GuardrailPolicyHistoryStore,
     GuardrailPolicyEvaluationInput,
     GuardrailPolicyEvaluationResult,
     GuardrailPolicyEvaluationStatus,

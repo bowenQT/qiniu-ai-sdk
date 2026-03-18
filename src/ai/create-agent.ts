@@ -24,7 +24,14 @@ import {
     type Tool,
 } from './generate-text';
 import { streamText, type StreamTextResult } from './stream-text';
-import type { ControlPlaneRunMetadata, PricePolicy, TraceStore } from './control-plane';
+import type {
+    ControlPlaneRunMetadata,
+    CriticPolicy,
+    PricePolicy,
+    ReflectionLimits,
+    TraceStore,
+    VerifierPolicy,
+} from './control-plane';
 import type {
     ArtifactRegistry,
     ControlPlaneResolutionContext,
@@ -96,6 +103,12 @@ export interface AgentConfig {
     labelResolver?: LabelResolver;
     /** Optional artifact registry for resolving selector-based run metadata */
     artifactRegistry?: ArtifactRegistry;
+    /** Optional critic policy for bounded reflection scaffolding */
+    criticPolicy?: CriticPolicy;
+    /** Optional verifier policy for bounded reflection scaffolding */
+    verifierPolicy?: VerifierPolicy;
+    /** Optional stop conditions for bounded reflection scaffolding */
+    reflectionLimits?: ReflectionLimits;
 }
 
 /** Options for single run (without thread) */
@@ -318,6 +331,9 @@ export function createAgent(config: AgentConfig): Agent {
         revisionStore,
         labelResolver,
         artifactRegistry,
+        criticPolicy,
+        verifierPolicy,
+        reflectionLimits,
     } = config;
 
     const controlPlaneResolutionContext: ControlPlaneResolutionContext = {
@@ -559,6 +575,9 @@ export function createAgent(config: AgentConfig): Agent {
         traceStore,
         pricePolicy,
         runMetadata: resolvedRunMetadata,
+        criticPolicy,
+        verifierPolicy,
+        reflectionLimits,
         events: {
             onStepFinish,
             onNodeEnter,
@@ -640,6 +659,9 @@ export function createAgent(config: AgentConfig): Agent {
         traceStore,
         pricePolicy,
         runMetadata: resolvedRunMetadata,
+        criticPolicy,
+        verifierPolicy,
+        reflectionLimits,
     });
 
     // Build options helper for streamText
@@ -672,6 +694,9 @@ export function createAgent(config: AgentConfig): Agent {
         traceStore,
         pricePolicy,
         runMetadata: resolvedRunMetadata,
+        criticPolicy,
+        verifierPolicy,
+        reflectionLimits,
         onStepFinish,
         onNodeEnter,
         onNodeExit,

@@ -235,6 +235,33 @@ describe('guardrail governance', () => {
         expect(decision.evidenceRefs).toEqual(['trace:1', 'report:1']);
     });
 
+    it('retains revision history inside the in-memory store', () => {
+        const store = new InMemoryGuardrailPolicyStore();
+        const revision1 = createGuardrailPolicyRecord({
+            policyId: 'guardrail-policy-4',
+            revision: createRevisionRef({
+                kind: 'guardrail-policy',
+                revisionId: 'revision-4a',
+                labels: ['candidate'],
+            }),
+        });
+        const revision2 = createGuardrailPolicyRecord({
+            policyId: 'guardrail-policy-4',
+            revision: createRevisionRef({
+                kind: 'guardrail-policy',
+                revisionId: 'revision-4b',
+                labels: ['staging'],
+            }),
+        });
+
+        store.put(revision1);
+        store.put(revision2);
+
+        expect(store.get('guardrail-policy-4')).toBe(revision2);
+        expect(store.getRevision('guardrail-policy-4', 'revision-4a')).toBe(revision1);
+        expect(store.list('guardrail-policy-4')).toEqual([revision1, revision2]);
+    });
+
     it('rejects non guardrail-policy revisions', () => {
         expect(() => createGuardrailPolicyRecord({
             policyId: 'guardrail-policy-3',
