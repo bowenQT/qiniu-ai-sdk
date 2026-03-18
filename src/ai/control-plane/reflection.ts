@@ -228,6 +228,11 @@ export async function runBoundedReflectionLoop(
         currentText = outputText;
         verifierStatus = verifier.status;
 
+        if (verifier.status === 'pass') {
+            stopReason = 'verifier-passed';
+            break;
+        }
+
         if (diffRatio === 0) {
             stopReason = 'no-change';
             break;
@@ -237,11 +242,6 @@ export async function runBoundedReflectionLoop(
             consecutiveLowDiffs += 1;
         } else {
             consecutiveLowDiffs = 0;
-        }
-
-        if (verifier.status === 'pass') {
-            stopReason = 'verifier-passed';
-            break;
         }
 
         if (consecutiveLowDiffs >= 2) {

@@ -255,4 +255,24 @@ describe('verification report renderer', () => {
         expect(json.policyCount).toBe(0);
         expect(json.skillCount).toBe(1);
     });
+
+    it('renders unchanged final promotion states without forcing a held label', () => {
+        const markdown = renderFinalPromotionGateSummary({
+            generatedAt: '2026-03-18T00:00:00.000Z',
+            entries: [
+                {
+                    targetKind: 'policy',
+                    targetName: 'guardrail policy',
+                    oldState: 'staging',
+                    newState: 'staging',
+                    decisionStatus: 'reject',
+                    blockers: ['Safety regression detected.'],
+                },
+            ],
+        });
+
+        expect(markdown).toContain('- State: staging (unchanged)');
+        expect(markdown).toContain('- Decision: reject');
+        expect(markdown).not.toContain('- State: staging (held)');
+    });
 });

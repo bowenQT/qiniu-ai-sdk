@@ -202,7 +202,7 @@ function renderFinalPromotionGateEntry(entry: FinalPromotionGateSummaryEntry): s
         '',
         `- Target kind: ${entry.targetKind}`,
         entry.oldState === entry.newState
-            ? `- State: ${entry.newState} (held)`
+            ? `- State: ${entry.newState} (unchanged)`
             : `- State: ${entry.oldState} -> ${entry.newState}`,
         `- Decision: ${entry.decisionStatus}`,
         ...(entry.decisionSource ? [`- Source: ${entry.decisionSource}`] : []),

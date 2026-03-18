@@ -38,6 +38,30 @@ describe('control-plane bounded reflection', () => {
         expect(result.traceSteps).toHaveLength(2);
     });
 
+    it('prefers verifier-passed when the critic makes no further changes', async () => {
+        const criticPolicy: CriticPolicy = {
+            critique: ({ currentText }) => ({
+                revisedText: currentText,
+                rationale: 'No edits required.',
+            }),
+        };
+        const verifierPolicy: VerifierPolicy = {
+            verify: () => ({
+                status: 'pass',
+                rationale: 'Current draft already satisfies the verifier.',
+            }),
+        };
+
+        const result = await runBoundedReflectionLoop({
+            text: 'final draft',
+            criticPolicy,
+            verifierPolicy,
+        });
+
+        expect(result.stopReason).toBe('verifier-passed');
+        expect(result.finalText).toBe('final draft');
+    });
+
     it('stops on convergence after repeated low-diff revisions', async () => {
         let count = 0;
         const criticPolicy: CriticPolicy = {
