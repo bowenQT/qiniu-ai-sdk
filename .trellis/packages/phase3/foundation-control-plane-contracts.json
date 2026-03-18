@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "packageId": "phase3/foundation/control-plane-contracts",
+  "phase": "phase3",
+  "ownerLane": "foundation",
+  "category": "standard",
+  "topic": "control-plane-contracts",
+  "goal": "Freeze shared control-plane contract types and artifact schema for trace, eval, revision, and promotion plumbing without changing agent runtime behavior.",
+  "successCriteria": [
+    "Shared control-plane types exist for trace, cost, revision, candidate, grader, and promotion artifacts.",
+    "Field names and label semantics are stable enough for downstream runtime, node, and CLI packages to consume.",
+    "No agent execution behavior changes are introduced by the contracts package alone."
+  ],
+  "touchedSurfaces": [
+    "src/ai",
+    "src/lib",
+    "src/node",
+    "src/index.ts",
+    "tests"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/foundation/control-plane-contracts",
+  "branch": "codex/phase3/foundation/control-plane-contracts",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase3-control-plane-contracts",
+  "createdAt": "2026-03-18T12:54:31.502Z"
+}
