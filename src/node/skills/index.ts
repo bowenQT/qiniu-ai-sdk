@@ -26,6 +26,22 @@ export type {
     SkillTrialStore,
     SkillTrialValidator,
 } from './trial';
+export {
+    DefaultSkillPromotionRunner,
+    InMemorySkillBenchmarkStore,
+    InMemorySkillPromotionStore,
+} from './promotion';
+export type {
+    SkillBenchmarkResult,
+    SkillBenchmarkStatus,
+    SkillBenchmarkStore,
+    SkillPromotionGateInput,
+    SkillPromotionPolicy,
+    SkillPromotionRecord,
+    SkillPromotionRunner,
+    SkillPromotionStore,
+    SkillRollbackMetadata,
+} from './promotion';
 export { RegistryProtocolStub } from './registry-protocol';
 export type {
     SkillRegistryProtocol,

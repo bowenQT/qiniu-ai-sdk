@@ -188,6 +188,9 @@ describe('entry points', () => {
         expect(node.auditLogger).toBeDefined();
         expect(node.SkillRegistry).toBeDefined();
         expect(node.DefaultSkillTrialRunner).toBeDefined();
+        expect(node.DefaultSkillPromotionRunner).toBeDefined();
+        expect(node.InMemorySkillBenchmarkStore).toBeDefined();
+        expect(node.InMemorySkillPromotionStore).toBeDefined();
         expect(node.QiniuSandboxTrialAdapter).toBeDefined();
     });
 

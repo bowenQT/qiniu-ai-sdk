@@ -25,6 +25,11 @@ export {
     resolveSkillTrialCommand,
     shouldSandboxTrial,
 } from './skills';
+export {
+    DefaultSkillPromotionRunner,
+    InMemorySkillBenchmarkStore,
+    InMemorySkillPromotionStore,
+} from './skills';
 export type {
     SkillRegistryConfig,
     RemoteSkillSource,
@@ -34,6 +39,15 @@ export type {
     SkillPromotionState,
     SkillSandboxValidationResult,
     SkillSandboxValidationStatus,
+    SkillBenchmarkResult,
+    SkillBenchmarkStatus,
+    SkillBenchmarkStore,
+    SkillPromotionGateInput,
+    SkillPromotionPolicy,
+    SkillPromotionRecord,
+    SkillPromotionRunner,
+    SkillPromotionStore,
+    SkillRollbackMetadata,
     SkillTrialPolicy,
     SkillTrialRecord,
     SkillTrialRunner,

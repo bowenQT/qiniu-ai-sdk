@@ -23,6 +23,7 @@ import {
 import { SkillLoader, SkillNotFoundError } from './loader';
 import type { Skill } from '../../modules/skills/types';
 import type { SkillPromotionState, SkillTrialPolicy, SkillTrialRecord, SkillTrialStore } from './trial';
+import type { SkillPromotionPolicy, SkillPromotionRecord, SkillPromotionStore } from './promotion';
 
 // ============================================================================
 // Types
@@ -53,6 +54,10 @@ export interface SkillRegistryConfig {
     trialStore?: SkillTrialStore;
     /** Optional policy used when seeding trial records */
     trialPolicy?: SkillTrialPolicy;
+    /** Optional store for non-lockfile skill promotion state */
+    promotionStore?: SkillPromotionStore;
+    /** Optional policy used when seeding promotion records */
+    promotionPolicy?: SkillPromotionPolicy;
 }
 
 /** Remote skill source */
@@ -110,6 +115,8 @@ const DEFAULT_CONFIG: Required<SkillRegistryConfig> = {
     fetcher: undefined as unknown as typeof fetch,
     trialStore: undefined as unknown as SkillTrialStore,
     trialPolicy: undefined as unknown as SkillTrialPolicy,
+    promotionStore: undefined as unknown as SkillPromotionStore,
+    promotionPolicy: undefined as unknown as SkillPromotionPolicy,
 };
 
 /**
@@ -202,6 +209,7 @@ export class SkillRegistry {
                 fetchedAt: new Date(),
             });
             await this.ensureTrialRecord(skill.name);
+            await this.ensurePromotionRecord(skill.name);
             count++;
         }
 
@@ -301,6 +309,7 @@ export class SkillRegistry {
             integrityHash: source.integrityHash,
         });
         await this.ensureTrialRecord(manifest.name);
+        await this.ensurePromotionRecord(manifest.name);
 
         return manifest.name;
     }
@@ -339,6 +348,11 @@ export class SkillRegistry {
         const maybePromise = this.config.trialStore?.delete?.(name);
         if (maybePromise instanceof Promise) {
             void maybePromise.catch(() => undefined);
+        }
+
+        const maybePromotionPromise = this.config.promotionStore?.delete?.(name);
+        if (maybePromotionPromise instanceof Promise) {
+            void maybePromotionPromise.catch(() => undefined);
         }
 
         return true;
@@ -521,6 +535,20 @@ export class SkillRegistry {
     }
 
     /**
+     * Get a skill promotion record by skill name.
+     */
+    async getPromotionRecord(name: string): Promise<SkillPromotionRecord | null> {
+        return (await this.config.promotionStore?.get(name)) ?? null;
+    }
+
+    /**
+     * Persist a skill promotion record without touching manifests or lockfiles.
+     */
+    async setPromotionRecord(record: SkillPromotionRecord): Promise<void> {
+        await this.config.promotionStore?.put(record);
+    }
+
+    /**
      * Check if a skill is registered.
      */
     has(name: string): boolean {
@@ -640,8 +668,53 @@ export class SkillRegistry {
         await this.config.trialStore.put(record);
     }
 
+    private async ensurePromotionRecord(name: string): Promise<void> {
+        if (!this.config.promotionStore) {
+            return;
+        }
+
+        const existing = await this.config.promotionStore.get(name);
+        if (existing) {
+            return;
+        }
+
+        const entry = this.skills.get(name);
+        if (!entry) {
+            return;
+        }
+
+        const record: SkillPromotionRecord = {
+            skillName: name,
+            state: this.resolveDefaultPromotionState(),
+            decision: {
+                targetKind: 'skill',
+                candidateId: `${entry.manifest.name}@${entry.manifest.version}`,
+                decisionStatus: 'hold',
+                decidedAt: new Date().toISOString(),
+                summary: `Skill "${name}" is awaiting promotion inputs.`,
+                evidenceRefs: [],
+                metadata: {
+                    source: entry.source,
+                    version: entry.manifest.version,
+                    integrityHash: entry.integrityHash,
+                    benchmarkId: this.config.promotionPolicy?.benchmarkId,
+                },
+            },
+            metadata: {
+                source: entry.source,
+                version: entry.manifest.version,
+                integrityHash: entry.integrityHash,
+            },
+        };
+        await this.config.promotionStore.put(record);
+    }
+
     private resolveDefaultTrialState(): SkillPromotionState {
         return this.config.trialPolicy?.defaultState ?? 'quarantine';
+    }
+
+    private resolveDefaultPromotionState(): SkillPromotionState {
+        return this.config.promotionPolicy?.defaultState ?? 'quarantine';
     }
 
     private isAllowedDomain(hostname: string): boolean {
