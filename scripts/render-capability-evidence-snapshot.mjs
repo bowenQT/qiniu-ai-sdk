@@ -8,8 +8,8 @@ import {
   collectPromotionDecisions,
   readJson,
   renderCapabilityEvidenceGeneratedModule,
+  resolveCapabilityEvidenceGateArtifact,
   renderCapabilityEvidenceJson,
-  summarizeLiveVerifyGateArtifact,
   walkJsonFiles,
 } from './lib/capability-evidence.mjs';
 
@@ -18,8 +18,30 @@ const baselinePath = resolve(repoRoot, '.trellis', 'spec', 'sdk', 'capability-ev
 const decisionRoot = resolve(repoRoot, '.trellis', 'decisions');
 const snapshotPath = resolve(repoRoot, '.trellis', 'spec', 'sdk', 'capability-evidence.json');
 const generatedModulePath = resolve(repoRoot, 'src', 'lib', 'capability-evidence.generated.ts');
-const liveVerifyGatePath = resolve(repoRoot, process.env.QINIU_LIVE_VERIFY_OUTPUT || 'artifacts/live-verify-gate.json');
 const checkMode = process.argv.includes('--check');
+
+function parseBooleanEnv(name) {
+  const value = process.env[name];
+  if (!value) return false;
+  return value === '1' || value.toLowerCase() === 'true';
+}
+
+function parseOptionalHoursEnv(name) {
+  const value = process.env[name];
+  if (!value) return undefined;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`Invalid ${name}: ${value}`);
+  }
+  return parsed;
+}
+
+const liveVerifyGatePath = resolve(
+  repoRoot,
+  process.env.QINIU_CAPABILITY_EVIDENCE_GATE_INPUT
+    || process.env.QINIU_LIVE_VERIFY_OUTPUT
+    || 'artifacts/live-verify-gate.json',
+);
 
 const baseline = readJson(baselinePath);
 const trackedDecisionFiles = walkJsonFiles(decisionRoot);
@@ -27,9 +49,18 @@ const decisionFiles = trackedDecisionFiles.map((filePath) => relative(repoRoot, 
 const decisions = collectPromotionDecisions(trackedDecisionFiles, {
   relativeToRoot: (filePath) => relative(repoRoot, filePath),
 });
-const latestLiveVerifyGate = existsSync(liveVerifyGatePath)
-  ? summarizeLiveVerifyGateArtifact(readJson(liveVerifyGatePath), relative(repoRoot, liveVerifyGatePath))
-  : undefined;
+const latestLiveVerifyGate = resolveCapabilityEvidenceGateArtifact({
+  gatePath: liveVerifyGatePath,
+  required: parseBooleanEnv('QINIU_CAPABILITY_EVIDENCE_REQUIRE_GATE'),
+  expectedPolicyProfile: process.env.QINIU_CAPABILITY_EVIDENCE_EXPECT_PROFILE || undefined,
+  maxAgeHours: parseOptionalHoursEnv('QINIU_CAPABILITY_EVIDENCE_MAX_AGE_HOURS'),
+  readJsonFile: readJson,
+  fileExists: existsSync,
+  now: () => Date.now(),
+});
+if (latestLiveVerifyGate) {
+  latestLiveVerifyGate.path = relative(repoRoot, liveVerifyGatePath);
+}
 const snapshot = buildCapabilityEvidenceSnapshot(baseline, decisions, decisionFiles, latestLiveVerifyGate);
 const renderedSnapshot = renderCapabilityEvidenceJson(snapshot);
 const renderedModule = renderCapabilityEvidenceGeneratedModule(snapshot);

@@ -3,6 +3,7 @@ import {
     buildCapabilityEvidenceSnapshot,
     collectPromotionDecisions,
     renderCapabilityEvidenceGeneratedModule,
+    resolveCapabilityEvidenceGateArtifact,
 } from '../../scripts/lib/capability-evidence.mjs';
 
 describe('capability evidence helpers', () => {
@@ -170,5 +171,76 @@ describe('capability evidence helpers', () => {
         );
         expect(snapshot.modules[0]?.trackedDecision?.decisionSource).toBe('codex');
         expect(snapshot.generatedAt).toBe('2026-03-17T13:20:00.000Z');
+    });
+
+    it('requires a live verify gate artifact when nightly evidence ingestion marks it as required', () => {
+        expect(() => resolveCapabilityEvidenceGateArtifact({
+            gatePath: '/repo/artifacts/live-verify-gate-nightly.json',
+            required: true,
+            fileExists: () => false,
+        })).toThrow('Required live verify gate artifact not found');
+    });
+
+    it('rejects gate artifacts with the wrong policy profile', () => {
+        expect(() => resolveCapabilityEvidenceGateArtifact({
+            gatePath: '/repo/artifacts/live-verify-gate-nightly.json',
+            required: true,
+            expectedPolicyProfile: 'nightly',
+            fileExists: () => true,
+            readJsonFile: () => ({
+                generatedAt: '2026-03-18T00:00:00.000Z',
+                status: 'ok',
+                policyProfile: 'pr',
+                promotionGateStatus: 'held',
+            }),
+        })).toThrow('policy profile mismatch');
+    });
+
+    it('rejects stale gate artifacts when max age is enforced', () => {
+        expect(() => resolveCapabilityEvidenceGateArtifact({
+            gatePath: '/repo/artifacts/live-verify-gate-nightly.json',
+            required: true,
+            expectedPolicyProfile: 'nightly',
+            maxAgeHours: 24,
+            now: () => Date.parse('2026-03-18T12:00:00.000Z'),
+            fileExists: () => true,
+            readJsonFile: () => ({
+                generatedAt: '2026-03-16T00:00:00.000Z',
+                status: 'ok',
+                policyProfile: 'nightly',
+                promotionGateStatus: 'held',
+            }),
+        })).toThrow('stale');
+    });
+
+    it('summarizes valid nightly gate artifacts for capability truth', () => {
+        const summary = resolveCapabilityEvidenceGateArtifact({
+            gatePath: '/repo/artifacts/live-verify-gate-nightly.json',
+            required: true,
+            expectedPolicyProfile: 'nightly',
+            maxAgeHours: 24,
+            now: () => Date.parse('2026-03-18T12:00:00.000Z'),
+            fileExists: () => true,
+            readJsonFile: () => ({
+                generatedAt: '2026-03-18T00:00:00.000Z',
+                status: 'ok',
+                policyProfile: 'nightly',
+                packageId: 'phase3/cloud-surface/responseapi-beta-promotion',
+                packageCategory: 'promotion-sensitive',
+                promotionGateStatus: 'pass',
+                blockingFailures: [],
+                heldEvidence: [],
+                unavailableEvidence: [],
+            }),
+        });
+
+        expect(summary).toMatchObject({
+            path: '/repo/artifacts/live-verify-gate-nightly.json',
+            policyProfile: 'nightly',
+            promotionGateStatus: 'pass',
+            blockingFailuresCount: 0,
+            heldEvidenceCount: 0,
+            unavailableEvidenceCount: 0,
+        });
     });
 });

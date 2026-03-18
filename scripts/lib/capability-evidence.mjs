@@ -1,6 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 
+const LIVE_VERIFY_GATE_PROMOTION_STATUSES = new Set(['pass', 'held', 'block', 'unavailable']);
+
 export function readJson(filePath) {
   return JSON.parse(readFileSync(filePath, 'utf8'));
 }
@@ -120,6 +122,72 @@ export function summarizeLiveVerifyGateArtifact(gateArtifact, gatePath) {
     heldEvidenceCount: Array.isArray(gateArtifact.heldEvidence) ? gateArtifact.heldEvidence.length : 0,
     unavailableEvidenceCount: Array.isArray(gateArtifact.unavailableEvidence) ? gateArtifact.unavailableEvidence.length : 0,
   };
+}
+
+export function resolveCapabilityEvidenceGateArtifact(options) {
+  const {
+    gatePath,
+    required = false,
+    expectedPolicyProfile,
+    maxAgeHours,
+    now = () => Date.now(),
+    fileExists = existsSync,
+    readJsonFile = readJson,
+  } = options ?? {};
+
+  if (!gatePath) {
+    if (required) {
+      throw new Error('Capability evidence gate input path is required but was not provided.');
+    }
+    return undefined;
+  }
+
+  if (!fileExists(gatePath)) {
+    if (required) {
+      throw new Error(`Required live verify gate artifact not found: ${gatePath}`);
+    }
+    return undefined;
+  }
+
+  const artifact = readJsonFile(gatePath);
+  if (!artifact || typeof artifact !== 'object') {
+    throw new Error(`Invalid live verify gate artifact payload: ${gatePath}`);
+  }
+
+  if (typeof artifact.generatedAt !== 'string' || parseCapabilityEvidenceTime(artifact.generatedAt) === 0) {
+    throw new Error(`Invalid live verify gate artifact generatedAt: ${gatePath}`);
+  }
+
+  if (typeof artifact.status !== 'string' || artifact.status.length === 0) {
+    throw new Error(`Invalid live verify gate artifact status: ${gatePath}`);
+  }
+
+  if (
+    artifact.promotionGateStatus != null
+    && !LIVE_VERIFY_GATE_PROMOTION_STATUSES.has(artifact.promotionGateStatus)
+  ) {
+    throw new Error(`Invalid live verify gate artifact promotionGateStatus: ${gatePath}`);
+  }
+
+  if (expectedPolicyProfile && artifact.policyProfile !== expectedPolicyProfile) {
+    throw new Error(
+      `Live verify gate artifact policy profile mismatch for ${gatePath}: expected ${expectedPolicyProfile}, received ${artifact.policyProfile ?? 'unknown'}`,
+    );
+  }
+
+  if (maxAgeHours != null) {
+    if (typeof maxAgeHours !== 'number' || !Number.isFinite(maxAgeHours) || maxAgeHours < 0) {
+      throw new Error(`Invalid maxAgeHours for capability evidence gate ingestion: ${maxAgeHours}`);
+    }
+    const ageMs = now() - parseCapabilityEvidenceTime(artifact.generatedAt);
+    if (ageMs > maxAgeHours * 60 * 60 * 1000) {
+      throw new Error(
+        `Live verify gate artifact is stale: ${gatePath} (generatedAt ${artifact.generatedAt}, max age ${maxAgeHours}h)`,
+      );
+    }
+  }
+
+  return summarizeLiveVerifyGateArtifact(artifact, gatePath);
 }
 
 export function buildCapabilityEvidenceSnapshot(baseline, decisions, decisionFiles = [], latestLiveVerifyGate) {

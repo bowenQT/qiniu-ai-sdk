@@ -17,6 +17,10 @@ jobs:
       QINIU_LIVE_VERIFY_OUTPUT: artifacts/live-verify-gate-nightly.json
       QINIU_LIVE_VERIFY_SUMMARY_OUTPUT: artifacts/live-verify-gate-nightly.md
       QINIU_VERIFICATION_REPORT_OUTPUT: artifacts/verification-report-nightly.md
+      QINIU_CAPABILITY_EVIDENCE_GATE_INPUT: artifacts/live-verify-gate-nightly.json
+      QINIU_CAPABILITY_EVIDENCE_REQUIRE_GATE: '1'
+      QINIU_CAPABILITY_EVIDENCE_EXPECT_PROFILE: nightly
+      QINIU_CAPABILITY_EVIDENCE_MAX_AGE_HOURS: '36'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
