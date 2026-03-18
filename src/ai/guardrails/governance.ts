@@ -162,8 +162,19 @@ export function buildGuardrailPromotionDecision(
     evaluation: GuardrailPolicyEvaluationResult,
     input: GuardrailPolicyPromotionDecisionInput = {},
 ): PromotionDecision {
+    const normalizedRecordRevision = normalizePolicyRevision(record.revision);
+    const normalizedEvaluationRevision = normalizePolicyRevision(evaluation.revision);
+    if (
+        evaluation.policyId !== record.policyId
+        || normalizedEvaluationRevision.revisionId !== normalizedRecordRevision.revisionId
+    ) {
+        throw new Error(
+            `Guardrail promotion decision requires matching policy evaluation for "${record.policyId}@${normalizedRecordRevision.revisionId}"`,
+        );
+    }
+
     const decidedAt = input.decidedAt ?? new Date().toISOString();
-    const candidateId = `${record.policyId}@${record.revision.revisionId}`;
+    const candidateId = `${record.policyId}@${normalizedRecordRevision.revisionId}`;
     const evidenceRefs = [...evaluation.artifactRefs, ...(input.artifactRefs ?? [])];
 
     return {
@@ -179,8 +190,8 @@ export function buildGuardrailPromotionDecision(
         evidenceRefs,
         metadata: {
             policyId: record.policyId,
-            revisionId: record.revision.revisionId,
-            revisionLabels: record.revision.labels,
+            revisionId: normalizedRecordRevision.revisionId,
+            revisionLabels: normalizedRecordRevision.labels,
             evaluationStatus: evaluation.status,
             score: evaluation.score,
             ...record.metadata,

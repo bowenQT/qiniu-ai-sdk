@@ -245,6 +245,42 @@ describe('guardrail governance', () => {
             }),
         })).toThrow('Guardrail policy revision must use kind "guardrail-policy"');
     });
+
+    it('rejects promotion decisions built from another policy evaluation', () => {
+        const record = createGuardrailPolicyRecord({
+            policyId: 'guardrail-policy-4',
+            revision: createRevisionRef({
+                kind: 'guardrail-policy',
+                revisionId: 'revision-4',
+                labels: ['candidate'],
+            }),
+        });
+        const otherRecord = createGuardrailPolicyRecord({
+            policyId: 'guardrail-policy-5',
+            revision: createRevisionRef({
+                kind: 'guardrail-policy',
+                revisionId: 'revision-5',
+                labels: ['candidate'],
+            }),
+        });
+        const evaluation = evaluateGuardrailPolicy(otherRecord, {
+            chainResult: {
+                action: 'block',
+                shouldProceed: false,
+                results: [
+                    {
+                        action: 'block',
+                        guardrailName: 'outputFilter',
+                        reason: 'blocked',
+                    },
+                ],
+            },
+        });
+
+        expect(() => buildGuardrailPromotionDecision(record, evaluation)).toThrow(
+            'Guardrail promotion decision requires matching policy evaluation for "guardrail-policy-4@revision-4"',
+        );
+    });
 });
 
 // ============================================================================
