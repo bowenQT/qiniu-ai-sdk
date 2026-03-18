@@ -20,6 +20,13 @@ export {
     resolveControlPlaneRevisionRef,
     resolveControlPlaneRunMetadata,
 } from './revisions';
+export {
+    DefaultOptimizerPolicy,
+    deriveBudgetSnapshotFromGate,
+    InMemoryCandidateStore,
+    OPTIMIZABLE_CONTROL_PLANE_ARTIFACT_KINDS,
+    StaticBudgetTracker,
+} from './optimizer';
 
 export type {
     ArtifactLabel,
@@ -61,3 +68,12 @@ export type {
     ResolvableControlPlaneRunMetadata,
     RevisionSelector,
 } from './revisions';
+export type {
+    BudgetSnapshot,
+    BudgetTracker,
+    DefaultOptimizerPolicyConfig,
+    OptimizableControlPlaneArtifactKind,
+    OptimizerEvaluationInput,
+    OptimizerEvaluationResult,
+    OptimizerPolicy,
+} from './optimizer';
