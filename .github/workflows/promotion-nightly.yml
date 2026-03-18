@@ -1,0 +1,68 @@
+name: Promotion Nightly
+
+on:
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+jobs:
+  promotion-nightly:
+    runs-on: ubuntu-latest
+    env:
+      QINIU_API_KEY: ${{ secrets.QINIU_API_KEY }}
+      QINIU_ENABLE_LIVE_VERIFY_GATE: ${{ secrets.QINIU_API_KEY != '' && '1' || '0' }}
+      QINIU_LIVE_VERIFY_PROFILE: nightly
+      QINIU_LIVE_VERIFY_GATE_STRICT: 0
+      QINIU_LIVE_VERIFY_POLICY_PATH: .trellis/spec/sdk/live-verify-policy.json
+      QINIU_LIVE_VERIFY_OUTPUT: artifacts/live-verify-gate-nightly.json
+      QINIU_LIVE_VERIFY_SUMMARY_OUTPUT: artifacts/live-verify-gate-nightly.md
+      QINIU_VERIFICATION_REPORT_OUTPUT: artifacts/verification-report-nightly.md
+      QINIU_CAPABILITY_EVIDENCE_GATE_INPUT: artifacts/live-verify-gate-nightly.json
+      QINIU_CAPABILITY_EVIDENCE_REQUIRE_GATE: '1'
+      QINIU_CAPABILITY_EVIDENCE_EXPECT_PROFILE: nightly
+      QINIU_CAPABILITY_EVIDENCE_MAX_AGE_HOURS: '36'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build repository
+        run: npm run build
+
+      - name: Run nightly live verification gate
+        run: npm run test:live-verify:ci
+
+      - name: Render nightly live verification summary
+        if: always()
+        run: npm run generate:live-verify-summary
+
+      - name: Render nightly capability evidence snapshot
+        if: always()
+        run: npm run generate:capability-evidence
+
+      - name: Render nightly capability scorecard
+        if: always()
+        run: node scripts/render-capability-scorecard.mjs
+
+      - name: Render nightly verification report
+        if: always()
+        run: npm run generate:verification-report
+
+      - name: Upload nightly promotion artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: promotion-nightly
+          path: |
+            artifacts/live-verify-gate-nightly.json
+            artifacts/live-verify-gate-nightly.md
+            artifacts/verification-report-nightly.md
+          if-no-files-found: ignore

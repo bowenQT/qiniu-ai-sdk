@@ -51,9 +51,13 @@ describe('capability registry', () => {
         expect(allModules.some((entry) => entry.name === 'batch')).toBe(true);
 
         expect(getModuleMaturity('ResponseAPI')).toMatchObject({
-            maturity: 'experimental',
+            maturity: 'beta',
             validationLevel: 'unit',
             validatedAt: '2026-03-15',
+            trackedDecision: expect.objectContaining({
+                oldMaturity: 'experimental',
+                newMaturity: 'beta',
+            }),
         });
         expect(getModuleMaturity('batch')).toMatchObject({
             maturity: 'beta',

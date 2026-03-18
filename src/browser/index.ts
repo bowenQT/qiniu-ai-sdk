@@ -157,8 +157,14 @@ export type {
     VectorDocument,
     InMemoryVectorStoreConfig,
 } from '../ai/memory';
-export { MemorySessionStore, extractSessionMessages, replaySession } from '../ai/session-store';
-export type { SessionStore, SessionRecord, SessionSaveInput } from '../ai/session-store';
+export { MemorySessionStore, buildSessionRecord, extractSessionMessages, replaySession } from '../ai/session-store';
+export type {
+    SessionStore,
+    SessionRecord,
+    SessionSaveInput,
+    SessionRecordSource,
+    SessionRestoreMode,
+} from '../ai/session-store';
 
 // Signer (browser-compatible - delegate to backend)
 export { UrlCache, CachedSigner } from '../lib/signer';

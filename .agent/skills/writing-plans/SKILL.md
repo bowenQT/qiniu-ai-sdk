@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: Use when you have a spec or requirements for a multi-step task, before touching code
+description: Use when you have a spec or requirements for a multi-step task, before touching code. In this repository, multi-subsystem or lane-scoped work must create the package brief first and keep the plan aligned with the bounded package contract.
 ---
 
 # Writing Plans
@@ -16,6 +16,22 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 **Context:** This should be run in a dedicated worktree (created by brainstorming skill).
 
 **Save plans to:** `.trellis/plans/YYYY-MM-DD-<feature-name>.md`
+
+## Repo Override: Package-First Work
+
+If the task touches multiple subsystem groups, uses lanes, or needs a tracked review handoff:
+
+1. create the package brief first
+2. align the plan to the brief's lane, topic, goal, and out-of-scope notes
+3. use the `package-first-sdk-delivery` skill for execution and closeout
+
+Use:
+
+```bash
+qiniu-ai package init --lane <lane> --topic <topic> --goal <goal> --phase <phase> --success "<criterion>"
+```
+
+Then write the promoted plan under `.trellis/plans/` using the same topic slug.
 
 ## Bite-Sized Task Granularity
 
@@ -101,6 +117,7 @@ After saving the plan:
 **"Plan complete and saved to `.trellis/plans/<filename>.md`. Ready to execute?"**
 
 **If yes:**
+- For package-first work: use `package-first-sdk-delivery`
 - **REQUIRED SUB-SKILL:** Use executing-plans to work through tasks in batches
 - Alternative: Use subagent-driven-development for task-by-task execution with self-review
 - Follow TDD for each task

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.49.1] - 2026-03-16
+
+### 📚 Documentation
+
+- Removed stale Capability Scorecard reference from README and README.zh-CN — the scorecard remains a generated artifact under `docs/` but is no longer linked as user-facing documentation
+
 ## [0.49.0] - 2026-03-14
 
 ### ✨ New Features

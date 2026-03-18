@@ -70,7 +70,9 @@ npm install @bowenqt/qiniu-ai-sdk
 
 - `@bowenqt/qiniu-ai-sdk/node` 是 MCP、sandbox、audit sink 以及非内存 checkpointer 的唯一正式 Node integration 入口。
 - `@bowenqt/qiniu-ai-sdk/core` 和 `@bowenqt/qiniu-ai-sdk/browser` 保持不含 Node-only 传递依赖。
-- `ResponseAPI` 继续保持 experimental/provider-only；推荐使用 `QiniuAI#response` 或从 `@bowenqt/qiniu-ai-sdk/qiniu` 导入，不再从 root 入口导入。
+- `ResponseAPI` 仅核心子集晋级为 beta：`create`、`followUp`、`createTextResult`、`followUpTextResult`；只有在存在 fresh nightly `response-api` 证据时，才会启用更强的 evidence-backed beta 结论。
+- 其余 `ResponseAPI` helpers 仍处于 deferred/provider-only（包括 stream、JSON/messages、reasoning、chat-completion projection）。
+- `NodeMCPHost` 仍为 `beta (held)`；当前只负责透传已经解析好的 bearer token（`token` / `tokenProvider`），剩余 deferred risks 为超出该边界的 OAuth token acquisition 与 cross-server routing。
 - root 入口继续保留兼容性，但不再作为新项目的默认教学入口。
 
 ### Cloud API Quickstart
@@ -212,11 +214,9 @@ const responseApi = getModuleMaturity('ResponseAPI');
 const gemini = getModelCapabilities('gemini-2.5-flash');
 
 console.log(featuredChatModels.map((model) => model.id));
-console.log(responseApi?.maturity); // experimental
+console.log(responseApi?.maturity); // beta
 console.log(gemini?.capabilities);
 ```
-
-当前已验证模型子集与模块成熟度矩阵，统一见生成产物 [Capability Scorecard](docs/capability-scorecard.md)。
 
 ### Worktree 交付流
 

@@ -101,6 +101,17 @@ interface ProjectPackageJson {
     peerDependencies?: Record<string, string>;
 }
 
+interface LocalPhasePolicyEntry {
+    status: string;
+    allowNewPackages: boolean;
+    closeoutReportPath?: string;
+}
+
+interface LocalPhasePolicySummary {
+    phaseName: string;
+    entry: LocalPhasePolicyEntry;
+}
+
 function addCheck(checks: DoctorCheck[], level: DoctorStatus, message: string): void {
     checks.push({ level, message });
 }
@@ -148,6 +159,40 @@ function readProjectPackageJson(projectDir: string): ProjectPackageJson {
         return JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as ProjectPackageJson;
     } catch {
         return {};
+    }
+}
+
+function comparePhaseNames(left: string, right: string): number {
+    const leftNumber = Number.parseInt(left.replace(/^phase/, ''), 10);
+    const rightNumber = Number.parseInt(right.replace(/^phase/, ''), 10);
+    if (!Number.isNaN(leftNumber) && !Number.isNaN(rightNumber) && leftNumber !== rightNumber) {
+        return leftNumber - rightNumber;
+    }
+    return left.localeCompare(right);
+}
+
+function readLocalPhasePolicy(projectDir: string): LocalPhasePolicySummary | undefined {
+    const policyPath = path.join(projectDir, '.trellis', 'spec', 'sdk', 'phase-policy.json');
+    if (!fs.existsSync(policyPath)) {
+        return undefined;
+    }
+
+    try {
+        const payload = JSON.parse(fs.readFileSync(policyPath, 'utf8')) as {
+            phases?: Record<string, LocalPhasePolicyEntry | undefined>;
+        };
+        const entries = Object.entries(payload.phases ?? {})
+            .filter((entry): entry is [string, LocalPhasePolicyEntry] => Boolean(entry[1]))
+            .sort(([left], [right]) => comparePhaseNames(left, right));
+        if (entries.length === 0) {
+            return undefined;
+        }
+
+        const openEntry = [...entries].reverse().find(([, entry]) => entry.status !== 'closed');
+        const [phaseName, entry] = openEntry ?? entries[entries.length - 1];
+        return { phaseName, entry };
+    } catch {
+        return undefined;
     }
 }
 
@@ -315,7 +360,12 @@ function extractClientPropertyUsage(source: string, clientVariables: string[]): 
 function formatModuleMaturity(entry: ModuleMaturityInfo): string {
     const validatedAt = entry.validatedAt ? `, validated ${entry.validatedAt}` : '';
     const notes = entry.notes ? `, ${entry.notes}` : '';
-    return `${entry.maturity}, ${entry.validationLevel}${validatedAt}${notes}`;
+    const trackedDecision = entry.trackedDecision
+        ? entry.trackedDecision.oldMaturity === entry.trackedDecision.newMaturity
+            ? `, tracked decision ${entry.trackedDecision.newMaturity} (held)`
+            : `, tracked decision ${entry.trackedDecision.oldMaturity} -> ${entry.trackedDecision.newMaturity}`
+        : '';
+    return `${entry.maturity}, ${entry.validationLevel}${validatedAt}${trackedDecision}${notes}`;
 }
 
 function summarizeStatus(checks: DoctorCheck[]): DoctorStatus {
@@ -348,6 +398,15 @@ export function doctorProject(options: DoctorCommandOptions): DoctorCommandResul
 
     if (lane) {
         addCheck(checks, 'ok', `Detected worktree lane: ${lane}.`);
+    }
+
+    const localPhasePolicy = readLocalPhasePolicy(projectDir);
+    if (localPhasePolicy) {
+        addCheck(
+            checks,
+            localPhasePolicy.entry.status === 'frozen' || localPhasePolicy.entry.status === 'closed' ? 'warn' : 'ok',
+            `Tracked ${localPhasePolicy.phaseName} policy: ${localPhasePolicy.entry.status} (allow new packages: ${localPhasePolicy.entry.allowNewPackages ? 'yes' : 'no'})${localPhasePolicy.entry.closeoutReportPath ? `, closeout report ${localPhasePolicy.entry.closeoutReportPath}` : ''}.`,
+        );
     }
 
     const requiredPeerDeps = new Set<string>();
@@ -443,7 +502,7 @@ export function doctorProject(options: DoctorCommandOptions): DoctorCommandResul
         addCheck(
             checks,
             maturity?.maturity === 'experimental' ? 'warn' : 'ok',
-            `${moduleName} usage detected (${maturity?.maturity ?? 'unknown'}):\n- ${filesWithUsage.join('\n- ')}${
+            `${moduleName} usage detected (${maturity ? formatModuleMaturity(maturity) : 'unknown'}):\n- ${filesWithUsage.join('\n- ')}${
                 maturity?.docsUrl ? `\nDocs: ${maturity.docsUrl}` : ''
             }`,
         );

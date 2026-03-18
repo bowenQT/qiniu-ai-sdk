@@ -221,10 +221,17 @@ export type {
 export {
     MemorySessionStore,
     CheckpointerSessionStore,
+    buildSessionRecord,
     extractSessionMessages,
     replaySession,
 } from '../ai/session-store';
-export type { SessionStore, SessionRecord, SessionSaveInput } from '../ai/session-store';
+export type {
+    SessionStore,
+    SessionRecord,
+    SessionSaveInput,
+    SessionRecordSource,
+    SessionRestoreMode,
+} from '../ai/session-store';
 
 // Checkpointer and graph runtime
 export {

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "packageId": "phase2/runtime-hardening/audit-p1-p2-fixes",
+  "phase": "phase2",
+  "ownerLane": "runtime-hardening",
+  "topic": "audit-p1-p2-fixes",
+  "goal": "Harden runtime behavior by fixing the highest-priority P1 and P2 findings already identified in the audit and review artifacts.",
+  "successCriteria": [
+    "Tracked P1 and P2 runtime bugs are fixed with focused regression tests.",
+    "Fixes stay bounded to hardening work and do not reopen broad runtime feature expansion.",
+    "Deferred audit items remain explicit for later packages instead of leaking into opportunistic fixes."
+  ],
+  "touchedSurfaces": [
+    "src/ai",
+    "tests/unit/ai",
+    ".trellis/integrations",
+    ".trellis/spec/sdk"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "New runtime product surfaces unrelated to audited bugs.",
+    "Maturity promotion without a separate promotion decision artifact."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/runtime-hardening/audit-p1-p2-fixes",
+  "branch": "main",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk",
+  "createdAt": "2026-03-16T10:42:46.693Z"
+}

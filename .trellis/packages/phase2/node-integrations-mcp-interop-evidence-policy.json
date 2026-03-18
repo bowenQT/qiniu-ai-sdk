@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "packageId": "phase2/node-integrations/mcp-interop-evidence-policy",
+  "phase": "phase2",
+  "ownerLane": "node-integrations",
+  "topic": "mcp-interop-evidence-policy",
+  "goal": "Promote MCP interoperability evidence from package-level artifacts into an explicit policy and promotion decision path.",
+  "successCriteria": [
+    "Nightly and PR MCP evidence boundaries are explicit and machine-readable.",
+    "MCP interop promotion decisions can cite tracked evidence instead of transcript-only rationale.",
+    "Deferred MCP gaps remain explicit instead of being silently carried into later packages."
+  ],
+  "touchedSurfaces": [
+    "src/cli/live-verify.ts",
+    ".trellis/spec/sdk/live-verify-policy.json",
+    ".trellis/decisions/phase2",
+    "src/cli/verification-report.ts"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Adding new MCP transport families or broad Node platform features.",
+    "Promoting QiniuMCPServer in the same package."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/node-integrations/mcp-interop-evidence-policy",
+  "branch": "main",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk",
+  "createdAt": "2026-03-16T10:42:46.693Z"
+}
