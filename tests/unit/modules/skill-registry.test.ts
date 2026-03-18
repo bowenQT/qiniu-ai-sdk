@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SkillRegistry } from '../../../src/node/skills/registry';
+import { InMemorySkillTrialStore } from '../../../src/node/skills/trial';
 
 describe('SkillRegistry', () => {
     describe('constructor', () => {
@@ -138,6 +139,43 @@ describe('SkillRegistry', () => {
 
             vi.unstubAllGlobals();
         });
+
+        it('should seed a quarantine trial record for registered skills', async () => {
+            const manifestContent = JSON.stringify({
+                name: 'trial-skill',
+                version: '1.0.0',
+                description: 'Trial skill',
+                entry: 'SKILL.md',
+                entryType: 'markdown',
+            });
+
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                text: () => Promise.resolve(manifestContent),
+            }));
+
+            const trialStore = new InMemorySkillTrialStore();
+            const registry = new SkillRegistry({
+                allowRemote: true,
+                verifyIntegrity: false,
+                trialStore,
+            });
+
+            await registry.registerRemote({
+                url: 'https://example.com/skill.json',
+            });
+
+            await expect(registry.getTrialRecord('trial-skill')).resolves.toMatchObject({
+                skillName: 'trial-skill',
+                state: 'quarantine',
+                metadata: {
+                    source: 'remote',
+                    version: '1.0.0',
+                },
+            });
+
+            vi.unstubAllGlobals();
+        });
     });
 
     describe('refreshSkill', () => {
@@ -225,6 +263,35 @@ describe('SkillRegistry', () => {
             expect(registry.has('test')).toBe(true);
             expect(registry.unregister('test')).toBe(true);
             expect(registry.has('test')).toBe(false);
+
+            vi.unstubAllGlobals();
+        });
+
+        it('should delete trial state when unregistering a skill', async () => {
+            const manifest = JSON.stringify({
+                name: 'trial-test',
+                version: '1.0.0',
+                description: 'Test',
+                entry: 'SKILL.md',
+                entryType: 'markdown',
+            });
+
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                text: () => Promise.resolve(manifest),
+            }));
+
+            const trialStore = new InMemorySkillTrialStore();
+            const registry = new SkillRegistry({
+                allowRemote: true,
+                verifyIntegrity: false,
+                trialStore,
+            });
+            await registry.registerRemote({ url: 'https://example.com/skill.json' });
+            expect(await registry.getTrialRecord('trial-test')).not.toBeNull();
+
+            expect(registry.unregister('trial-test')).toBe(true);
+            expect(await registry.getTrialRecord('trial-test')).toBeNull();
 
             vi.unstubAllGlobals();
         });

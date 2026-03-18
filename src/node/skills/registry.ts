@@ -22,6 +22,7 @@ import {
 } from '../../modules/skills/manifest';
 import { SkillLoader, SkillNotFoundError } from './loader';
 import type { Skill } from '../../modules/skills/types';
+import type { SkillPromotionState, SkillTrialPolicy, SkillTrialRecord, SkillTrialStore } from './trial';
 
 // ============================================================================
 // Types
@@ -48,6 +49,10 @@ export interface SkillRegistryConfig {
     sdkVersion?: string;
     /** Custom fetch function for testing (default: global fetch) */
     fetcher?: typeof fetch;
+    /** Optional store for non-lockfile skill trial state */
+    trialStore?: SkillTrialStore;
+    /** Optional policy used when seeding trial records */
+    trialPolicy?: SkillTrialPolicy;
 }
 
 /** Remote skill source */
@@ -103,6 +108,8 @@ const DEFAULT_CONFIG: Required<SkillRegistryConfig> = {
     cache: { enabled: true, ttlSeconds: 3600 },
     sdkVersion: '0.32.0',
     fetcher: undefined as unknown as typeof fetch,
+    trialStore: undefined as unknown as SkillTrialStore,
+    trialPolicy: undefined as unknown as SkillTrialPolicy,
 };
 
 /**
@@ -194,6 +201,7 @@ export class SkillRegistry {
                 skill,
                 fetchedAt: new Date(),
             });
+            await this.ensureTrialRecord(skill.name);
             count++;
         }
 
@@ -292,6 +300,7 @@ export class SkillRegistry {
             fetchedAt: new Date(),
             integrityHash: source.integrityHash,
         });
+        await this.ensureTrialRecord(manifest.name);
 
         return manifest.name;
     }
@@ -322,7 +331,17 @@ export class SkillRegistry {
      * Unregister a skill.
      */
     unregister(name: string): boolean {
-        return this.skills.delete(name);
+        const deleted = this.skills.delete(name);
+        if (!deleted) {
+            return false;
+        }
+
+        const maybePromise = this.config.trialStore?.delete?.(name);
+        if (maybePromise instanceof Promise) {
+            void maybePromise.catch(() => undefined);
+        }
+
+        return true;
     }
 
     /**
@@ -488,6 +507,20 @@ export class SkillRegistry {
     }
 
     /**
+     * Get a skill trial record by skill name.
+     */
+    async getTrialRecord(name: string): Promise<SkillTrialRecord | null> {
+        return (await this.config.trialStore?.get(name)) ?? null;
+    }
+
+    /**
+     * Persist a skill trial record without touching manifests or lockfiles.
+     */
+    async setTrialRecord(record: SkillTrialRecord): Promise<void> {
+        await this.config.trialStore?.put(record);
+    }
+
+    /**
      * Check if a skill is registered.
      */
     has(name: string): boolean {
@@ -578,6 +611,37 @@ export class SkillRegistry {
             entry: 'SKILL.md',
             entryType: 'markdown',
         };
+    }
+
+    private async ensureTrialRecord(name: string): Promise<void> {
+        if (!this.config.trialStore) {
+            return;
+        }
+
+        const existing = await this.config.trialStore.get(name);
+        if (existing) {
+            return;
+        }
+
+        const entry = this.skills.get(name);
+        if (!entry) {
+            return;
+        }
+
+        const record: SkillTrialRecord = {
+            skillName: name,
+            state: this.resolveDefaultTrialState(),
+            metadata: {
+                source: entry.source,
+                version: entry.manifest.version,
+                integrityHash: entry.integrityHash,
+            },
+        };
+        await this.config.trialStore.put(record);
+    }
+
+    private resolveDefaultTrialState(): SkillPromotionState {
+        return this.config.trialPolicy?.defaultState ?? 'quarantine';
     }
 
     private isAllowedDomain(hostname: string): boolean {
