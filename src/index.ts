@@ -53,8 +53,9 @@ export type {
 export type { TaskHandle } from './lib/task-handle';
 
 // Eval gate scaffold
-export { compareEvalGateResults, summarizeEvalGateStatus } from './lib/eval-gate';
+export { buildEvalCandidateReport, compareEvalGateResults, summarizeEvalGateStatus } from './lib/eval-gate';
 export type {
+    EvalCandidateReport,
     EvalBenchmarkCase,
     EvalBenchmarkSuite,
     EvalCaseReport,

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "packageId": "phase3/dx-validation/benchmark-candidate-reporting",
+  "phase": "phase3",
+  "ownerLane": "dx-validation",
+  "category": "standard",
+  "topic": "benchmark-candidate-reporting",
+  "goal": "Render candidate-vs-baseline reports and machine-readable promotion summaries",
+  "successCriteria": [
+    "Benchmark comparisons emit CI-consumable JSON and human-readable summaries.",
+    "Promotion-sensitive artifacts can reference candidate and baseline evidence consistently."
+  ],
+  "touchedSurfaces": [
+    "src/lib/eval-gate.ts",
+    "src/cli",
+    "scripts",
+    "tests/cli"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/dx-validation/benchmark-candidate-reporting",
+  "branch": "codex/phase3/dx-validation/benchmark-candidate-reporting",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase3-benchmark-candidate-reporting",
+  "createdAt": "2026-03-18T13:18:19.783Z"
+}

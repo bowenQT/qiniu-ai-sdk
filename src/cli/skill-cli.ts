@@ -887,9 +887,9 @@ async function runVerifyCommand(args: string[], options: RunCLIOptions): Promise
 
     if (jsonMode && !outputPath) {
         console.log(JSON.stringify(result, null, 2));
-    } else if (subcommand === 'eval' && !outputPath) {
+    } else if (subcommand === 'eval') {
         console.log(renderEvalGateMarkdown(result as Awaited<ReturnType<typeof runEvalGate>>));
-    } else if (subcommand !== 'eval') {
+    } else if (subcommand === 'live' || subcommand === 'gate') {
         for (const check of (result as Awaited<ReturnType<typeof verifyLiveGate>>).checks) {
             console.log(`[${check.level}] ${check.message}`);
         }
@@ -901,7 +901,7 @@ async function runVerifyCommand(args: string[], options: RunCLIOptions): Promise
     }
     process.exitCode = 'exitCode' in result
         ? result.exitCode
-        : (result.status === 'fail' ? 1 : 0);
+        : ('decision' in result && result.decision === 'fail' ? 1 : 0);
 }
 
 async function runSkillCommand(args: string[], options: RunCLIOptions): Promise<void> {

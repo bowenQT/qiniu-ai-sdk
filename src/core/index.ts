@@ -6,8 +6,9 @@
 export type { LanguageModelChatAPI, LanguageModelClient } from './client';
 
 // Eval gate scaffold
-export { compareEvalGateResults, summarizeEvalGateStatus } from '../lib/eval-gate';
+export { buildEvalCandidateReport, compareEvalGateResults, summarizeEvalGateStatus } from '../lib/eval-gate';
 export type {
+    EvalCandidateReport,
     EvalBenchmarkCase,
     EvalBenchmarkSuite,
     EvalCaseReport,
