@@ -499,15 +499,10 @@ export function doctorProject(options: DoctorCommandOptions): DoctorCommandResul
 
     for (const [moduleName, filesWithUsage] of experimentalUsage) {
         const maturity = getModuleMaturity(moduleName);
-        const trackedDecision = maturity?.trackedDecision
-            ? maturity.trackedDecision.oldMaturity === maturity.trackedDecision.newMaturity
-                ? `, tracked decision ${maturity.trackedDecision.newMaturity} (held)`
-                : `, tracked decision ${maturity.trackedDecision.oldMaturity} -> ${maturity.trackedDecision.newMaturity}`
-            : '';
         addCheck(
             checks,
             maturity?.maturity === 'experimental' ? 'warn' : 'ok',
-            `${moduleName} usage detected (${maturity?.maturity ?? 'unknown'}${trackedDecision}):\n- ${filesWithUsage.join('\n- ')}${
+            `${moduleName} usage detected (${maturity ? formatModuleMaturity(maturity) : 'unknown'}):\n- ${filesWithUsage.join('\n- ')}${
                 maturity?.docsUrl ? `\nDocs: ${maturity.docsUrl}` : ''
             }`,
         );

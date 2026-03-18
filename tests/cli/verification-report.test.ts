@@ -72,13 +72,13 @@ describe('verification report renderer', () => {
     it('renders capability evidence summaries from a tracked snapshot', () => {
         const output = renderCapabilityEvidenceSummary({
             generatedAt: '2026-03-17T00:00:00.000Z',
-            decisionFiles: ['.trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json'],
+            decisionFiles: ['.trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json'],
             promotionDecisions: [
                 {
                     module: 'NodeMCPHost',
                     oldMaturity: 'beta',
                     newMaturity: 'beta',
-                    trackedPath: '.trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json',
+                    trackedPath: '.trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json',
                 },
             ],
             latestLiveVerifyGate: {
@@ -111,7 +111,7 @@ describe('verification report renderer', () => {
                 module: 'NodeMCPHost',
                 oldMaturity: 'beta',
                 newMaturity: 'beta',
-                trackedPath: '.trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json',
+                trackedPath: '.trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json',
                 decisionSource: 'antigravity',
                 decisionAt: '2026-03-16T13:30:00.000Z',
             },

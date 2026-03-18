@@ -1,12 +1,14 @@
 {
   "version": 1,
-  "generatedAt": "2026-03-17T13:20:00.000Z",
+  "generatedAt": "2026-03-18T00:00:00.000Z",
   "decisionFiles": [
     ".trellis/decisions/phase2/phase2-cloud-surface-responseapi-promotion-readiness.json",
     ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json",
     ".trellis/decisions/phase2/phase2-node-integrations-node-mcphost-promotion-readiness.json",
     ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json",
-    ".trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json"
+    ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json",
+    ".trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json",
+    ".trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json"
   ],
   "modules": [
     {
@@ -168,22 +170,20 @@
       "docsUrl": "https://modelcontextprotocol.io/specification/2025-11-25/basic/transports",
       "sourceUpdatedAt": "2026-03-14",
       "validationLevel": "unit",
-      "notes": "Beta is held on remaining deferred risks: OAuth token acquisition and multi-server routing.",
+      "notes": "Beta is held on remaining deferred risks: OAuth token acquisition beyond already-resolved bearer tokens and cross-server routing.",
       "trackedDecision": {
-        "packageId": "phase3/node-integrations/mcphost-held-risk-reduction",
+        "packageId": "phase3/node-integrations/mcphost-oauth-boundary",
         "module": "NodeMCPHost",
         "oldMaturity": "beta",
         "newMaturity": "beta",
         "evidenceBasis": [
           "src/node/mcp-host.ts#NODE_MCPHOST_PROMOTION_READINESS_CONTRACT",
-          "src/node/mcp-host.ts#probeServerInterop",
-          ".trellis/spec/sdk/live-verify-policy.json#profiles.pr.lanePolicies.node-integrations",
-          ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.node-integrations",
+          "src/node/mcp-host.ts#createTransport",
           "tests/node/mcp-host.test.ts"
         ],
         "decisionSource": "codex",
-        "decisionAt": "2026-03-17T13:20:00.000Z",
-        "trackedPath": ".trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json"
+        "decisionAt": "2026-03-18T00:00:00.000Z",
+        "trackedPath": ".trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json"
       }
     },
     {
@@ -235,19 +235,22 @@
       "sourceUpdatedAt": "2026-03-14",
       "validatedAt": "2026-03-15",
       "validationLevel": "unit",
-      "notes": "Core subset (create/followUp/createTextResult/followUpTextResult) is promoted via tracked decision; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only.",
+      "notes": "Core subset (create/followUp/createTextResult/followUpTextResult) is beta and requires fresh nightly response-api evidence; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only.",
       "trackedDecision": {
-        "packageId": "phase3/cloud-surface/responseapi-beta-promotion",
+        "packageId": "phase3/cloud-surface/responseapi-evidence-hardening",
         "module": "ResponseAPI",
         "oldMaturity": "experimental",
         "newMaturity": "beta",
         "evidenceBasis": [
           "src/modules/response/index.ts#RESPONSE_API_PROMOTION_READINESS_CONTRACT",
+          ".trellis/packages/phase3/cloud-surface-responseapi-evidence-hardening.json",
+          ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.cloud-surface",
+          "artifacts/live-verify-gate-nightly.json",
           "tests/unit/modules/response.test.ts"
         ],
         "decisionSource": "codex",
-        "decisionAt": "2026-03-17T13:02:32Z",
-        "trackedPath": ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json"
+        "decisionAt": "2026-03-18T00:00:00.000Z",
+        "trackedPath": ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json"
       }
     },
     {
@@ -352,6 +355,36 @@
       "decisionSource": "codex",
       "decisionAt": "2026-03-17T13:20:00.000Z",
       "trackedPath": ".trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json"
+    },
+    {
+      "packageId": "phase3/node-integrations/mcphost-oauth-boundary",
+      "module": "NodeMCPHost",
+      "oldMaturity": "beta",
+      "newMaturity": "beta",
+      "evidenceBasis": [
+        "src/node/mcp-host.ts#NODE_MCPHOST_PROMOTION_READINESS_CONTRACT",
+        "src/node/mcp-host.ts#createTransport",
+        "tests/node/mcp-host.test.ts"
+      ],
+      "decisionSource": "codex",
+      "decisionAt": "2026-03-18T00:00:00.000Z",
+      "trackedPath": ".trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json"
+    },
+    {
+      "packageId": "phase3/cloud-surface/responseapi-evidence-hardening",
+      "module": "ResponseAPI",
+      "oldMaturity": "experimental",
+      "newMaturity": "beta",
+      "evidenceBasis": [
+        "src/modules/response/index.ts#RESPONSE_API_PROMOTION_READINESS_CONTRACT",
+        ".trellis/packages/phase3/cloud-surface-responseapi-evidence-hardening.json",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.cloud-surface",
+        "artifacts/live-verify-gate-nightly.json",
+        "tests/unit/modules/response.test.ts"
+      ],
+      "decisionSource": "codex",
+      "decisionAt": "2026-03-18T00:00:00.000Z",
+      "trackedPath": ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json"
     }
   ]
 }

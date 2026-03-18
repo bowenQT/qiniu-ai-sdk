@@ -160,7 +160,7 @@
       "docsUrl": "https://modelcontextprotocol.io/specification/2025-11-25/basic/transports",
       "sourceUpdatedAt": "2026-03-14",
       "validationLevel": "unit",
-      "notes": "Beta is held on remaining deferred risks: OAuth token acquisition and multi-server routing."
+      "notes": "Beta is held on remaining deferred risks: OAuth token acquisition beyond already-resolved bearer tokens and cross-server routing."
     },
     {
       "name": "sandbox",
@@ -211,7 +211,7 @@
       "sourceUpdatedAt": "2026-03-14",
       "validatedAt": "2026-03-15",
       "validationLevel": "unit",
-      "notes": "Core subset (create/followUp/createTextResult/followUpTextResult) is promoted via tracked decision; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only."
+      "notes": "Core subset (create/followUp/createTextResult/followUpTextResult) is beta and requires fresh nightly response-api evidence; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only."
     },
     {
       "name": "crew",

@@ -10,7 +10,7 @@
       },
       "lanePolicies": {
         "cloud-surface": {
-          "description": "PR policy records the narrow ResponseAPI promotion boundary without blocking routine refactors on response probes.",
+          "description": "PR policy records the narrow, nightly-evidence-backed ResponseAPI beta subset without blocking routine refactors on deferred helpers.",
           "promotionSensitiveRequiredProbes": [
             "chat",
             "response-api"
@@ -19,7 +19,7 @@
             "ResponseAPI"
           ],
           "trackedDecisionPaths": [
-            ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json"
+            ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json"
           ],
           "deferredRisks": [
             "Response API stream promotion still depends on a separate tracked decision and nightly evidence.",
@@ -43,11 +43,11 @@
             "NodeMCPHost"
           ],
           "trackedDecisionPaths": [
-            ".trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json"
+            ".trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json"
           ],
           "deferredRisks": [
-            "OAuth discovery covers metadata endpoints only; token acquisition flows remain out of scope for this package.",
-            "HTTP interop evidence is collected per server; multi-server routing remains a higher-level integration concern."
+            "NodeMCPHost only forwards already-resolved HTTP bearer tokens through `token` or `tokenProvider`; OAuth discovery, authorization, refresh, callback, and device-code flows remain out of scope for this package.",
+            "HTTP interop evidence is collected per server; cross-server routing remains a higher-level integration concern."
           ]
         }
       }
@@ -71,7 +71,7 @@
       },
       "lanePolicies": {
         "cloud-surface": {
-          "description": "Nightly policy keeps ResponseAPI promotion scoped to the narrowest live-backed contract.",
+          "description": "Nightly policy keeps ResponseAPI beta scoped to the narrowest evidence-backed core subset.",
           "promotionSensitiveRequiredProbes": [
             "chat",
             "response-api"
@@ -80,7 +80,7 @@
             "ResponseAPI"
           ],
           "trackedDecisionPaths": [
-            ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json"
+            ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json"
           ],
           "deferredRisks": [
             "Response API stream promotion still depends on a separate tracked decision and nightly evidence.",
@@ -107,11 +107,11 @@
             "NodeMCPHost"
           ],
           "trackedDecisionPaths": [
-            ".trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json"
+            ".trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json"
           ],
           "deferredRisks": [
-            "OAuth discovery covers metadata endpoints only; token acquisition flows remain out of scope for this package.",
-            "HTTP interop evidence is collected per server; multi-server routing remains a higher-level integration concern."
+            "NodeMCPHost only forwards already-resolved HTTP bearer tokens through `token` or `tokenProvider`; OAuth discovery, authorization, refresh, callback, and device-code flows remain out of scope for this package.",
+            "HTTP interop evidence is collected per server; cross-server routing remains a higher-level integration concern."
           ]
         }
       }

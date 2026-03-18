@@ -70,9 +70,9 @@ npm install @bowenqt/qiniu-ai-sdk
 
 - `@bowenqt/qiniu-ai-sdk/node` 是 MCP、sandbox、audit sink 以及非内存 checkpointer 的唯一正式 Node integration 入口。
 - `@bowenqt/qiniu-ai-sdk/core` 和 `@bowenqt/qiniu-ai-sdk/browser` 保持不含 Node-only 传递依赖。
-- `ResponseAPI` 仅核心子集晋级为 beta：`create`、`followUp`、`createTextResult`、`followUpTextResult`。
+- `ResponseAPI` 仅核心子集晋级为 beta：`create`、`followUp`、`createTextResult`、`followUpTextResult`；这个 beta 结论要求有 fresh nightly `response-api` 证据支撑。
 - 其余 `ResponseAPI` helpers 仍处于 deferred/provider-only（包括 stream、JSON/messages、reasoning、chat-completion projection）。
-- `NodeMCPHost` 仍为 `beta (held)`；当前剩余 deferred risks 为 OAuth token acquisition 与 multi-server routing。
+- `NodeMCPHost` 仍为 `beta (held)`；当前只负责透传已经解析好的 bearer token（`token` / `tokenProvider`），剩余 deferred risks 为超出该边界的 OAuth token acquisition 与 cross-server routing。
 - root 入口继续保留兼容性，但不再作为新项目的默认教学入口。
 
 ### Cloud API Quickstart

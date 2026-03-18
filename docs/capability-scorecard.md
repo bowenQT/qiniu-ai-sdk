@@ -9,8 +9,8 @@ This document is generated from the SDK capability registry and is intended to m
 - Validated models: 10
 - Validated chat/image/video split: chat=5, image=2, video=3
 - Module maturity split: ga=12, beta=15, experimental=4
-- Evidence snapshot generated at: 2026-03-17T13:20:00.000Z
-- Tracked promotion decisions: 5
+- Evidence snapshot generated at: 2026-03-18T00:00:00.000Z
+- Tracked promotion decisions: 7
 
 ## Validated Models
 
@@ -52,10 +52,10 @@ This document is generated from the SDK capability registry and is intended to m
 | guardrails | beta |  | unit |  |  | https://openai.github.io/openai-agents-js/guides/guardrails/ |
 | KodoCheckpointer | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | memory | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
-| NodeMCPHost | beta | beta (held) | unit |  | Beta is held on remaining deferred risks: OAuth token acquisition and multi-server routing. | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
+| NodeMCPHost | beta | beta (held) | unit |  | Beta is held on remaining deferred risks: OAuth token acquisition beyond already-resolved bearer tokens and cross-server routing. | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
 | PostgresCheckpointer | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
 | RedisCheckpointer | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
-| ResponseAPI | beta | experimental -> beta | unit | 2026-03-15 | Core subset (create/followUp/createTextResult/followUpTextResult) is promoted via tracked decision; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only. | https://apidocs.qnaigc.com/417773141e0 |
+| ResponseAPI | beta | experimental -> beta | unit | 2026-03-15 | Core subset (create/followUp/createTextResult/followUpTextResult) is beta and requires fresh nightly response-api evidence; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only. | https://apidocs.qnaigc.com/417773141e0 |
 | sandbox | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | skills | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | A2A | experimental |  | unit |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
@@ -67,9 +67,9 @@ This document is generated from the SDK capability registry and is intended to m
 
 | Field | Value |
 | --- | --- |
-| Generated At | 2026-03-17T13:20:00.000Z |
-| Tracked Decision Files | 5 |
-| Tracked Promotion Decisions | 5 |
+| Generated At | 2026-03-18T00:00:00.000Z |
+| Tracked Decision Files | 7 |
+| Tracked Promotion Decisions | 7 |
 | Latest Gate Artifact |  |
 | Latest Gate Status |  |
 | Latest Promotion Gate |  |
