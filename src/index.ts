@@ -52,6 +52,22 @@ export type {
 } from './client';
 export type { TaskHandle } from './lib/task-handle';
 
+// Eval gate scaffold
+export { compareEvalGateResults, summarizeEvalGateStatus } from './lib/eval-gate';
+export type {
+    EvalBenchmarkCase,
+    EvalBenchmarkSuite,
+    EvalCaseReport,
+    EvalCaseResult,
+    EvalGateCheck,
+    EvalGateMetricSummary,
+    EvalGateResult,
+    EvalGateStatus,
+    EvalGraderResult,
+    EvalRunArtifactRef,
+    EvalRunReport,
+} from './lib/eval-gate';
+
 // Control plane contracts
 export {
     CONTROL_PLANE_ARTIFACT_KINDS,
