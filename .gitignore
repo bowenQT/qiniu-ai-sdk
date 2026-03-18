@@ -60,6 +60,8 @@ local-reports/
 !.agent/skills/frontend-design/**
 !.agent/skills/gap-analysis/
 !.agent/skills/gap-analysis/**
+!.agent/skills/package-first-sdk-delivery/
+!.agent/skills/package-first-sdk-delivery/**
 !.agent/skills/requesting-code-review/
 !.agent/skills/requesting-code-review/**
 !.agent/skills/rfc-design-review/

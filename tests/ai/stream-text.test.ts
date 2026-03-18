@@ -72,6 +72,46 @@ function createCancelableMockClient() {
     };
 }
 
+function createAbortAwareCancelableMockClient() {
+    let releaseSecondChunk: (() => void) | undefined;
+
+    const client = {
+        chat: {
+            async *createStream(_request: unknown, options?: { signal?: AbortSignal }) {
+                yield {
+                    choices: [{ index: 0, delta: { content: 'A' } }],
+                };
+
+                await new Promise<void>((resolve, reject) => {
+                    const onAbort = () => reject(new Error('stream aborted'));
+                    releaseSecondChunk = () => {
+                        options?.signal?.removeEventListener('abort', onAbort);
+                        resolve();
+                    };
+                    options?.signal?.addEventListener('abort', onAbort, { once: true });
+                });
+
+                yield {
+                    choices: [{ index: 0, delta: { content: 'B' } }],
+                };
+
+                return {
+                    content: 'AB',
+                    reasoningContent: '',
+                    toolCalls: [],
+                    finishReason: 'stop',
+                    usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+                };
+            },
+        },
+    } as any;
+
+    return {
+        client,
+        releaseSecondChunk: () => releaseSecondChunk?.(),
+    };
+}
+
 describe('streamText', () => {
     describe('Basic Streaming', () => {
         it('should return StreamTextResult synchronously', () => {
@@ -321,6 +361,37 @@ describe('streamText', () => {
             releaseSecondChunk();
 
             await expect(textChunksPromise).resolves.toEqual(['A', 'B']);
+        });
+
+        it('reader.cancel should stop the SSE consumer without waiting for more chunks', async () => {
+            const { client } = createAbortAwareCancelableMockClient();
+
+            const result = streamText({
+                client,
+                model: 'test-model',
+                prompt: 'Hi',
+            });
+
+            const response = result.toDataStreamResponse();
+            const reader = response.body?.getReader();
+            expect(reader).toBeDefined();
+
+            const firstRead = await reader!.read();
+            expect(firstRead.done).toBe(false);
+            expect(new TextDecoder().decode(firstRead.value)).toContain('"textDelta":"A"');
+
+            await reader!.cancel();
+
+            const settled = await Promise.race([
+                result.text.then(
+                    () => 'resolved',
+                    (error) => String(error instanceof Error ? error.message : error),
+                ),
+                new Promise<string>((resolve) => setTimeout(() => resolve('timeout'), 100)),
+            ]);
+
+            expect(settled).not.toBe('timeout');
+            expect(settled).toContain('aborted');
         });
     });
 

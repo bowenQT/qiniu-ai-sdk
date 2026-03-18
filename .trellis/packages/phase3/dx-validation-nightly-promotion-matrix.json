@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "packageId": "phase3/dx-validation/nightly-promotion-matrix",
+  "phase": "phase3",
+  "ownerLane": "dx-validation",
+  "category": "promotion-sensitive",
+  "topic": "nightly-promotion-matrix",
+  "goal": "Establish a dedicated nightly live-evidence source for promotion-sensitive modules without changing PR gate semantics.",
+  "successCriteria": [
+    "Nightly workflow emits stable live-verify gate and verification-report artifacts under nightly-specific paths.",
+    "Existing PR verify workflow behavior and artifact paths remain unchanged.",
+    "Phase 3 package creation can proceed on tracked policy without re-opening Phase 2."
+  ],
+  "touchedSurfaces": [
+    ".github/workflows",
+    "scripts",
+    "src/cli",
+    ".trellis/spec/sdk"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "No ResponseAPI runtime behavior changes.",
+    "No NodeMCPHost runtime behavior changes.",
+    "No changes to PR gate schema or strictness."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/dx-validation/nightly-promotion-matrix",
+  "branch": "codex/phase3/dx-validation/nightly-promotion-matrix",
+  "worktreePath": ".worktrees/phase3-nightly-promotion",
+  "createdAt": "2026-03-17T00:00:00.000Z"
+}

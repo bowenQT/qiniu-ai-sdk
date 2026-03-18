@@ -8,22 +8,25 @@ import { SDK_VERSION } from '../../src/lib/version';
 // Mock @modelcontextprotocol/sdk before import
 const clientCtorCalls: Array<{ info: { name: string; version: string } }> = [];
 const hostProbeMock = vi.fn();
+const defaultListToolsResult = {
+    tools: [
+        {
+            name: 'search',
+            description: 'Search the web',
+            inputSchema: {
+                type: 'object',
+                properties: { query: { type: 'string' } },
+                required: ['query'],
+            },
+        },
+    ],
+};
+const listChangedNotificationHandlers: Array<(payload?: unknown) => void | Promise<void>> = [];
+
 const mockClientInstance = {
     connect: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
-    listTools: vi.fn().mockResolvedValue({
-        tools: [
-            {
-                name: 'search',
-                description: 'Search the web',
-                inputSchema: {
-                    type: 'object',
-                    properties: { query: { type: 'string' } },
-                    required: ['query'],
-                },
-            },
-        ],
-    }),
+    listTools: vi.fn().mockResolvedValue(defaultListToolsResult),
     callTool: vi.fn().mockResolvedValue({
         content: [{ type: 'text', text: 'search result' }],
     }),
@@ -39,7 +42,9 @@ const mockClientInstance = {
     getPrompt: vi.fn().mockResolvedValue({
         messages: [{ role: 'user', content: { type: 'text', text: 'Please summarize: hello' } }],
     }),
-    setNotificationHandler: vi.fn(),
+    setNotificationHandler: vi.fn((_spec: { method: string }, handler: (payload?: unknown) => Promise<void> | void) => {
+        listChangedNotificationHandlers.push(handler);
+    }),
 };
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => {
@@ -73,6 +78,8 @@ describe('NodeMCPHost', () => {
         vi.clearAllMocks();
         clientCtorCalls.length = 0;
         hostProbeMock.mockReset();
+        mockClientInstance.listTools.mockResolvedValue(defaultListToolsResult);
+        listChangedNotificationHandlers.length = 0;
     });
 
     it('can be instantiated with server configs', async () => {
@@ -165,6 +172,30 @@ describe('NodeMCPHost', () => {
                 },
             }),
         );
+    });
+
+    it('treats oauth config as metadata-only during HTTP connect', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+        const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
+
+        const host = new NodeMCPHost({
+            servers: [
+                {
+                    name: 'server-oauth',
+                    transport: 'http',
+                    url: 'http://localhost:3002/mcp',
+                    oauth: {
+                        clientId: 'client-id',
+                        scopes: ['read:tools'],
+                    },
+                },
+            ],
+        });
+
+        await host.connect();
+
+        const transportCall = vi.mocked(StreamableHTTPClientTransport).mock.calls[0];
+        expect(transportCall?.[1]?.requestInit?.headers).not.toHaveProperty('Authorization');
     });
 
     it('getTools() returns RegisteredTool[] with MCP source', async () => {
@@ -486,6 +517,150 @@ describe('NodeMCPHost', () => {
             'MCP server "stdio-a" does not use HTTP transport and cannot be probed',
         );
         expect(hostProbeMock).not.toHaveBeenCalled();
+    });
+
+    it('probeServerInterop() combines transport and host evidence for one HTTP server', async () => {
+        const { NodeMCPHost, DEFAULT_MCP_INTEROP_DEFERRED_RISKS } = await import('../../src/node/mcp-host');
+        hostProbeMock.mockResolvedValue({
+            connection: {
+                serverName: 'http-b',
+                url: 'https://b.example.com/mcp',
+                protocolVersion: '2025-11-25',
+            },
+            tools: [{ name: 'ping', description: 'Ping', inputSchema: { type: 'object', properties: {} } }],
+            resources: [{ uri: 'file:///readme.md', name: 'readme' }],
+            prompts: [{ name: 'summarize', description: 'Summarize text' }],
+        });
+
+        const host = new NodeMCPHost({
+            servers: [
+                { name: 'http-b', transport: 'http', url: 'https://b.example.com/mcp' },
+            ],
+        });
+
+        const result = await host.probeServerInterop('http-b', {
+            listTools: true,
+            listResources: true,
+            listPrompts: true,
+            readResource: { uri: 'file:///readme.md' },
+            getPrompt: { name: 'summarize', args: { text: 'hello' } },
+            executeTool: { name: 'search', args: { query: 'hello' } },
+        });
+
+        expect(result.transport?.connection?.url).toBe('https://b.example.com/mcp');
+        expect(result.host?.tools?.[0]).toEqual({
+            serverName: 'http-b',
+            name: 'search',
+            description: 'Search the web',
+            inputSchema: {
+                type: 'object',
+                properties: { query: { type: 'string' } },
+                required: ['query'],
+            },
+        });
+        expect(result.host?.resources?.[0]).toEqual({
+            serverName: 'http-b',
+            uri: 'file:///readme.md',
+            name: 'readme',
+            mimeType: undefined,
+        });
+        expect(result.host?.prompts?.[0]).toEqual({
+            serverName: 'http-b',
+            name: 'summarize',
+            description: 'Summarize text',
+            arguments: undefined,
+        });
+        expect(result.host?.resourceContents).toEqual([{ text: '# Hello' }]);
+        expect(result.host?.promptMessages).toEqual([
+            { role: 'user', content: { type: 'text', text: 'Please summarize: hello' } },
+        ]);
+        expect(result.host?.toolOutput).toBe('search result');
+        expect(result.deferredRisks).toEqual([...DEFAULT_MCP_INTEROP_DEFERRED_RISKS]);
+        expect(hostProbeMock).toHaveBeenCalledTimes(1);
+        expect(hostProbeMock).toHaveBeenCalledWith({
+            listTools: true,
+            listResources: true,
+            listPrompts: true,
+            readResource: { uri: 'file:///readme.md' },
+            getPrompt: { name: 'summarize', args: { text: 'hello' } },
+            executeTool: { name: 'search', args: { query: 'hello' } },
+        });
+    });
+
+    it('probeServerInterop drops list_changed notification deferred risk when the event is observed', async () => {
+        const { NodeMCPHost, DEFAULT_MCP_INTEROP_DEFERRED_RISKS } = await import('../../src/node/mcp-host');
+        hostProbeMock.mockResolvedValue({
+            connection: {
+                serverName: 'http-b',
+                url: 'https://b.example.com/mcp',
+                protocolVersion: '2025-11-25',
+            },
+            tools: [{ name: 'ping', description: 'Ping', inputSchema: { type: 'object', properties: {} } }],
+            resources: [{ uri: 'file:///readme.md', name: 'readme' }],
+            prompts: [{ name: 'summarize', description: 'Summarize text' }],
+        });
+
+        const host = new NodeMCPHost({
+            servers: [
+                { name: 'http-b', transport: 'http', url: 'https://b.example.com/mcp' },
+            ],
+        });
+
+        const probe = host.probeServerInterop('http-b', {
+            listTools: true,
+        });
+
+        for (let i = 0; i < 20 && listChangedNotificationHandlers.length < 2; i += 1) {
+            await Promise.resolve();
+        }
+        expect(listChangedNotificationHandlers).toHaveLength(2);
+
+        const listChangedHandler = listChangedNotificationHandlers.at(-1);
+        await listChangedHandler?.();
+
+        const result = await probe;
+
+        expect(result.host?.tools?.[0]).toEqual({
+            serverName: 'http-b',
+            name: 'search',
+            description: 'Search the web',
+            inputSchema: {
+                type: 'object',
+                properties: { query: { type: 'string' } },
+                required: ['query'],
+            },
+        });
+        expect(result.host?.listChangedObserved).toBe(true);
+        expect(result.deferredRisks).toEqual(DEFAULT_MCP_INTEROP_DEFERRED_RISKS.slice(1));
+    });
+
+    it('exposes a held promotion-readiness contract for NodeMCPHost', async () => {
+        const {
+            DEFAULT_MCP_INTEROP_DEFERRED_RISKS,
+            NODE_MCPHOST_PROMOTION_READINESS_CONTRACT,
+        } = await import('../../src/node/mcp-host');
+
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.officialSurface).toEqual(expect.arrayContaining([
+            'probeServer',
+            'probeServerInterop',
+            'listServerTools',
+            'executeServerTool',
+        ]));
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.requiredTransportEvidence).toEqual([
+            'mcp-connect',
+            'mcp-read-resource',
+            'mcp-get-prompt',
+        ]);
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.requiredHostEvidence).toEqual([
+            'mcp-host-interop',
+        ]);
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.deferredRisks).toEqual(
+            DEFAULT_MCP_INTEROP_DEFERRED_RISKS.slice(1),
+        );
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.trackedDecisionPath).toBe(
+            '.trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json',
+        );
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.decisionStatus).toBe('held');
     });
 
     it('listServerTools() and executeServerTool() reject unknown server names', async () => {

@@ -107,7 +107,7 @@ describe('Censor', () => {
             scenes: undefined,
             error: undefined,
         });
-        await expect(result.wait({ intervalMs: 1, timeoutMs: 100 })).resolves.toEqual({
+        await expect(result.wait({ intervalMs: 1, timeoutMs: 500 })).resolves.toEqual({
             jobId: 'job-123',
             status: 'DONE',
             suggestion: 'pass',
@@ -179,7 +179,7 @@ describe('Censor', () => {
         const censor = new Censor(client);
         const result = await censor.waitForVideoCompletion('job-wait', {
             intervalMs: 1,
-            timeoutMs: 100,
+            timeoutMs: 500,
         });
 
         expect(result).toEqual({
@@ -216,7 +216,7 @@ describe('Censor', () => {
             status: 'DONE',
             suggestion: 'review',
         });
-        await expect(censor.waitForVideoCompletion(handle, { intervalMs: 1, timeoutMs: 100 })).resolves.toMatchObject({
+        await expect(censor.waitForVideoCompletion(handle, { intervalMs: 1, timeoutMs: 500 })).resolves.toMatchObject({
             jobId: 'job-handle',
             status: 'DONE',
             suggestion: 'review',

@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "packageId": "phase2/foundation/phase2-closeout-policy",
+  "phase": "phase2",
+  "ownerLane": "foundation",
+  "topic": "phase2-closeout-policy",
+  "goal": "Track when Phase 2 can move from active work into closeout-candidate, frozen, and closed states so new package creation stops through repo policy instead of transcript-only instructions.",
+  "successCriteria": [
+    "Phase policy supports active, closeout-candidate, frozen, and closed states for Phase 2.",
+    "Package creation rejects new Phase 2 packages once the phase is frozen or closed.",
+    "Repo-facing reports can explain the current Phase 2 state and why new packages are allowed or blocked."
+  ],
+  "touchedSurfaces": [
+    ".trellis/spec/sdk/phase-policy.json",
+    ".trellis/spec/sdk/phase2-operating-model.md",
+    "src/cli/package-workflow.ts",
+    "src/cli/doctor.ts",
+    "src/cli/verification-report.ts"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Defining Phase 3 feature scope inside the Phase 2 closeout policy package.",
+    "Changing module maturity or promotion decisions directly."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/foundation/phase2-closeout-policy",
+  "branch": "codex/phase2/foundation/phase2-closeout-policy",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase2-closeout-policy",
+  "createdAt": "2026-03-17T16:00:00.000Z"
+}

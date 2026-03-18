@@ -110,8 +110,9 @@ export type { TtsRequest, TtsResponse, TtsEncoding, TtsStreamOptions, Voice } fr
 export type { UsageQuery, UsageResponse, UsageModelStat, UsageItem, UsageCategory, UsageValue } from '../modules/account';
 export type { CreateKeysRequest, ApiKey } from '../modules/admin';
 
-export { Batch } from '../modules/batch';
+export { Batch, BATCH_HELPER_CONTRACT } from '../modules/batch';
 export type {
+    BatchHelperContract,
     BatchCreateRequest,
     BatchResponse,
     BatchTaskSnapshot,
@@ -146,6 +147,8 @@ export type {
 
 export {
     ResponseAPI,
+    RESPONSE_API_HELPER_CONTRACT,
+    RESPONSE_API_PROMOTION_READINESS_CONTRACT,
     parseResponseOutputJson,
     extractResponseOutputText,
     extractResponseReasoningSummaryText,
@@ -156,6 +159,8 @@ export {
     toChatCompletionResponse,
 } from '../modules/response';
 export type {
+    ResponseHelperContract,
+    ResponsePromotionReadinessContract,
     ResponseCreateRequest,
     ResponseCreateResponse,
     ResponseInputMessage,

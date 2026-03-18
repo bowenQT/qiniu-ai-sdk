@@ -64,6 +64,13 @@ export interface MCPProbeOptions {
 }
 
 export interface MCPProbeResult {
+    connection?: {
+        serverName: string;
+        url: string;
+        protocolVersion: string;
+        sessionId?: string;
+        lastEventId?: string;
+    };
     tools?: MCPToolDefinition[];
     resources?: MCPResourceDefinition[];
     prompts?: MCPPromptDefinition[];
@@ -311,7 +318,15 @@ export class MCPHttpTransport {
      * Useful for live verification and structured interoperability checks.
      */
     async probe(options: MCPProbeOptions = {}): Promise<MCPProbeResult> {
-        const result: MCPProbeResult = {};
+        const result: MCPProbeResult = {
+            connection: {
+                serverName: this.config.name,
+                url: this.config.url,
+                protocolVersion: this.config.protocolVersion ?? DEFAULT_MCP_CONFIG.protocolVersion,
+                sessionId: this.config.sessionId,
+                lastEventId: this.config.lastEventId,
+            },
+        };
         let terminated = false;
         const needsClient = options.listTools
             || options.listResources

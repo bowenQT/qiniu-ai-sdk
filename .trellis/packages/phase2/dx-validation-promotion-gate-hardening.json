@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "packageId": "phase2/dx-validation/promotion-gate-hardening",
+  "phase": "phase2",
+  "ownerLane": "dx-validation",
+  "category": "promotion-sensitive",
+  "topic": "promotion-gate-hardening",
+  "goal": "Freeze closeout-oriented live verification gate semantics so promotion-sensitive packages, held decisions, and unavailable evidence can be interpreted deterministically in CI and release review.",
+  "successCriteria": [
+    "Gate results distinguish pass, held, block, and unavailable promotion outcomes.",
+    "Promotion-sensitive packages fail deterministically when required live evidence is missing or unavailable.",
+    "Verification artifacts expose a machine-readable promotion decision summary instead of forcing transcript-only judgment."
+  ],
+  "touchedSurfaces": [
+    "src/cli/live-verify.internal.ts",
+    "src/cli/live-verify-gate.ts",
+    "src/cli/live-verify-render.ts",
+    "src/lib/capability-types.ts",
+    "src/cli/verification-report.ts",
+    ".trellis/spec/sdk/live-verify-policy.json",
+    ".trellis/spec/sdk/verification-matrix.md"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Adding brand-new live probes beyond the current validated matrix.",
+    "Promoting ResponseAPI or NodeMCPHost to a higher maturity level inside the gate package."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/dx-validation/promotion-gate-hardening",
+  "branch": "codex/phase2/dx-validation/promotion-gate-hardening",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase2-promotion-gate-hardening",
+  "createdAt": "2026-03-17T16:00:00.000Z"
+}

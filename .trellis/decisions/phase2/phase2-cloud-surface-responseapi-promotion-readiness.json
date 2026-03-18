@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "packageId": "phase2/cloud-surface/responseapi-promotion-readiness",
+  "generatedAt": "2026-03-16T17:22:44.668Z",
+  "decisions": [
+    {
+      "module": "ResponseAPI",
+      "oldMaturity": "experimental",
+      "newMaturity": "experimental",
+      "evidenceBasis": [
+        "src/modules/response/index.ts#RESPONSE_API_PROMOTION_READINESS_CONTRACT",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.pr.lanePolicies.cloud-surface",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.cloud-surface",
+        "tests/unit/modules/response.test.ts"
+      ],
+      "decisionSource": "codex",
+      "decisionAt": "2026-03-17T12:30:00.000Z"
+    }
+  ]
+}
