@@ -80,6 +80,22 @@ export interface EvalGateResult {
     cases: EvalCaseResult[];
 }
 
+export interface EvalCandidateReport {
+    reportId: string;
+    generatedAt: string;
+    baselineId: string;
+    candidateId: string;
+    decision: EvalGateStatus;
+    gate: EvalGateResult;
+    metrics: EvalGateMetricSummary[];
+    warnings: EvalGateCheck[];
+    blockers: EvalGateCheck[];
+    artifactRefs: string[];
+    baseline: EvalRunReport;
+    candidate: EvalRunReport;
+    metadata?: Record<string, unknown>;
+}
+
 export function summarizeEvalGateStatus(statuses: readonly EvalGateStatus[]): EvalGateStatus {
     if (statuses.some((status) => status === 'fail')) {
         return 'fail';
@@ -200,5 +216,54 @@ export function compareEvalGateResults(
         checks,
         metrics,
         cases,
+    };
+}
+
+function collectArtifactRefs(report: EvalRunReport): string[] {
+    const refs = new Set<string>();
+
+    for (const entry of report.cases) {
+        const artifact = entry.artifact;
+        if (!artifact) {
+            continue;
+        }
+        if (artifact.traceId) {
+            refs.add(`trace:${artifact.traceId}`);
+        }
+        if (artifact.artifactPath) {
+            refs.add(`artifact:${artifact.artifactPath}`);
+        }
+    }
+
+    return [...refs].sort();
+}
+
+export function buildEvalCandidateReport(
+    baseline: EvalRunReport,
+    candidate: EvalRunReport,
+    metadata?: Record<string, unknown>,
+): EvalCandidateReport {
+    const gate = compareEvalGateResults(baseline, candidate);
+    const warnings = gate.checks.filter((check) => check.status === 'warn');
+    const blockers = gate.checks.filter((check) => check.status === 'fail');
+    const artifactRefs = [...new Set([
+        ...collectArtifactRefs(baseline),
+        ...collectArtifactRefs(candidate),
+    ])].sort();
+
+    return {
+        reportId: `eval-candidate-${candidate.reportId}-vs-${baseline.reportId}`,
+        generatedAt: gate.generatedAt,
+        baselineId: baseline.reportId,
+        candidateId: candidate.reportId,
+        decision: gate.status,
+        gate,
+        metrics: gate.metrics,
+        warnings,
+        blockers,
+        artifactRefs,
+        baseline,
+        candidate,
+        metadata,
     };
 }
