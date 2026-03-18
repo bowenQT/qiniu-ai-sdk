@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createAgent } from '../../../src/ai/create-agent';
 import type { Checkpointer } from '../../../src/ai/graph/checkpointer';
+import type { RunTrace } from '../../../src/ai/control-plane';
 import type { LanguageModelClient } from '../../../src/core/client';
 import type { MCPHostProvider } from '../../../src/lib/mcp-host-types';
 import type { RegisteredTool } from '../../../src/lib/tool-registry';
@@ -71,6 +72,49 @@ function createMockHost(toolName = 'mcp_search'): {
 }
 
 describe('createAgent runtime parity', () => {
+    it('passes control-plane trace hooks through createAgent.run', async () => {
+        const client = createMockClient();
+        const traces: RunTrace[] = [];
+        const agent = createAgent({
+            client,
+            model: 'test-model',
+            traceStore: {
+                putRunTrace: (trace) => {
+                    traces.push(trace);
+                },
+            },
+            pricePolicy: {
+                policyId: 'default',
+                lookup: () => ({
+                    modelId: 'test-model',
+                    currency: 'USD',
+                    estimatedCost: 0.5,
+                    priceSource: 'test',
+                }),
+            },
+            runMetadata: {
+                taskId: 'task-1',
+                provider: 'qiniu',
+                route: 'primary',
+            },
+        });
+
+        const result = await agent.run({ prompt: 'hello' });
+
+        expect(result.text).toBe('Hello from agent');
+        expect(traces).toHaveLength(1);
+        expect(traces[0]).toMatchObject({
+            taskId: 'task-1',
+            modelId: 'test-model',
+            provider: 'qiniu',
+            route: 'primary',
+            finishReason: 'stop',
+        });
+        expect(traces[0]?.steps[0]).toMatchObject({
+            type: 'predict',
+        });
+    });
+
     it('lazy-connects MCP host for run and reuses the connection for stream', async () => {
         const client = createMockClient();
         const { host, connectSpy } = createMockHost();

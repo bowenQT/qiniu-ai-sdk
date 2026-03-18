@@ -6,6 +6,15 @@ export {
     isControlPlaneArtifactKind,
     normalizeArtifactLabels,
 } from './contracts';
+export {
+    aggregateTraceCost,
+    aggregateTraceUsage,
+    buildRunTraceSkeleton,
+    createOpaqueTraceId,
+    createTraceStepId,
+    createTraceUsage,
+    estimateTraceCost,
+} from './runtime';
 
 export type {
     ArtifactLabel,
@@ -36,3 +45,7 @@ export type {
     TraceUsage,
     ToolTraceSource,
 } from './contracts';
+export type {
+    ControlPlaneRunMetadata,
+    RuntimeControlPlaneOptions,
+} from './runtime';

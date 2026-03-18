@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "packageId": "phase3/runtime/trace-cost-hooks",
+  "phase": "phase3",
+  "ownerLane": "runtime",
+  "category": "standard",
+  "topic": "trace-cost-hooks",
+  "goal": "Add structured runtime trace hooks, per-step cost attribution, and price-policy wiring on top of the existing agent runtime.",
+  "successCriteria": [
+    "AgentGraph and createAgent accept optional traceStore, pricePolicy, and run metadata hooks without breaking existing callers.",
+    "Each reasoning/tool step can emit enough structured data for replay, grading, and cost attribution.",
+    "Runtime defaults remain no-op when control-plane integrations are not configured."
+  ],
+  "touchedSurfaces": [
+    "src/ai",
+    "src/lib",
+    "src/index.ts",
+    "tests"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/runtime/trace-cost-hooks",
+  "branch": "codex/phase3/runtime/trace-cost-hooks",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase3-trace-cost-hooks",
+  "createdAt": "2026-03-18T12:54:31.502Z"
+}

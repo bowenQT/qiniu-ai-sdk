@@ -24,6 +24,7 @@ import {
     type Tool,
 } from './generate-text';
 import { streamText, type StreamTextResult } from './stream-text';
+import type { ControlPlaneRunMetadata, PricePolicy, TraceStore } from './control-plane';
 
 // ============================================================================
 // Types
@@ -76,6 +77,12 @@ export interface AgentConfig {
         /** References injection mode (default: none) */
         referenceMode?: 'none' | 'summary' | 'full';
     };
+    /** Optional structured trace sink for control-plane integrations */
+    traceStore?: TraceStore;
+    /** Optional model pricing lookup for per-step cost attribution */
+    pricePolicy?: PricePolicy;
+    /** Optional run metadata/revision references attached to emitted traces */
+    runMetadata?: ControlPlaneRunMetadata;
 }
 
 /** Options for single run (without thread) */
@@ -292,6 +299,9 @@ export function createAgent(config: AgentConfig): Agent {
         sessionStore,
         guardrails,
         hostProvider,
+        traceStore,
+        pricePolicy,
+        runMetadata,
     } = config;
 
     // Tool registry for proper priority-based conflict resolution
@@ -521,6 +531,9 @@ export function createAgent(config: AgentConfig): Agent {
         guardrails,
         agentId,
         skillReferenceMode: config.skillInjection?.referenceMode,
+        traceStore,
+        pricePolicy,
+        runMetadata,
         events: {
             onStepFinish,
             onNodeEnter,
@@ -598,6 +611,9 @@ export function createAgent(config: AgentConfig): Agent {
         onNodeEnter,
         onNodeExit,
         skillReferenceMode: config.skillInjection?.referenceMode,
+        traceStore,
+        pricePolicy,
+        runMetadata,
     });
 
     // Build options helper for streamText

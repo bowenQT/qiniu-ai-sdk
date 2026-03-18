@@ -34,6 +34,15 @@ import { checkApprovalBatch } from './tool-approval';
 import type { Checkpointer, PendingApproval } from './graph/checkpointer';
 import { deserializeCheckpoint, resumeWithApproval } from './graph/checkpointer';
 import { MetricsCollector, type AgentMetrics } from '../lib/metrics';
+import {
+    aggregateTraceCost,
+    aggregateTraceUsage,
+    buildRunTraceSkeleton,
+    createTraceStepId,
+    createTraceUsage,
+    estimateTraceCost,
+} from './control-plane';
+import type { ControlPlaneRunMetadata, PricePolicy, RunTrace, TraceStep, TraceStore } from './control-plane';
 
 /** AgentGraph options */
 export interface AgentGraphOptions {
@@ -70,6 +79,12 @@ export interface AgentGraphOptions {
     skillReferenceMode?: ReferenceMode;
     /** Token-level event callback for streaming. Fault-isolated at predict-node level. */
     onTokenEvent?: (event: TokenEvent) => void;
+    /** Optional structured trace sink for control-plane integrations */
+    traceStore?: TraceStore;
+    /** Optional model pricing lookup for per-step cost attribution */
+    pricePolicy?: PricePolicy;
+    /** Optional run metadata/revision references attached to emitted traces */
+    runMetadata?: ControlPlaneRunMetadata;
 }
 
 /** Token-level event emitted during graph execution */
@@ -167,6 +182,7 @@ export class AgentGraph {
     private compactionOccurred = false;
     private droppedSkills: string[] = [];
     private droppedMessages = 0;
+    private traceSteps: TraceStep[] = [];
 
     constructor(options: AgentGraphOptions) {
         this.options = options;
@@ -272,6 +288,13 @@ export class AgentGraph {
             this.compactionOccurred = false;
             this.droppedSkills = [];
             this.droppedMessages = 0;
+            this.traceSteps = [];
+            const runTrace = buildRunTraceSkeleton({
+                modelId: this.options.model,
+                threadId: this.options.threadId,
+                agentId: this.options.agentId,
+                runMetadata: this.options.runMetadata,
+            });
 
             // Build tools map
             const toolsMap = new Map<string, RegisteredTool>();
@@ -322,9 +345,18 @@ export class AgentGraph {
             }
 
             // Execute graph
-            const finalState = await this.graph.invoke(initialState, {
-                maxSteps: this.options.maxSteps ? this.options.maxSteps * 3 : 30,
-            });
+            let finalState: AgentState;
+            try {
+                finalState = await this.graph.invoke(initialState, {
+                    maxSteps: this.options.maxSteps ? this.options.maxSteps * 3 : 30,
+                });
+            } catch (error) {
+                await this.flushRunTrace(runTrace, {
+                    finishReason: 'error',
+                    metadata: { error: error instanceof Error ? error.message : String(error) },
+                });
+                throw error;
+            }
 
             // Persist to long-term memory if configured
             if (this.options.memory) {
@@ -341,6 +373,11 @@ export class AgentGraph {
                 span.setAttribute('dropped_skills', this.droppedSkills.length);
                 span.setAttribute('dropped_messages', this.droppedMessages);
             }
+
+            await this.flushRunTrace(runTrace, {
+                finishReason: finalState.finishReason,
+                interrupted: false,
+            });
 
             return {
                 text: finalState.output,
@@ -403,6 +440,13 @@ export class AgentGraph {
             this.compactionOccurred = false;
             this.droppedSkills = [];
             this.droppedMessages = 0;
+            this.traceSteps = [];
+            const runTrace = buildRunTraceSkeleton({
+                modelId: this.options.model,
+                threadId: options.threadId,
+                agentId: this.options.agentId,
+                runMetadata: this.options.runMetadata,
+            });
 
             // Build tools map
             const toolsMap = new Map<string, RegisteredTool>();
@@ -559,7 +603,7 @@ export class AgentGraph {
                         span.setAttribute('interrupted', true);
                         span.setAttribute('deferred_count', deferredCallIds.length);
 
-                        return {
+                        const interruptedResult = {
                             text: state.output,
                             reasoning: state.reasoning || undefined,
                             steps: this.steps,
@@ -574,6 +618,12 @@ export class AgentGraph {
                             interrupted: true,
                             pendingApproval,
                         };
+                        await this.flushRunTrace(runTrace, {
+                            finishReason: null,
+                            interrupted: true,
+                            metadata: { pendingApproval: true, deferredCount: deferredCallIds.length },
+                        });
+                        return interruptedResult;
                     }
 
                     // If rejected (but no deferred), generate rejection messages and continue
@@ -643,6 +693,11 @@ export class AgentGraph {
             span.setAttribute('completed', true);
             span.setAttribute('final_step_count', state.stepCount);
 
+            await this.flushRunTrace(runTrace, {
+                finishReason: state.finishReason,
+                interrupted: false,
+            });
+
             return {
                 text: state.output,
                 reasoning: state.reasoning || undefined,
@@ -683,6 +738,7 @@ export class AgentGraph {
     private async predictNode(state: AgentState): Promise<Partial<AgentState>> {
         const tracer = getGlobalTracer();
         const { events } = this.options;
+        const startedAt = new Date().toISOString();
 
         return tracer.withSpan('agent_graph.predict', async (span) => {
             span.setAttribute('step_count', state.stepCount);
@@ -745,6 +801,32 @@ export class AgentGraph {
                 );
             }
 
+            const usage = createTraceUsage(result.usage);
+            const cost = await estimateTraceCost(this.options.pricePolicy, {
+                modelId: this.options.model,
+                provider: this.options.runMetadata?.provider,
+                route: this.options.runMetadata?.route,
+                usage,
+                metadata: this.options.runMetadata?.metadata,
+            });
+            this.traceSteps.push({
+                stepId: createTraceStepId('predict', this.traceSteps.length + 1),
+                type: 'predict',
+                startedAt,
+                finishedAt: new Date().toISOString(),
+                content: typeof result.message.content === 'string'
+                    ? result.message.content
+                    : JSON.stringify(result.message.content),
+                reasoning: result.reasoning,
+                finishReason: result.finishReason,
+                usage,
+                cost,
+                metadata: {
+                    stepCount: state.stepCount,
+                    toolCallCount: result.message.tool_calls?.length ?? 0,
+                },
+            });
+
             // Check if done - use hasToolCalls as primary gate
             // High fix: finishReason can be null/missing, but tool_calls presence is reliable
             const hasToolCalls = (result.message.tool_calls?.length ?? 0) > 0;
@@ -800,6 +882,19 @@ export class AgentGraph {
                 };
                 this.steps.push(callStep);
                 events?.onStepFinish?.(callStep);
+                this.traceSteps.push({
+                    stepId: createTraceStepId('tool-call', this.traceSteps.length + 1),
+                    type: 'tool-call',
+                    startedAt: new Date().toISOString(),
+                    finishedAt: new Date().toISOString(),
+                    content: tc.function.arguments,
+                    toolCall: {
+                        toolCallId: tc.id,
+                        toolName: tc.function.name,
+                        source: this.resolveToolTraceSource(state.tools.get(tc.function.name)),
+                        argsText: tc.function.arguments,
+                    },
+                });
             }
 
             // Execute tools
@@ -872,6 +967,25 @@ export class AgentGraph {
                     sourceType === 'mcp' ? 'mcp' :
                         sourceType === 'skill' ? 'skill' : 'local';
                 this.metrics.recordToolLatency(result.toolName, result.latencyMs, metricsSource);
+                const finishedAt = new Date().toISOString();
+                const startedAt = new Date(Date.now() - result.latencyMs).toISOString();
+                this.traceSteps.push({
+                    stepId: createTraceStepId('tool-result', this.traceSteps.length + 1),
+                    type: 'tool-result',
+                    startedAt,
+                    finishedAt,
+                    content: result.result,
+                    toolCall: {
+                        toolCallId: result.toolCallId,
+                        toolName: result.toolName,
+                        source: this.resolveToolTraceSource(tool),
+                        latencyMs: result.latencyMs,
+                        resultPreview: result.result,
+                        isError: result.isError,
+                        isRejected: result.isRejected,
+                        approved: !result.isRejected,
+                    },
+                });
             }
 
             events?.onNodeExit?.('execute');
@@ -949,5 +1063,43 @@ export class AgentGraph {
         ];
 
         return { messages: newMessages, skills: injectedSkills };
+    }
+
+    private resolveToolTraceSource(tool?: RegisteredTool): 'local' | 'mcp' | 'skill' {
+        const sourceType = tool?.source?.type ?? 'user';
+        if (sourceType === 'mcp') {
+            return 'mcp';
+        }
+        if (sourceType === 'skill') {
+            return 'skill';
+        }
+        return 'local';
+    }
+
+    private async flushRunTrace(
+        skeleton: RunTrace,
+        options: {
+            finishReason: string | null;
+            interrupted?: boolean;
+            metadata?: Record<string, unknown>;
+        },
+    ): Promise<void> {
+        if (!this.options.traceStore) {
+            return;
+        }
+
+        await this.options.traceStore.putRunTrace({
+            ...skeleton,
+            finishedAt: new Date().toISOString(),
+            finishReason: options.finishReason,
+            interrupted: options.interrupted,
+            metadata: {
+                ...skeleton.metadata,
+                ...options.metadata,
+            },
+            steps: [...this.traceSteps],
+            usage: aggregateTraceUsage(this.traceSteps),
+            cost: aggregateTraceCost(this.traceSteps),
+        });
     }
 }
