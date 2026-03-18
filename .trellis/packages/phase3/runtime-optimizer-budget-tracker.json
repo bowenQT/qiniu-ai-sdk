@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "packageId": "phase3/runtime/optimizer-budget-tracker",
+  "phase": "phase3",
+  "ownerLane": "runtime",
+  "category": "standard",
+  "topic": "optimizer-budget-tracker",
+  "goal": "Add budget-aware optimizer scaffolding for prompt and policy candidates",
+  "successCriteria": [
+    "Optimizer policies can score candidates with explicit budget constraints.",
+    "Candidate records expose benchmark links and budget profiles without mutating production labels."
+  ],
+  "touchedSurfaces": [
+    "src/ai/control-plane",
+    "src/ai/create-agent.ts",
+    "tests/unit/ai"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/runtime/optimizer-budget-tracker",
+  "branch": "codex/phase3/runtime/optimizer-budget-tracker",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase3-optimizer-budget-tracker",
+  "createdAt": "2026-03-18T13:18:19.784Z"
+}
