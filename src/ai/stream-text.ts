@@ -17,6 +17,8 @@ import type { Skill } from '../modules/skills/types';
 import type { ApprovalConfig } from './tool-approval';
 import type { MemoryManager } from './memory';
 import type { SessionStore } from './session-store';
+import type { PricePolicy, TraceStore } from './control-plane';
+import type { ControlPlaneRunMetadata } from './control-plane/runtime';
 
 // ============================================================================
 // Types
@@ -77,6 +79,12 @@ export interface StreamTextOptions {
     onNodeExit?: (nodeName: string) => void;
     /** Agent ID */
     agentId?: string;
+    /** Optional structured trace sink for control-plane integrations */
+    traceStore?: TraceStore;
+    /** Optional model pricing lookup for per-step cost attribution */
+    pricePolicy?: PricePolicy;
+    /** Optional run metadata/revision references attached to emitted traces */
+    runMetadata?: ControlPlaneRunMetadata;
 }
 
 export interface StreamTextResult {
@@ -218,6 +226,9 @@ export function streamText(options: StreamTextOptions): StreamTextResult {
         sessionStore: options.sessionStore,
         resumeFromCheckpoint: options.resumeFromCheckpoint,
         agentId: options.agentId,
+        traceStore: options.traceStore,
+        pricePolicy: options.pricePolicy,
+        runMetadata: options.runMetadata,
         onStepFinish: options.onStepFinish,
         onNodeEnter: options.onNodeEnter,
         onNodeExit: options.onNodeExit,

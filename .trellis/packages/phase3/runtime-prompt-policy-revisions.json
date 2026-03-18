@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "packageId": "phase3/runtime/prompt-policy-revisions",
+  "phase": "phase3",
+  "ownerLane": "runtime",
+  "category": "standard",
+  "topic": "prompt-policy-revisions",
+  "goal": "Add revision and label management for prompts and runtime policies",
+  "successCriteria": [
+    "Prompt and policy artifacts expose immutable revisions and mutable labels.",
+    "Runtime traces can bind prompt and policy references to revision identifiers."
+  ],
+  "touchedSurfaces": [
+    "src/ai/control-plane",
+    "src/ai/create-agent.ts",
+    "src/ai/agent-graph.ts",
+    "src/ai/generate-text.ts"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/runtime/prompt-policy-revisions",
+  "branch": "codex/phase3/runtime/prompt-policy-revisions",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase3-prompt-policy-revisions",
+  "createdAt": "2026-03-18T13:15:50.484Z"
+}

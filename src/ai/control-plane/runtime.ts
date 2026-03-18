@@ -1,4 +1,5 @@
 import type { PricePolicy, RevisionRef, RunTrace, TraceCost, TraceStep, TraceStore, TraceUsage } from './contracts';
+import type { ArtifactRegistry, ControlPlaneResolutionContext, LabelResolver } from './revisions';
 
 export interface ControlPlaneRunMetadata {
     taskId?: string;
@@ -18,6 +19,9 @@ export interface RuntimeControlPlaneOptions {
     traceStore?: TraceStore;
     pricePolicy?: PricePolicy;
     runMetadata?: ControlPlaneRunMetadata;
+    revisionStore?: ControlPlaneResolutionContext['revisionStore'];
+    labelResolver?: LabelResolver;
+    artifactRegistry?: ArtifactRegistry;
 }
 
 export function createOpaqueTraceId(prefix: string): string {
