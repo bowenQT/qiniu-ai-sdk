@@ -19,6 +19,23 @@ export type {
 
 export { ACTION_PRIORITY } from './types';
 
+// Governance
+export {
+    InMemoryGuardrailPolicyStore,
+    buildGuardrailPromotionDecision,
+    createGuardrailPolicyRecord,
+    createGuardrailPolicyRecordFromLabels,
+    evaluateGuardrailPolicy,
+} from './governance';
+export type {
+    GuardrailPolicyEvaluationInput,
+    GuardrailPolicyEvaluationResult,
+    GuardrailPolicyEvaluationStatus,
+    GuardrailPolicyPromotionDecisionInput,
+    GuardrailPolicyRecord,
+    GuardrailPolicyStore,
+} from './governance';
+
 // Chain
 export { GuardrailChain, GuardrailBlockedError } from './chain';
 
