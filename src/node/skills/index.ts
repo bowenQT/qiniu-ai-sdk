@@ -10,6 +10,22 @@ export type {
     RegisteredSkill,
     SkillSearchResult,
 } from './registry';
+export {
+    DefaultSkillTrialRunner,
+    InMemorySkillTrialStore,
+    resolveSkillTrialCommand,
+    shouldSandboxTrial,
+} from './trial';
+export type {
+    SkillPromotionState,
+    SkillSandboxValidationResult,
+    SkillSandboxValidationStatus,
+    SkillTrialPolicy,
+    SkillTrialRecord,
+    SkillTrialRunner,
+    SkillTrialStore,
+    SkillTrialValidator,
+} from './trial';
 export { RegistryProtocolStub } from './registry-protocol';
 export type {
     SkillRegistryProtocol,

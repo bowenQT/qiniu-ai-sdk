@@ -187,6 +187,8 @@ describe('entry points', () => {
         expect(node.QiniuMCPServer).toBeDefined();
         expect(node.auditLogger).toBeDefined();
         expect(node.SkillRegistry).toBeDefined();
+        expect(node.DefaultSkillTrialRunner).toBeDefined();
+        expect(node.QiniuSandboxTrialAdapter).toBeDefined();
     });
 
     it('browser entry excludes node-only MCP helpers', async () => {
