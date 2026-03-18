@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "packageId": "phase3/dx-validation/eval-gate-scaffold",
+  "phase": "phase3",
+  "ownerLane": "dx-validation",
+  "category": "standard",
+  "topic": "eval-gate-scaffold",
+  "goal": "Introduce benchmark, grader, and CI-consumable gate scaffolding for offline evaluation of agent candidates.",
+  "successCriteria": [
+    "The SDK exposes benchmark and grader contracts that can compare baseline and candidate runs.",
+    "Gate outputs can be emitted as stable JSON artifacts suitable for CI and review packets.",
+    "The scaffold stays decoupled from production runtime execution paths."
+  ],
+  "touchedSurfaces": [
+    "src/cli",
+    "src/lib",
+    "src/index.ts",
+    "tests/cli",
+    "scripts"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/dx-validation/eval-gate-scaffold",
+  "branch": "codex/phase3/dx-validation/eval-gate-scaffold",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase3-eval-gate-scaffold",
+  "createdAt": "2026-03-18T12:54:31.502Z"
+}

@@ -8,6 +8,7 @@
  *   qiniu-ai package <init|evidence|review|decision> [options]
  *   qiniu-ai worktree <init|spawn|status|integrate> [options]
  *   qiniu-ai verify live --lane <name>
+ *   qiniu-ai verify eval --baseline <path> --candidate <path> [--json] [--out <path>]
  *   qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--brief <path>] [--strict]
  *   qiniu-ai skill list [--dir <skills-dir>]
  *   qiniu-ai skill add <manifest-url> [--sha256 <hash>] [--auth <token>] [--allow-actions] [--dir <dir>]
@@ -29,6 +30,7 @@ import {
 import type { RemoteSkillSource } from '../node/skills';
 import { doctorProject } from './doctor';
 import type { WorktreeLane } from './doctor';
+import { renderEvalGateMarkdown, runEvalGate } from './eval-gate';
 import { initStarterProject, parseStarterTemplate } from './init';
 import { parseLiveVerifyGateLanes, verifyLiveGate, verifyLiveLane } from './live-verify';
 import {
@@ -156,6 +158,7 @@ function printMainUsage(): void {
     console.log('  qiniu-ai package <init|evidence|review|decision> [options]');
     console.log('  qiniu-ai worktree <init|spawn|status|integrate> [options]');
     console.log('  qiniu-ai verify live --lane <name>');
+    console.log('  qiniu-ai verify eval --baseline <path> --candidate <path> [--json] [--out <path>]');
     console.log('  qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--brief <path>] [--strict]');
     console.log('  qiniu-ai skill <list|add|verify|remove> [options]');
     console.log('');
@@ -251,6 +254,7 @@ function printWorktreeUsage(): void {
 
 function printVerifyUsage(): void {
     console.log('Usage: qiniu-ai verify live --lane <name>');
+    console.log('       qiniu-ai verify eval --baseline <path> --candidate <path> [--json] [--out <path>]');
     console.log('       qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--brief <path>] [--profile <name>] [--policy <path>] [--strict] [--json] [--out <path>]');
 }
 
@@ -837,6 +841,19 @@ async function runVerifyCommand(args: string[], options: RunCLIOptions): Promise
             lane: lane as WorktreeLane,
             env: options.env,
         });
+    } else if (subcommand === 'eval') {
+        const baselinePath = getArgValue(args, '--baseline');
+        const candidatePath = getArgValue(args, '--candidate');
+        if (process.exitCode === 1 || !baselinePath || !candidatePath) {
+            printVerifyUsage();
+            process.exitCode = 1;
+            return;
+        }
+
+        result = await runEvalGate({
+            baselinePath: path.resolve(cwd, baselinePath),
+            candidatePath: path.resolve(cwd, candidatePath),
+        });
     } else if (subcommand === 'gate') {
         const lanesArg = getArgValue(args, '--lanes');
         const briefPath = getArgValue(args, '--brief');
@@ -864,24 +881,27 @@ async function runVerifyCommand(args: string[], options: RunCLIOptions): Promise
         });
     } else {
         printVerifyUsage();
+        process.exitCode = 1;
         return;
     }
 
-    if (jsonMode) {
+    if (jsonMode && !outputPath) {
         console.log(JSON.stringify(result, null, 2));
-    } else {
-        for (const check of result.checks) {
+    } else if (subcommand === 'eval' && !outputPath) {
+        console.log(renderEvalGateMarkdown(result as Awaited<ReturnType<typeof runEvalGate>>));
+    } else if (subcommand !== 'eval') {
+        for (const check of (result as Awaited<ReturnType<typeof verifyLiveGate>>).checks) {
             console.log(`[${check.level}] ${check.message}`);
         }
     }
 
     if (outputPath) {
         const written = writeVerifyOutput(result, outputPath, cwd);
-        if (!jsonMode) {
-            console.log(`Wrote live verification result to ${written}`);
-        }
+        console.log(`Wrote verification artifact: ${written}`);
     }
-    process.exitCode = result.exitCode;
+    process.exitCode = 'exitCode' in result
+        ? result.exitCode
+        : (result.status === 'fail' ? 1 : 0);
 }
 
 async function runSkillCommand(args: string[], options: RunCLIOptions): Promise<void> {
