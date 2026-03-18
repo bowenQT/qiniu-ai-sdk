@@ -21,6 +21,11 @@ export {
     resolveControlPlaneRunMetadata,
 } from './revisions';
 export {
+    DEFAULT_REFLECTION_LIMITS,
+    estimateTextDiffRatio,
+    runBoundedReflectionLoop,
+} from './reflection';
+export {
     DefaultOptimizerPolicy,
     deriveBudgetSnapshotFromGate,
     InMemoryCandidateStore,
@@ -68,6 +73,20 @@ export type {
     ResolvableControlPlaneRunMetadata,
     RevisionSelector,
 } from './revisions';
+export type {
+    CriticInput,
+    CriticPolicy,
+    CriticResult,
+    ReflectionIteration,
+    ReflectionLimits,
+    ReflectionRunOptions,
+    ReflectionRunResult,
+    ReflectionStopReason,
+    ReflectionVerifierStatus,
+    VerifierInput,
+    VerifierPolicy,
+    VerifierResult,
+} from './reflection';
 export type {
     BudgetSnapshot,
     BudgetTracker,
