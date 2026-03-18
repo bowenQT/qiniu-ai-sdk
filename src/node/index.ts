@@ -19,12 +19,26 @@ export type {
 } from '../modules/skills/types';
 export { DEFAULT_SKILL_CONFIG, DEFAULT_SKILL_BUDGET } from '../modules/skills/types';
 export { SkillRegistry, RegistryProtocolStub } from './skills';
+export {
+    DefaultSkillTrialRunner,
+    InMemorySkillTrialStore,
+    resolveSkillTrialCommand,
+    shouldSandboxTrial,
+} from './skills';
 export type {
     SkillRegistryConfig,
     RemoteSkillSource,
     SkillRegistryProtocol,
     RegistrySkillEntry,
     RegistrySearchOptions,
+    SkillPromotionState,
+    SkillSandboxValidationResult,
+    SkillSandboxValidationStatus,
+    SkillTrialPolicy,
+    SkillTrialRecord,
+    SkillTrialRunner,
+    SkillTrialStore,
+    SkillTrialValidator,
 } from './skills';
 
 
@@ -110,6 +124,7 @@ export type {
 export { Sandbox as QiniuSandbox } from './sandbox';
 export { SandboxInstance, CommandHandle, SandboxPty } from './sandbox';
 export { Templates as SandboxTemplates, TemplateCreateResponse } from './sandbox';
+export { QiniuSandboxTrialAdapter } from './sandbox';
 export { ChildTransport } from '../lib/child-transport';
 export type {
     SandboxConfig,
@@ -133,4 +148,6 @@ export type {
     CreateTemplateParams,
     UpdateTemplateParams,
     WaitForBuildOptions,
+    QiniuSandboxTrialAdapterOptions,
+    SandboxTrialClient,
 } from './sandbox';

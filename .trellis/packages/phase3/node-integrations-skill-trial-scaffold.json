@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "packageId": "phase3/node-integrations/skill-trial-scaffold",
+  "phase": "phase3",
+  "ownerLane": "node-integrations",
+  "category": "standard",
+  "topic": "skill-trial-scaffold",
+  "goal": "Layer quarantine, trial contracts, and sandbox dry-run hooks on top of the existing SkillRegistry without rebuilding install or discovery flows.",
+  "successCriteria": [
+    "Skill trial metadata and quarantine state exist independently from the current registry install pipeline.",
+    "Node-only APIs can describe sandbox validation and task-benchmark trial results for a candidate skill.",
+    "Existing skill discovery, install, refresh, and rollback flows remain backward compatible."
+  ],
+  "touchedSurfaces": [
+    "src/node",
+    "src/modules/skills",
+    "src/index.ts",
+    "tests/node",
+    "tests/unit"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/node-integrations/skill-trial-scaffold",
+  "branch": "codex/phase3/node-integrations/skill-trial-scaffold",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase3-skill-trial-scaffold",
+  "createdAt": "2026-03-18T12:54:31.502Z"
+}

@@ -19,6 +19,7 @@ import type {
 } from '../../../src/node/sandbox/types';
 import { CommandHandle } from '../../../src/node/sandbox/sandbox';
 import { noopLogger } from '../../../src/lib/logger';
+import { QiniuSandboxTrialAdapter } from '../../../src/node/sandbox/skill-trial';
 
 // ============================================================================
 // Type normalizer unit tests
@@ -677,5 +678,50 @@ describe('Sandbox Module', () => {
             const list = await client.sandbox.list();
             expect(list).toHaveLength(0);
         });
+    });
+});
+
+describe('Sandbox skill trial adapter', () => {
+    it('maps sandbox command results into skill validation results and cleans up', async () => {
+        const kill = vi.fn(async () => {});
+        const sandbox = {
+            createAndWait: vi.fn(async () => ({
+                sandboxId: 'sb-trial-1',
+                commands: {
+                    run: vi.fn(async () => ({
+                        exitCode: 0,
+                        stdout: 'ok',
+                        stderr: '',
+                        error: '',
+                    })),
+                },
+                kill,
+                pause: vi.fn(async () => {}),
+            })),
+        };
+
+        const adapter = new QiniuSandboxTrialAdapter({
+            sandbox: sandbox as any,
+        });
+
+        const result = await adapter.validate({
+            manifest: {
+                name: 'skill-a',
+                version: '1.0.0',
+                description: 'test',
+                entry: 'SKILL.md',
+                entryType: 'markdown',
+                runtime: {
+                    engine: 'sandbox',
+                    entryCommand: 'node validate.js',
+                },
+            },
+            source: 'remote',
+        });
+
+        expect(result.status).toBe('passed');
+        expect(result.command).toBe('node validate.js');
+        expect(result.sandboxId).toBe('sb-trial-1');
+        expect(kill).toHaveBeenCalledTimes(1);
     });
 });

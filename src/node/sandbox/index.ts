@@ -149,3 +149,5 @@ export class Sandbox {
 export * from './types';
 export { SandboxInstance, CommandHandle, SandboxPty } from './sandbox';
 export { Templates, TemplateCreateResponse } from './templates';
+export { QiniuSandboxTrialAdapter } from './skill-trial';
+export type { QiniuSandboxTrialAdapterOptions, SandboxTrialClient } from './skill-trial';
