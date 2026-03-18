@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "packageId": "phase3/node-integrations/skill-promotion-gate",
+  "phase": "phase3",
+  "ownerLane": "node-integrations",
+  "category": "standard",
+  "topic": "skill-promotion-gate",
+  "goal": "Add quarantine, benchmark, and promotion state for installed skills",
+  "successCriteria": [
+    "Skills can remain quarantined until sandbox trial and benchmark evaluation pass.",
+    "Promotion state and rollback metadata are available through node skill APIs."
+  ],
+  "touchedSurfaces": [
+    "src/node/skills",
+    "src/node/sandbox",
+    "tests/unit/modules"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/node-integrations/skill-promotion-gate",
+  "branch": "codex/phase3/node-integrations/skill-promotion-gate",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase3-skill-promotion-gate",
+  "createdAt": "2026-03-18T13:15:50.484Z"
+}

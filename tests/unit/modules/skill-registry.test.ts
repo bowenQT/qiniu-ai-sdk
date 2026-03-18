@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SkillRegistry } from '../../../src/node/skills/registry';
 import { InMemorySkillTrialStore } from '../../../src/node/skills/trial';
+import { InMemorySkillPromotionStore } from '../../../src/node/skills/promotion';
 
 describe('SkillRegistry', () => {
     describe('constructor', () => {
@@ -176,6 +177,43 @@ describe('SkillRegistry', () => {
 
             vi.unstubAllGlobals();
         });
+
+        it('should seed a quarantine promotion record for registered skills', async () => {
+            const manifestContent = JSON.stringify({
+                name: 'promotion-skill',
+                version: '1.0.0',
+                description: 'Promotion skill',
+                entry: 'SKILL.md',
+                entryType: 'markdown',
+            });
+
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                text: () => Promise.resolve(manifestContent),
+            }));
+
+            const promotionStore = new InMemorySkillPromotionStore();
+            const registry = new SkillRegistry({
+                allowRemote: true,
+                verifyIntegrity: false,
+                promotionStore,
+            });
+
+            await registry.registerRemote({
+                url: 'https://example.com/skill.json',
+            });
+
+            await expect(registry.getPromotionRecord('promotion-skill')).resolves.toMatchObject({
+                skillName: 'promotion-skill',
+                state: 'quarantine',
+                decision: {
+                    targetKind: 'skill',
+                    decisionStatus: 'hold',
+                },
+            });
+
+            vi.unstubAllGlobals();
+        });
     });
 
     describe('refreshSkill', () => {
@@ -292,6 +330,35 @@ describe('SkillRegistry', () => {
 
             expect(registry.unregister('trial-test')).toBe(true);
             expect(await registry.getTrialRecord('trial-test')).toBeNull();
+
+            vi.unstubAllGlobals();
+        });
+
+        it('should delete promotion state when unregistering a skill', async () => {
+            const manifest = JSON.stringify({
+                name: 'promotion-test',
+                version: '1.0.0',
+                description: 'Test',
+                entry: 'SKILL.md',
+                entryType: 'markdown',
+            });
+
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+                ok: true,
+                text: () => Promise.resolve(manifest),
+            }));
+
+            const promotionStore = new InMemorySkillPromotionStore();
+            const registry = new SkillRegistry({
+                allowRemote: true,
+                verifyIntegrity: false,
+                promotionStore,
+            });
+            await registry.registerRemote({ url: 'https://example.com/skill.json' });
+            expect(await registry.getPromotionRecord('promotion-test')).not.toBeNull();
+
+            expect(registry.unregister('promotion-test')).toBe(true);
+            expect(await registry.getPromotionRecord('promotion-test')).toBeNull();
 
             vi.unstubAllGlobals();
         });
