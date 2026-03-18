@@ -52,6 +52,45 @@ export type {
 } from './client';
 export type { TaskHandle } from './lib/task-handle';
 
+// Control plane contracts
+export {
+    CONTROL_PLANE_ARTIFACT_KINDS,
+    CONTROL_PLANE_ARTIFACT_LABELS,
+    createRevisionRef,
+    isArtifactLabel,
+    isControlPlaneArtifactKind,
+    normalizeArtifactLabels,
+} from './ai/control-plane';
+export type {
+    ArtifactLabel,
+    ArtifactRevision,
+    BenchmarkCase,
+    BenchmarkDataset,
+    CandidateBudgetProfile,
+    CandidateStore,
+    CandidateVersion,
+    ControlPlaneArtifactKind,
+    GateMetricSummary,
+    GateResult,
+    GraderResult,
+    GraderStatus,
+    PriceLookupInput,
+    PricePolicy,
+    PriceQuote,
+    PromotionDecision,
+    PromotionDecisionStatus,
+    RevisionRef,
+    RevisionStore,
+    RunTrace,
+    TraceCost,
+    TraceStep,
+    TraceStepType,
+    TraceStore,
+    TraceToolCall,
+    TraceUsage,
+    ToolTraceSource,
+} from './ai/control-plane';
+
 // Error types
 export { APIError } from './lib/request';
 export {
