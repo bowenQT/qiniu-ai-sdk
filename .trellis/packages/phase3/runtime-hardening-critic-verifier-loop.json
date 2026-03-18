@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "packageId": "phase3/runtime-hardening/critic-verifier-loop",
+  "phase": "phase3",
+  "ownerLane": "runtime-hardening",
+  "category": "standard",
+  "topic": "critic-verifier-loop",
+  "goal": "Add bounded critic and verifier policies for reflection loops",
+  "successCriteria": [
+    "Critic/verifier loops stop on retry count, budget, timeout, or convergence threshold.",
+    "Reflection policies remain pluggable without changing the core runtime contract."
+  ],
+  "touchedSurfaces": [
+    "src/ai/control-plane",
+    "src/ai/agent-graph.ts",
+    "tests/unit/ai"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/runtime-hardening/critic-verifier-loop",
+  "branch": "codex/phase3/runtime-hardening/critic-verifier-loop",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase3-critic-verifier-loop",
+  "createdAt": "2026-03-18T13:18:19.783Z"
+}
