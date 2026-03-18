@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "packageId": "phase3/cloud-surface/responseapi-evidence-hardening",
+  "generatedAt": "2026-03-18T00:00:00.000Z",
+  "decisions": [
+    {
+      "module": "ResponseAPI",
+      "oldMaturity": "beta",
+      "newMaturity": "beta",
+      "evidenceBasis": [
+        "src/modules/response/index.ts#RESPONSE_API_PROMOTION_READINESS_CONTRACT",
+        ".trellis/packages/phase3/cloud-surface-responseapi-evidence-hardening.json",
+        ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.cloud-surface",
+        "tests/unit/modules/response.test.ts"
+      ],
+      "decisionSource": "codex",
+      "decisionAt": "2026-03-18T00:00:00.000Z"
+    }
+  ]
+}

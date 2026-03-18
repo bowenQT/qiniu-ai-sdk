@@ -236,6 +236,8 @@ export interface ResponsePromotionReadinessContract {
     officialSurface: string[];
     deferredHelpers: string[];
     requiredLiveEvidence: string[];
+    nightlyEvidenceFreshness: 'required';
+    evidenceBackedBeta: 'nightly';
     trackedDecisionPath: string;
     decisionStatus: 'held';
 }
@@ -322,7 +324,9 @@ export const RESPONSE_API_PROMOTION_READINESS_CONTRACT: ResponsePromotionReadine
         'pr: chat,response-api',
         'nightly: chat,response-api',
     ],
-    trackedDecisionPath: '.trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json',
+    nightlyEvidenceFreshness: 'required',
+    evidenceBackedBeta: 'nightly',
+    trackedDecisionPath: '.trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json',
     decisionStatus: 'held',
 });
 
