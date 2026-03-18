@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "packageId": "phase2/dx-validation/live-verify-promotion-gate",
+  "phase": "phase2",
+  "ownerLane": "dx-validation",
+  "topic": "live-verify-promotion-gate",
+  "goal": "Upgrade live verify from artifact-only evidence into a deterministic promotion-sensitive gate while keeping ordinary refactor packages non-blocking when live credentials are unavailable.",
+  "successCriteria": [
+    "Gate results distinguish blocking, held, optional, and unavailable evidence states.",
+    "Promotion-sensitive packages fail deterministically when required live evidence is missing.",
+    "Ordinary refactor packages remain mergeable without secrets while clearly recording held or unavailable evidence."
+  ],
+  "touchedSurfaces": [
+    "src/cli/live-verify.internal.ts",
+    "src/cli/live-verify-gate.ts",
+    "src/cli/live-verify-render.ts",
+    "src/cli/skill-cli.ts",
+    ".trellis/spec/sdk/live-verify-policy.json",
+    ".trellis/spec/sdk/verification-matrix.md",
+    ".github/workflows/verify.yml"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Adding brand-new live probes beyond the current validated matrix.",
+    "Changing module maturity directly without a separate promotion decision artifact."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/dx-validation/live-verify-promotion-gate",
+  "branch": "codex/phase2/dx-validation/live-verify-promotion-gate",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase2-live-promotion",
+  "createdAt": "2026-03-17T10:00:00.000Z"
+}

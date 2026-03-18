@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "packageId": "phase2/cloud-surface/response-batch-contract",
+  "phase": "phase2",
+  "ownerLane": "cloud-surface",
+  "topic": "response-batch-contract",
+  "goal": "Tighten ResponseAPI and batch promotion boundaries around explicit contract and evidence rules.",
+  "successCriteria": [
+    "ResponseAPI helper surface has documented promotion candidates and deferred gaps.",
+    "Batch lifecycle helpers and maturity claims are tied to explicit verification evidence.",
+    "Undocumented helper defaults are either encoded in tests or deferred out of the package."
+  ],
+  "touchedSurfaces": [
+    "src/modules/response/index.ts",
+    "src/modules/batch/index.ts",
+    "src/lib/capability-source.ts",
+    "tests/unit/modules/response.test.ts",
+    "tests/unit/modules/batch.test.ts"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Adding new provider families or broad new cloud surfaces.",
+    "Changing README default storytelling before evidence is ready."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/cloud-surface/response-batch-contract",
+  "branch": "main",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk",
+  "createdAt": "2026-03-16T05:33:41.338Z"
+}

@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "packageId": "phase2/runtime/runtime-replay-contract",
+  "phase": "phase2",
+  "ownerLane": "runtime",
+  "topic": "runtime-replay-contract",
+  "goal": "Tighten replay, restore, and resumable-thread contracts into a bounded runtime package.",
+  "successCriteria": [
+    "Message-only, checkpoint-backed, and resumable thread restore rules are explicit and tested.",
+    "createAgent thread lifecycle helpers preserve consistent persisted histories.",
+    "Deferred runtime behaviors are documented instead of being silently implied by helpers."
+  ],
+  "touchedSurfaces": [
+    "src/ai/session-store.ts",
+    "src/ai/create-agent.ts",
+    "src/ai/generate-text.ts",
+    "tests/unit/ai/create-agent.test.ts",
+    "tests/unit/ai/session-store.test.ts"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "New multi-agent orchestration features beyond the existing runtime APIs.",
+    "Changing public maturity without a separate promotion decision package."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/runtime/runtime-replay-contract",
+  "branch": "main",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk",
+  "createdAt": "2026-03-16T05:33:47.439Z"
+}

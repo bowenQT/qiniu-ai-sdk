@@ -103,6 +103,50 @@ export interface BatchCancelResponse {
 
 export interface BatchTaskHandle extends BatchTaskSnapshot {}
 
+export interface BatchHelperContract {
+    helperSurface: string[];
+    promotionCandidates: string[];
+    deferredGaps: string[];
+    verificationEvidence: string[];
+    defaultBehaviors: string[];
+}
+
+export const BATCH_HELPER_CONTRACT: BatchHelperContract = Object.freeze({
+    helperSurface: [
+        'create',
+        'get',
+        'list',
+        'cancel',
+        'resume',
+        'delete',
+        'waitForCompletion',
+        'BatchTaskSnapshot.get',
+        'BatchTaskSnapshot.wait',
+        'BatchTaskSnapshot.cancel',
+        'BatchTaskSnapshot.resume',
+        'BatchTaskSnapshot.delete',
+    ],
+    promotionCandidates: [
+        'BatchTaskSnapshot lifecycle helpers',
+        'waitForCompletion',
+        'list/get snapshot refresh chaining',
+    ],
+    deferredGaps: [
+        'Mutating batch lifecycle probes remain env-gated and are not yet part of the default PR profile.',
+        'Public maturity changes remain deferred until a tracked promotion decision artifact is recorded.',
+    ],
+    verificationEvidence: [
+        'tests/unit/modules/batch.test.ts',
+        'qiniu-ai verify gate --lanes cloud-surface --strict',
+        'docs/capability-scorecard.md',
+    ],
+    defaultBehaviors: [
+        'list() normalizes missing data arrays to [] so helper chaining remains predictable.',
+        'create/get/list snapshots expose the same get/wait/cancel/resume/delete lifecycle surface.',
+        'waitForCompletion defaults to 2000ms polling and a 300000ms timeout unless overridden.',
+    ],
+});
+
 const TERMINAL_BATCH_STATUSES: BatchStatus[] = [
     'completed',
     'failed',

@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "phases": {
+    "phase1": {
+      "status": "closed",
+      "allowNewPackages": false,
+      "entryCriteria": [
+        "Phase 1 baseline accepted as the first vNext landing zone."
+      ],
+      "exitCriteria": [
+        "Phase 1 was merged to main and treated as the stable baseline."
+      ],
+      "freezeTriggers": [
+        "Any new package request after Phase 1 closeout."
+      ],
+      "promotionTriggers": [
+        "None. Phase 1 is closed."
+      ],
+      "deferredToNextPhaseRules": [
+        "Any new operating-model or runtime-governance work moves to Phase 2."
+      ]
+    },
+    "phase2": {
+      "status": "closed",
+      "allowNewPackages": false,
+      "entryCriteria": [
+        "Phase 1 is closed and merged to main.",
+        "Package-first CLI and tracked workflow docs exist in the repository.",
+        "Review packet and promotion decision artifacts are wired into repository CI."
+      ],
+      "exitCriteria": [
+        "Package-first delivery is the default tracked workflow.",
+        "Verification report can trace module promotion back to explicit evidence artifacts.",
+        "New package creation can be frozen via tracked phase policy without ad hoc transcript rules."
+      ],
+      "closeoutCriteria": [
+        "Promotion gate semantics are frozen as pass, held, block, or unavailable.",
+        "Capability truth drift is blocked in CI.",
+        "A single Phase 2 closeout report exists for release-owner and antigravity review."
+      ],
+      "freezeTriggers": [
+        "Release stabilization requires stopping new package creation.",
+        "Evidence drift appears between scorecard, live verify, and verification report.",
+        "Phase owner sets status to closeout-candidate, frozen, or closed in this file."
+      ],
+      "promotionTriggers": [
+        "A promotion decision artifact exists for the affected module.",
+        "The verification report references the evidence bundle used for the decision.",
+        "The decision source is recorded as antigravity, release owner, or equivalent policy authority."
+      ],
+      "deferredToNextPhaseRules": [
+        "Cross-lane work touching more than two owner lanes must be split into prerequisite packages.",
+        "Surface-expansion work without bounded success criteria must stay out of the current package.",
+        "Unverified maturity changes must remain deferred until a promotion decision artifact exists."
+      ],
+      "overrideRules": [
+        "Only a tracked closeout or reopen package may change status or allowNewPackages for Phase 2.",
+        "Emergency overrides must be committed to this file before any new Phase 2 package is opened."
+      ],
+      "closeoutReportPath": "artifacts/phase2-closeout-report.md"
+    },
+    "phase3": {
+      "status": "active",
+      "allowNewPackages": true,
+      "entryCriteria": [
+        "Phase 2 is closed on main.",
+        "ResponseAPI and NodeMCPHost both have tracked held decisions.",
+        "Promotion-sensitive modules are ready to consume nightly evidence."
+      ],
+      "exitCriteria": [
+        "A dedicated nightly promotion evidence workflow exists and is stable.",
+        "ResponseAPI promotion narrows to an explicit beta-ready core subset or remains explicitly held.",
+        "NodeMCPHost held-basis is reduced or re-affirmed with new tracked evidence.",
+        "Repo-facing docs and doctor output distinguish promoted subsets from deferred/provider-only surfaces."
+      ],
+      "freezeTriggers": [
+        "Nightly promotion evidence drifts from tracked capability truth.",
+        "Promotion-sensitive packages begin expanding SDK surface beyond the approved subset.",
+        "Phase owner sets status to closeout-candidate, frozen, or closed in this file."
+      ],
+      "promotionTriggers": [
+        "A tracked promotion decision exists for the affected module.",
+        "The decision basis cites nightly or equivalent credentialed live evidence.",
+        "Verification and scorecard artifacts render the promoted subset or held basis consistently."
+      ],
+      "deferredToNextPhaseRules": [
+        "Any new cloud helper or MCP runtime surface beyond the approved subset moves to a later Phase 3 package.",
+        "GA promotion remains deferred until nightly evidence and tracked decisions both support it.",
+        "Cross-lane work touching more than two owner lanes must still be split into prerequisite packages."
+      ]
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "packageId": "phase3/cloud-surface/responseapi-beta-promotion",
+  "generatedAt": "2026-03-17T13:02:32Z",
+  "decisions": [
+    {
+      "module": "ResponseAPI",
+      "oldMaturity": "experimental",
+      "newMaturity": "beta",
+      "evidenceBasis": [
+        "src/modules/response/index.ts#RESPONSE_API_PROMOTION_READINESS_CONTRACT",
+        "tests/unit/modules/response.test.ts"
+      ],
+      "decisionSource": "codex",
+      "decisionAt": "2026-03-17T13:02:32Z"
+    }
+  ]
+}

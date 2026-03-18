@@ -15,7 +15,7 @@ import type { MCPHostProvider } from '../lib/mcp-host-types';
 import type { RegisteredTool } from '../lib/tool-registry';
 import type { SessionStore, SessionRecord } from './session-store';
 import { ToolRegistry } from '../lib/tool-registry';
-import { extractSessionMessages, forkSessionSaveInput } from './session-store';
+import { buildSessionRecord, extractSessionMessages, forkSessionSaveInput } from './session-store';
 import { AgentGraph, type ResumableResult } from './agent-graph';
 import {
     generateTextWithGraph,
@@ -419,8 +419,9 @@ export function createAgent(config: AgentConfig): Agent {
                 saveInput.checkpointMetadata,
             );
             const checkpoint = await checkpointer.load(targetThreadId);
-            return {
+            return buildSessionRecord({
                 threadId: targetThreadId,
+                source: 'checkpointer',
                 checkpoint: checkpoint ?? {
                     metadata: saved,
                     state: saveInput.state as any,
@@ -428,7 +429,7 @@ export function createAgent(config: AgentConfig): Agent {
                 messages: saveInput.messages,
                 summary: saveInput.summary,
                 updatedAt: saved.createdAt ?? Date.now(),
-            };
+            });
         }
 
         throw new Error('restoreThread requires checkpointer or sessionStore to be configured in createAgent');
@@ -449,12 +450,12 @@ export function createAgent(config: AgentConfig): Agent {
             return null;
         }
 
-        return {
+        return buildSessionRecord({
             threadId,
+            source: 'checkpointer',
             checkpoint,
-            messages: extractSessionMessages(checkpoint),
             updatedAt: checkpoint.metadata.createdAt,
-        };
+        });
     };
 
     const restoreThreadSummary = async (threadId: string): Promise<SessionRecord | null> => {

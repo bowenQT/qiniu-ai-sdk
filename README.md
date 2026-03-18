@@ -70,7 +70,9 @@ npm install @bowenqt/qiniu-ai-sdk
 
 - `@bowenqt/qiniu-ai-sdk/node` is the only supported Node integration surface for MCP, sandbox, audit sinks, and non-memory checkpointers.
 - `@bowenqt/qiniu-ai-sdk/core` and `@bowenqt/qiniu-ai-sdk/browser` are kept free of Node-only transitive dependencies.
-- `ResponseAPI` remains experimental and provider-specific; use `QiniuAI#response` or import it from `@bowenqt/qiniu-ai-sdk/qiniu`, not from the root entry.
+- `ResponseAPI` is promoted to beta for the core subset only: `create`, `followUp`, `createTextResult`, and `followUpTextResult`; the stronger evidence-backed beta basis only applies when fresh nightly `response-api` evidence is present.
+- Other `ResponseAPI` helpers remain deferred/provider-only in this phase, including stream, JSON/messages, reasoning, and chat-completion projection helpers.
+- `NodeMCPHost` remains `beta (held)`; it only forwards already-resolved bearer tokens via `token` or `tokenProvider`, and the remaining deferred risks are OAuth token acquisition beyond that boundary plus cross-server routing.
 - The root entry remains a compatibility surface, not the recommended teaching surface for new projects.
 
 ### Cloud API Quickstart
@@ -212,11 +214,9 @@ const responseApi = getModuleMaturity('ResponseAPI');
 const gemini = getModelCapabilities('gemini-2.5-flash');
 
 console.log(featuredChatModels.map((model) => model.id));
-console.log(responseApi?.maturity); // experimental
+console.log(responseApi?.maturity); // beta
 console.log(gemini?.capabilities);
 ```
-
-See the generated [Capability Scorecard](docs/capability-scorecard.md) for the current validated-model subset and module maturity matrix.
 
 ### Worktree Delivery
 
