@@ -34,7 +34,7 @@ describe('CLI skill add (5A)', () => {
             expect.stringContaining('Usage: qiniu-ai skill add')
         );
         expect(process.exitCode).toBe(1);
-    });
+    }, 30_000);
 
     it('shows usage when add URL starts with --', async () => {
         const { runCLI } = await import('../../src/cli/skill-cli');

@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "packageId": "phase3/foundation/promoted-surface-docs-guard",
+  "phase": "phase3",
+  "ownerLane": "foundation",
+  "category": "standard",
+  "topic": "promoted-surface-docs-guard",
+  "goal": "Keep repo-facing narrative aligned with the latest promoted subset and held-basis decisions after Batch 2 lands.",
+  "successCriteria": [
+    "README, COOKBOOK, doctor, scorecard, and verification report all reflect the latest promoted subset and held-basis wording.",
+    "No stale wording survives that implies wider ResponseAPI or NodeMCPHost support than tracked decisions allow.",
+    "No runtime behavior changes are introduced by the narrative sync package."
+  ],
+  "touchedSurfaces": [
+    "docs",
+    "src/cli",
+    ".trellis/spec/sdk"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "docs-gate",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "No new helper APIs.",
+    "No live-verify policy redesign.",
+    "No maturity changes beyond the tracked outcomes of packages 1-3."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/foundation/promoted-surface-docs-guard",
+  "branch": "codex/phase3/foundation/promoted-surface-docs-guard",
+  "worktreePath": ".worktrees/phase3-promoted-surface-docs",
+  "createdAt": "2026-03-18T00:00:00.000Z"
+}

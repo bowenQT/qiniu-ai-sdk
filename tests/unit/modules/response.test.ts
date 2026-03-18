@@ -4,6 +4,8 @@
 import { describe, it, expect } from 'vitest';
 import { QiniuAI } from '../../../src/client';
 import {
+    RESPONSE_API_HELPER_CONTRACT,
+    RESPONSE_API_PROMOTION_READINESS_CONTRACT,
     extractResponseOutputMessage,
     extractResponseOutputMessages,
     extractResponseOutputText,
@@ -99,6 +101,64 @@ describe('Phase 3: Response API Module (@experimental)', () => {
         });
 
         expect(result.output_text).toBe('Server projection');
+    });
+
+    it('exposes explicit ResponseAPI helper promotion and deferred boundaries', () => {
+        expect(RESPONSE_API_HELPER_CONTRACT.promotionCandidates).toEqual([
+            'create',
+            'followUp',
+            'createTextResult',
+            'followUpTextResult',
+        ]);
+        expect(RESPONSE_API_HELPER_CONTRACT.deferredGaps).toEqual(expect.arrayContaining([
+            'Tool-call and function-role Response API array inputs remain explicitly unsupported.',
+            'Maturity promotion stays deferred until tracked promotion decisions and live evidence approve it.',
+        ]));
+        expect(RESPONSE_API_HELPER_CONTRACT.defaultBehaviors).toEqual(expect.arrayContaining([
+            'JSON helpers default text.format.type=json_object unless the caller already sets text.format.',
+            'createMessageStream returns the latest assistant output message at stream completion.',
+        ]));
+        expect(RESPONSE_API_HELPER_CONTRACT.verificationEvidence).toContain(
+            'tests/unit/modules/response.test.ts',
+        );
+    });
+
+    it('exposes an explicit held promotion-readiness contract for ResponseAPI', () => {
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.officialSurface).toEqual([
+            'create',
+            'followUp',
+            'createTextResult',
+            'followUpTextResult',
+        ]);
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.deferredHelpers).toEqual([
+            'createStream/followUpStream',
+            'createText',
+            'followUpText',
+            'createTextStream/followUpTextStream',
+            'createMessageStream/followUpMessageStream',
+            'createMessagesStream/followUpMessagesStream',
+            'createMessagesResult/followUpMessagesResult',
+            'createJson',
+            'followUpJson',
+            'createJsonResult/followUpJsonResult',
+            'createJsonStream/followUpJsonStream',
+            'createChatCompletion',
+            'followUpChatCompletion',
+            'createChatCompletionResult/followUpChatCompletionResult',
+            'createChatCompletionStream/followUpChatCompletionStream',
+            'createReasoningResult/followUpReasoningResult',
+            'provider-only projection helpers outside the official result-oriented surface',
+        ]);
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.requiredLiveEvidence).toEqual([
+            'pr: chat,response-api',
+            'nightly: chat,response-api',
+        ]);
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.nightlyEvidenceFreshness).toBe('required');
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.evidenceBackedBeta).toBe('nightly');
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.trackedDecisionPath).toBe(
+            '.trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json',
+        );
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.decisionStatus).toBe('held');
     });
 
     it('should return structured reasoning payloads via createReasoningResult()', async () => {

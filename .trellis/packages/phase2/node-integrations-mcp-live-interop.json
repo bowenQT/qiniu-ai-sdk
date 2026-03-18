@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "packageId": "phase2/node-integrations/mcp-live-interop",
+  "phase": "phase2",
+  "ownerLane": "node-integrations",
+  "topic": "mcp-live-interop",
+  "goal": "Deepen real MCP interoperability evidence without reopening the whole node platform surface.",
+  "successCriteria": [
+    "Live verify can exercise a real HTTP MCP server across tool, resource, and prompt flows.",
+    "Remaining protocol gaps are captured as explicit deferred risks instead of implicit TODOs.",
+    "Host and transport evidence can feed the verification report and future promotion decisions."
+  ],
+  "touchedSurfaces": [
+    "src/node/mcp/http-transport.ts",
+    "src/node/mcp-host.ts",
+    "src/cli/live-verify.ts",
+    "tests/node/mcp-http-transport.test.ts",
+    "tests/node/mcp-host.test.ts"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Rewriting stdio transport or promoting QiniuMCPServer in the same package.",
+    "Adding non-HTTP transport families."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/node-integrations/mcp-live-interop",
+  "branch": "main",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk",
+  "createdAt": "2026-03-16T05:33:57.912Z"
+}

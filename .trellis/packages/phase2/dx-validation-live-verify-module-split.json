@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "packageId": "phase2/dx-validation/live-verify-module-split",
+  "phase": "phase2",
+  "ownerLane": "dx-validation",
+  "topic": "live-verify-module-split",
+  "goal": "Split live-verify into smaller bounded modules without regressing the gate, artifact, or policy flows.",
+  "successCriteria": [
+    "live-verify.ts no longer carries the full transport, host, cloud, and gate orchestration in one file.",
+    "CLI wiring and artifact outputs stay stable across the refactor.",
+    "Module boundaries reflect package-first evidence responsibilities instead of transcript-only conventions."
+  ],
+  "touchedSurfaces": [
+    "src/cli/live-verify.ts",
+    "src/cli/skill-cli.ts",
+    "src/cli/verification-report.ts",
+    "tests/cli/live-verify.test.ts"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Changing probe semantics or widening the live-verify surface beyond refactor needs.",
+    "Reopening Phase 1 cloud runtime or node scope through the split."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/dx-validation/live-verify-module-split",
+  "branch": "main",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk",
+  "createdAt": "2026-03-16T10:42:46.693Z"
+}

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "packageId": "phase2/node-integrations/node-mcphost-promotion-readiness",
+  "phase": "phase2",
+  "ownerLane": "node-integrations",
+  "category": "promotion-sensitive",
+  "topic": "node-mcphost-promotion-readiness",
+  "goal": "Turn the current held-beta NodeMCPHost outcome into an explicit promotion-readiness checklist with tracked evidence boundaries and deferred risks.",
+  "successCriteria": [
+    "Transport evidence, host evidence, and deferred MCP risks are rendered as separate readiness signals.",
+    "NodeMCPHost promotion decisions can cite tracked evidence instead of transcript-only review notes.",
+    "Verification report explains why NodeMCPHost is held and what evidence would be required for the next promotion step."
+  ],
+  "touchedSurfaces": [
+    "src/node/mcp-host.ts",
+    "src/cli/live-verify.internal.ts",
+    ".trellis/decisions/phase2",
+    ".trellis/spec/sdk/live-verify-policy.json",
+    "docs/capability-scorecard.md",
+    "src/cli/verification-report.ts"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Adding new MCP runtime surface such as notifications, OAuth token acquisition, or multi-server routing.",
+    "Promoting NodeMCPHost beyond held beta without updated tracked evidence."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase2/node-integrations/node-mcphost-promotion-readiness",
+  "branch": "codex/phase2/node-integrations/node-mcphost-promotion-readiness",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase2-mcp-readiness",
+  "createdAt": "2026-03-17T10:00:00.000Z"
+}

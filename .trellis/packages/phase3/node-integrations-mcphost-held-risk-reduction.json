@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "packageId": "phase3/node-integrations/mcphost-held-risk-reduction",
+  "phase": "phase3",
+  "ownerLane": "node-integrations",
+  "category": "promotion-sensitive",
+  "topic": "mcphost-held-risk-reduction",
+  "goal": "Reduce one tracked NodeMCPHost held risk by moving notifications/list_changed evidence from unit-only coverage into host interop live evidence.",
+  "successCriteria": [
+    "NodeMCPHost remains beta (held) but its held basis shrinks from three deferred risks to two.",
+    "Host interop live evidence records notifications/list_changed without adding new public MCP runtime surface.",
+    "Tracked decision and report rendering reflect the narrower held basis."
+  ],
+  "touchedSurfaces": [
+    "src/node",
+    "src/cli",
+    ".trellis/decisions",
+    ".trellis/spec/sdk"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "No OAuth token acquisition.",
+    "No multi-server routing.",
+    "No direct NodeMCPHost maturity promotion."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/node-integrations/mcphost-held-risk-reduction",
+  "branch": "codex/phase3/node-integrations/mcphost-held-risk-reduction",
+  "worktreePath": ".worktrees/phase3-mcphost-held-risk",
+  "createdAt": "2026-03-17T00:00:00.000Z"
+}

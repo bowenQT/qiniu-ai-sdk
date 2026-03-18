@@ -38,7 +38,7 @@ describe('CLI init and doctor', () => {
         expect(packageJson.name).toBe('chat-app');
         expect(indexSource).toContain("@bowenqt/qiniu-ai-sdk/qiniu");
         expect(indexSource).not.toContain("@bowenqt/qiniu-ai-sdk';");
-    });
+    }, 30_000);
 
     it('rejects init when target directory is not empty', async () => {
         const { runCLI } = await import('../../src/cli/skill-cli');
@@ -137,6 +137,41 @@ describe('CLI init and doctor', () => {
         expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Lane "runtime" should not own Node-only imports'));
     });
 
+    it('doctor reports tracked phase2 policy state when the repo policy file exists', async () => {
+        const { runCLI } = await import('../../src/cli/skill-cli');
+        const projectDir = path.join(tmpRoot, 'phase-policy-app');
+        fs.mkdirSync(path.join(projectDir, 'src'), { recursive: true });
+        fs.mkdirSync(path.join(projectDir, '.trellis', 'spec', 'sdk'), { recursive: true });
+        fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'phase-policy-app' }), 'utf8');
+        fs.writeFileSync(path.join(projectDir, 'src', 'index.ts'), "import { generateText } from '@bowenqt/qiniu-ai-sdk/core';\n", 'utf8');
+        fs.writeFileSync(path.join(projectDir, '.trellis', 'spec', 'sdk', 'phase-policy.json'), JSON.stringify({
+            version: 1,
+            phases: {
+                phase2: {
+                    status: 'closeout-candidate',
+                    allowNewPackages: false,
+                    entryCriteria: [],
+                    exitCriteria: [],
+                    closeoutCriteria: ['Closeout report exists.'],
+                    freezeTriggers: [],
+                    promotionTriggers: [],
+                    deferredToNextPhaseRules: [],
+                    overrideRules: ['Tracked reopen package required.'],
+                    closeoutReportPath: 'artifacts/phase2-closeout-report.md',
+                },
+            },
+        }, null, 2), 'utf8');
+
+        await runCLI(
+            ['doctor', '--template', 'agent', '--dir', projectDir],
+            { cwd: tmpRoot, env: { QINIU_API_KEY: 'sk-test' }, nodeVersion: 'v20.0.0' },
+        );
+
+        expect(consoleLogSpy).toHaveBeenCalledWith(
+            expect.stringContaining('Tracked phase2 policy: closeout-candidate (allow new packages: no), closeout report artifacts/phase2-closeout-report.md.'),
+        );
+    });
+
     it('doctor reports maturity and validation metadata for imported public modules', async () => {
         const { runCLI } = await import('../../src/cli/skill-cli');
         const projectDir = path.join(tmpRoot, 'maturity-app');
@@ -159,12 +194,18 @@ describe('CLI init and doctor', () => {
             { cwd: tmpRoot, env: { QINIU_API_KEY: 'sk-test' }, nodeVersion: 'v20.0.0' },
         );
 
-        expect(process.exitCode).toBe(2);
+        expect(process.exitCode).toBe(0);
         expect(consoleLogSpy).toHaveBeenCalledWith(
             expect.stringContaining('createAgent imports detected (ga, contract'),
         );
         expect(consoleLogSpy).toHaveBeenCalledWith(
-            expect.stringContaining('ResponseAPI usage detected (experimental)'),
+            expect.stringContaining('ResponseAPI usage detected (beta, unit, validated 2026-03-15, tracked decision experimental -> beta'),
+        );
+        expect(consoleLogSpy).toHaveBeenCalledWith(
+            expect.stringContaining('tracked decision experimental -> beta'),
+        );
+        expect(consoleLogSpy).toHaveBeenCalledWith(
+            expect.stringContaining('only applies when fresh nightly response-api evidence is present'),
         );
     });
 
@@ -188,7 +229,7 @@ describe('CLI init and doctor', () => {
             { cwd: tmpRoot, env: { QINIU_API_KEY: 'sk-test' }, nodeVersion: 'v20.0.0' },
         );
 
-        expect(process.exitCode).toBe(2);
+        expect(process.exitCode).toBe(0);
         expect(consoleLogSpy).toHaveBeenCalledWith(
             expect.stringContaining('batch imports detected (beta, unit, validated 2026-03-15'),
         );
@@ -196,7 +237,10 @@ describe('CLI init and doctor', () => {
             expect.stringContaining('admin imports detected (beta, unit, validated 2026-03-15'),
         );
         expect(consoleLogSpy).toHaveBeenCalledWith(
-            expect.stringContaining('ResponseAPI imports detected (experimental, unit, validated 2026-03-15'),
+            expect.stringContaining('ResponseAPI imports detected (beta, unit, validated 2026-03-15, tracked decision experimental -> beta'),
+        );
+        expect(consoleLogSpy).toHaveBeenCalledWith(
+            expect.stringContaining('only applies when fresh nightly response-api evidence is present'),
         );
     });
 

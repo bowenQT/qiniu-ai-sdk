@@ -440,6 +440,26 @@ export type ToolExecutor = (
     abortSignal?: AbortSignal,
 ) => Promise<unknown>;
 
+function parseToolArguments(argumentsJson: string | undefined): Record<string, unknown> {
+    if (!argumentsJson) {
+        return {};
+    }
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(argumentsJson);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Invalid tool arguments JSON: ${message}`);
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('Tool arguments JSON must decode to an object');
+    }
+
+    return parsed as Record<string, unknown>;
+}
+
 /**
  * Resume a pending approval checkpoint with user's decision.
  * 
@@ -497,15 +517,20 @@ export async function resumeWithApproval(
 
                 if (toolExecutor) {
                     try {
-                        const args = JSON.parse(tc.function.arguments || '{}');
-                        const result = await toolExecutor(toolName, args, abortSignal);
-                        const resultStr = typeof result === 'string' ? result : JSON.stringify(result ?? { success: true });
-                        toolResults.push({ toolCallId: tc.id, result: resultStr });
-                        toolExecuted = true;
+                        const args = parseToolArguments(tc.function.arguments);
+                        try {
+                            const result = await toolExecutor(toolName, args, abortSignal);
+                            const resultStr = typeof result === 'string' ? result : JSON.stringify(result ?? { success: true });
+                            toolResults.push({ toolCallId: tc.id, result: resultStr });
+                            toolExecuted = true;
+                        } catch (error) {
+                            const errorMessage = error instanceof Error ? error.message : String(error);
+                            toolResults.push({ toolCallId: tc.id, result: `[Execution Error] ${errorMessage}` });
+                            toolExecuted = true;
+                        }
                     } catch (error) {
                         const errorMessage = error instanceof Error ? error.message : String(error);
                         toolResults.push({ toolCallId: tc.id, result: `[Execution Error] ${errorMessage}` });
-                        toolExecuted = true;
                     }
                 } else {
                     // No executor - synthetic success

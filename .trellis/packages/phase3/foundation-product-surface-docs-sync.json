@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "packageId": "phase3/foundation/product-surface-docs-sync",
+  "phase": "phase3",
+  "ownerLane": "foundation",
+  "category": "standard",
+  "topic": "product-surface-docs-sync",
+  "goal": "Align repo-facing narrative with the promoted ResponseAPI subset and the narrowed NodeMCPHost held basis.",
+  "successCriteria": [
+    "README, COOKBOOK, doctor, scorecard, and verification report all distinguish promoted subsets from deferred/provider-only surface.",
+    "NodeMCPHost remains clearly labeled beta (held) with explicit remaining deferred risks.",
+    "No new helper or governance surface is introduced in the narrative sync package."
+  ],
+  "touchedSurfaces": [
+    "docs",
+    "src/cli",
+    ".trellis/spec/sdk"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "No new SDK runtime behavior.",
+    "No maturity change outside the tracked decisions from packages 2 and 3."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/foundation/product-surface-docs-sync",
+  "branch": "codex/phase3/foundation/product-surface-docs-sync",
+  "worktreePath": ".worktrees/phase3-product-docs",
+  "createdAt": "2026-03-17T00:00:00.000Z"
+}

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "packageId": "phase3/node-integrations/mcphost-oauth-boundary",
+  "phase": "phase3",
+  "ownerLane": "node-integrations",
+  "category": "promotion-sensitive",
+  "topic": "mcphost-oauth-boundary",
+  "goal": "Reduce ambiguity around the remaining NodeMCPHost OAuth token acquisition held risk by either proving the supported boundary or locking the non-goal into a tracked contract.",
+  "successCriteria": [
+    "The OAuth token acquisition held risk is narrower or more explicitly bounded than it is today.",
+    "Verification report and tracked decision can explain the supported OAuth boundary without relying on transcript-only notes.",
+    "NodeMCPHost remains beta held unless new evidence explicitly justifies more."
+  ],
+  "touchedSurfaces": [
+    "src/node",
+    "src/cli",
+    ".trellis/decisions",
+    ".trellis/spec/sdk",
+    "docs"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "No multi-server routing work.",
+    "No new public MCP runtime surface.",
+    "No direct NodeMCPHost maturity promotion."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/node-integrations/mcphost-oauth-boundary",
+  "branch": "codex/phase3/node-integrations/mcphost-oauth-boundary",
+  "worktreePath": ".worktrees/phase3-mcphost-oauth",
+  "createdAt": "2026-03-18T00:00:00.000Z"
+}

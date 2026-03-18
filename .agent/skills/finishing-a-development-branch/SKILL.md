@@ -1,6 +1,6 @@
 ---
 name: finishing-a-development-branch
-description: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - guides completion of development work by presenting structured options for merge, PR, or cleanup
+description: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work. In this repository, package or lane branches must close through package-first evidence and integration handoff rather than the generic local merge or PR menu.
 ---
 
 # Finishing a Development Branch
@@ -12,6 +12,22 @@ Guide completion of development work by presenting clear options and handling ch
 **Core principle:** Verify tests → Present options → Execute choice → Clean up.
 
 **Announce at start:** "I'm using the finishing-a-development-branch skill to complete this work."
+
+## Repo Override: Package-First Branches
+
+If the current branch matches `codex/<phase>/<lane>/<topic>` or the task already uses package briefs, review packets, promotion decisions, or lane worktrees:
+
+- stop using the generic 4-option menu
+- switch to the `package-first-sdk-delivery` skill
+- close the work through:
+  - focused verification
+  - package evidence
+  - review packet
+  - promotion decision artifacts when needed
+  - tracked handoff in `.trellis/integrations/`
+  - integration through `qiniu-ai worktree integrate --lane <lane>`
+
+Use the generic flow below only for normal feature branches that are not part of the package-first workflow.
 
 ## The Process
 

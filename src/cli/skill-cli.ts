@@ -5,9 +5,10 @@
  * Usage:
  *   qiniu-ai init --template <chat|agent|node-agent> [--dir <target-dir>] [--name <project-name>]
  *   qiniu-ai doctor [--template <chat|agent|node-agent>] [--lane <name>] [--dir <project-dir>]
+ *   qiniu-ai package <init|evidence|review|decision> [options]
  *   qiniu-ai worktree <init|spawn|status|integrate> [options]
  *   qiniu-ai verify live --lane <name>
- *   qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict]
+ *   qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--brief <path>] [--strict]
  *   qiniu-ai skill list [--dir <skills-dir>]
  *   qiniu-ai skill add <manifest-url> [--sha256 <hash>] [--auth <token>] [--allow-actions] [--dir <dir>]
  *   qiniu-ai skill verify [--fix] [--dir <dir>]
@@ -30,6 +31,35 @@ import { doctorProject } from './doctor';
 import type { WorktreeLane } from './doctor';
 import { initStarterProject, parseStarterTemplate } from './init';
 import { parseLiveVerifyGateLanes, verifyLiveGate, verifyLiveLane } from './live-verify';
+import {
+    assertPhaseAllowsNewPackages,
+    createChangePackage,
+    createEvidenceBundle,
+    createReviewPacket,
+    defaultChangePackagePath,
+    defaultEvidenceBundlePath,
+    defaultPromotionDecisionJsonPath,
+    defaultPromotionDecisionMarkdownPath,
+    defaultTrackedPromotionDecisionPath,
+    defaultReviewPacketPath,
+    DEFAULT_PHASE,
+    DEFAULT_PHASE_POLICY_PATH,
+    parseChangePackageCategory,
+    parsePackageLane,
+    readJsonFile,
+    readPhasePolicy,
+    resolveDefaultPhase,
+    renderPromotionDecisionMarkdown,
+    renderReviewPacketMarkdown,
+    resolveCurrentBranch,
+    upsertPromotionDecision,
+    writeJsonFile,
+    writeTextFile,
+    type ChangePackage,
+    type EvidenceBundle,
+    type PackageDecisionMaturity,
+    type PromotionDecisionSet,
+} from './package-workflow';
 import {
     initWorktreeWorkspace,
     integrateLaneWorktree,
@@ -101,20 +131,38 @@ function getArgValue(args: string[], key: string): string | undefined {
     return value;
 }
 
+function getArgValues(args: string[], key: string): string[] {
+    const values: string[] = [];
+    for (let i = 0; i < args.length; i += 1) {
+        if (args[i] !== key) continue;
+        const value = args[i + 1];
+        if (!value || value.startsWith('--')) {
+            console.error(`Error: ${key} requires a value, got "${value ?? ''}"`);
+            process.exitCode = 1;
+            return [];
+        }
+        values.push(value);
+        i += 1;
+    }
+    return values;
+}
+
 function printMainUsage(): void {
     console.log('qiniu-ai CLI');
     console.log('');
     console.log('Usage:');
     console.log('  qiniu-ai init --template <chat|agent|node-agent> [--dir <target-dir>] [--name <project-name>]');
     console.log('  qiniu-ai doctor [--template <chat|agent|node-agent>] [--lane <name>] [--dir <project-dir>]');
+    console.log('  qiniu-ai package <init|evidence|review|decision> [options]');
     console.log('  qiniu-ai worktree <init|spawn|status|integrate> [options]');
     console.log('  qiniu-ai verify live --lane <name>');
-    console.log('  qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict]');
+    console.log('  qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--brief <path>] [--strict]');
     console.log('  qiniu-ai skill <list|add|verify|remove> [options]');
     console.log('');
     console.log('Top-level commands:');
     console.log('  init              Scaffold a starter project');
     console.log('  doctor            Validate environment, peer deps, and import choices');
+    console.log('  package           Create bounded change-package artifacts');
     console.log('  worktree          Create and manage codex/vnext worktree lanes');
     console.log('  verify            Run lane-level verification helpers');
     console.log('  skill             Manage local and remote skills');
@@ -150,6 +198,41 @@ function printDoctorUsage(): void {
     console.log('Usage: qiniu-ai doctor [--template <chat|agent|node-agent>] [--lane <name>] [--dir <project-dir>]');
 }
 
+function printPackageUsage(): void {
+    console.log(`Usage: qiniu-ai package init --lane <name> --topic <topic> --goal <goal> [--phase <name>] [--category <standard|promotion-sensitive>] [--success <text> ...]`);
+    console.log('       qiniu-ai package evidence --brief <path> [options]');
+    console.log('       qiniu-ai package review --brief <path> --evidence <path> [--out <path>] [--json]');
+    console.log('       qiniu-ai package decision --brief <path> --module <name> --from <maturity> --to <maturity> --basis <text> --source <name> [options]');
+    console.log('');
+    console.log('Shared options:');
+    console.log(`  --policy <path>           Phase policy file (default: ${DEFAULT_PHASE_POLICY_PATH})`);
+    console.log('  --out <path>              Output path');
+    console.log('');
+    console.log('Init options:');
+    console.log('  package branches should follow codex/<phase>/<lane>/<topic>');
+    console.log('  --category <type>         Package category (default: standard)');
+    console.log('  --success <text>          Repeatable success criterion');
+    console.log('  --surface <name>          Repeatable touched surface');
+    console.log('  --evidence <name>         Repeatable required evidence item');
+    console.log('  --out-of-scope <text>     Repeatable out-of-scope note');
+    console.log('  --merge-target <branch>   Expected merge target (default: main)');
+    console.log('');
+    console.log('Evidence options:');
+    console.log('  --file <path>             Repeatable changed file');
+    console.log('  --surface <name>          Repeatable changed surface');
+    console.log('  --focused <text>          Repeatable focused verification item');
+    console.log('  --gate <text>             Repeatable full gate status item');
+    console.log('  --live <text>             Repeatable live verification delta');
+    console.log('  --risk <text>             Repeatable deferred risk');
+    console.log('  --artifact <path>         Repeatable artifact link');
+    console.log('');
+    console.log('Decision options:');
+    console.log('  --append <path>           Existing promotion-decision JSON to update');
+    console.log('  --decision-at <iso>       Override decision timestamp');
+    console.log('  --tracked-out <path>      Override tracked promotion-decision JSON path');
+    console.log('  --no-track                Skip writing the tracked promotion-decision JSON');
+}
+
 function printWorktreeUsage(): void {
     console.log('Usage: qiniu-ai worktree <init|spawn|status|integrate> [options]');
     console.log('');
@@ -168,7 +251,7 @@ function printWorktreeUsage(): void {
 
 function printVerifyUsage(): void {
     console.log('Usage: qiniu-ai verify live --lane <name>');
-    console.log('       qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--strict] [--json] [--out <path>]');
+    console.log('       qiniu-ai verify gate [--lanes <lane1,lane2,...>] [--brief <path>] [--profile <name>] [--policy <path>] [--strict] [--json] [--out <path>]');
 }
 
 function writeVerifyOutput(result: unknown, outputPath: string, cwd: string): string {
@@ -442,6 +525,215 @@ async function runDoctorCommand(args: string[], options: RunCLIOptions): Promise
     process.exitCode = result.exitCode;
 }
 
+function resolvePhasePolicyPath(args: string[], cwd: string, projectDir: string): string {
+    const policyValue = getArgValue(args, '--policy');
+    if (process.exitCode === 1) {
+        return path.resolve(projectDir, DEFAULT_PHASE_POLICY_PATH);
+    }
+    return path.resolve(policyValue ? cwd : projectDir, policyValue ?? DEFAULT_PHASE_POLICY_PATH);
+}
+
+function parseDecisionMaturity(value: string): PackageDecisionMaturity {
+    if (value === 'ga' || value === 'beta' || value === 'experimental') {
+        return value;
+    }
+    throw new Error(`Invalid maturity "${value}". Expected ga, beta, or experimental.`);
+}
+
+async function runPackageCommand(args: string[], options: RunCLIOptions): Promise<void> {
+    const subcommand = args[1];
+    const cwd = options.cwd ?? process.cwd();
+    const projectDir = resolveProjectDir(args, cwd);
+
+    switch (subcommand) {
+        case 'init': {
+            const laneValue = getArgValue(args, '--lane');
+            const topic = getArgValue(args, '--topic');
+            const goal = getArgValue(args, '--goal');
+            const requestedPhase = getArgValue(args, '--phase');
+            const categoryValue = getArgValue(args, '--category');
+            const mergeTarget = getArgValue(args, '--merge-target');
+            const outputPath = getArgValue(args, '--out');
+            const successCriteria = getArgValues(args, '--success');
+            const touchedSurfaces = getArgValues(args, '--surface');
+            const requiredEvidence = getArgValues(args, '--evidence');
+            const explicitlyOutOfScope = getArgValues(args, '--out-of-scope');
+            const policyPath = resolvePhasePolicyPath(args, cwd, projectDir);
+
+            if (process.exitCode === 1 || !laneValue || !topic || !goal) {
+                printPackageUsage();
+                process.exitCode = 1;
+                return;
+            }
+
+            const lane = parsePackageLane(laneValue);
+            const category = categoryValue ? parseChangePackageCategory(categoryValue) : undefined;
+            const policy = readPhasePolicy(policyPath);
+            const phase = requestedPhase ?? resolveDefaultPhase(policy);
+            assertPhaseAllowsNewPackages(policy, phase);
+
+            const changePackage = createChangePackage({
+                phase,
+                ownerLane: lane,
+                category,
+                topic,
+                goal,
+                successCriteria,
+                touchedSurfaces,
+                requiredEvidence,
+                explicitlyOutOfScope,
+                expectedMergeTarget: mergeTarget,
+                branch: resolveCurrentBranch(projectDir),
+                worktreePath: projectDir,
+            });
+
+            const destination = outputPath
+                ? path.resolve(cwd, outputPath)
+                : defaultChangePackagePath(projectDir, changePackage);
+            const written = writeJsonFile(destination, changePackage);
+            console.log(`Wrote change package: ${written}`);
+            return;
+        }
+
+        case 'evidence': {
+            const briefPath = getArgValue(args, '--brief');
+            const outputPath = getArgValue(args, '--out');
+            const changedFiles = getArgValues(args, '--file');
+            const changedSurfaces = getArgValues(args, '--surface');
+            const focusedVerification = getArgValues(args, '--focused');
+            const fullGateStatus = getArgValues(args, '--gate');
+            const liveVerifyDelta = getArgValues(args, '--live');
+            const deferredRisks = getArgValues(args, '--risk');
+            const artifactLinks = getArgValues(args, '--artifact');
+
+            if (process.exitCode === 1 || !briefPath) {
+                printPackageUsage();
+                process.exitCode = 1;
+                return;
+            }
+
+            const changePackage = readJsonFile<ChangePackage>(path.resolve(cwd, briefPath));
+            const evidence = createEvidenceBundle({
+                changePackage,
+                changedFiles,
+                changedSurfaces,
+                focusedVerification,
+                fullGateStatus,
+                liveVerifyDelta,
+                deferredRisks,
+                artifactLinks,
+            });
+
+            const destination = outputPath
+                ? path.resolve(cwd, outputPath)
+                : defaultEvidenceBundlePath(projectDir, changePackage.packageId);
+            const written = writeJsonFile(destination, evidence);
+            console.log(`Wrote evidence bundle: ${written}`);
+            return;
+        }
+
+        case 'review': {
+            const briefPath = getArgValue(args, '--brief');
+            const evidencePath = getArgValue(args, '--evidence');
+            const outputPath = getArgValue(args, '--out');
+            const jsonMode = args.includes('--json');
+
+            if (process.exitCode === 1 || !briefPath || !evidencePath) {
+                printPackageUsage();
+                process.exitCode = 1;
+                return;
+            }
+
+            const changePackage = readJsonFile<ChangePackage>(path.resolve(cwd, briefPath));
+            const evidence = readJsonFile<EvidenceBundle>(path.resolve(cwd, evidencePath));
+            const packet = createReviewPacket(changePackage, evidence);
+
+            if (jsonMode) {
+                console.log(JSON.stringify(packet, null, 2));
+            } else {
+                console.log(renderReviewPacketMarkdown(changePackage, packet));
+            }
+
+            if (outputPath) {
+                const destination = path.resolve(cwd, outputPath);
+                if (jsonMode) {
+                    writeJsonFile(destination, packet);
+                } else {
+                    writeTextFile(destination, renderReviewPacketMarkdown(changePackage, packet));
+                    console.log(`Wrote review packet: ${destination}`);
+                }
+            } else if (!jsonMode) {
+                const destination = defaultReviewPacketPath(projectDir, changePackage.packageId);
+                writeTextFile(destination, renderReviewPacketMarkdown(changePackage, packet));
+                console.log(`Wrote review packet: ${destination}`);
+            }
+            return;
+        }
+
+        case 'decision': {
+            const briefPath = getArgValue(args, '--brief');
+            const moduleName = getArgValue(args, '--module');
+            const fromValue = getArgValue(args, '--from');
+            const toValue = getArgValue(args, '--to');
+            const outputPath = getArgValue(args, '--out');
+            const appendPath = getArgValue(args, '--append');
+            const trackedOutputPath = getArgValue(args, '--tracked-out');
+            const source = getArgValue(args, '--source');
+            const decisionAt = getArgValue(args, '--decision-at');
+            const evidenceBasis = getArgValues(args, '--basis');
+
+            if (
+                process.exitCode === 1 ||
+                !briefPath ||
+                !moduleName ||
+                !fromValue ||
+                !toValue ||
+                !source ||
+                evidenceBasis.length === 0
+            ) {
+                printPackageUsage();
+                process.exitCode = 1;
+                return;
+            }
+
+            const changePackage = readJsonFile<ChangePackage>(path.resolve(cwd, briefPath));
+            const existing = appendPath
+                ? readJsonFile<PromotionDecisionSet>(path.resolve(cwd, appendPath))
+                : undefined;
+            const decisionSet = upsertPromotionDecision(existing, changePackage, {
+                module: moduleName,
+                oldMaturity: parseDecisionMaturity(fromValue),
+                newMaturity: parseDecisionMaturity(toValue),
+                evidenceBasis,
+                decisionSource: source,
+                decisionAt: decisionAt ?? new Date().toISOString(),
+            });
+
+            const jsonDestination = outputPath
+                ? path.resolve(cwd, outputPath)
+                : defaultPromotionDecisionJsonPath(projectDir, changePackage.packageId);
+            const markdownDestination = defaultPromotionDecisionMarkdownPath(projectDir, changePackage.packageId);
+            const trackedDestination = trackedOutputPath
+                ? path.resolve(cwd, trackedOutputPath)
+                : defaultTrackedPromotionDecisionPath(projectDir, changePackage.packageId);
+
+            writeJsonFile(jsonDestination, decisionSet);
+            writeTextFile(markdownDestination, renderPromotionDecisionMarkdown(decisionSet));
+            if (!args.includes('--no-track')) {
+                writeJsonFile(trackedDestination, decisionSet);
+                console.log(`Wrote tracked promotion decisions: ${trackedDestination}`);
+            }
+            console.log(`Wrote promotion decisions: ${jsonDestination}`);
+            console.log(`Wrote promotion decision summary: ${markdownDestination}`);
+            return;
+        }
+
+        default:
+            printPackageUsage();
+            return;
+    }
+}
+
 async function runWorktreeCommand(args: string[], options: RunCLIOptions): Promise<void> {
     const subcommand = args[1];
     const cwd = options.cwd ?? process.cwd();
@@ -547,11 +839,27 @@ async function runVerifyCommand(args: string[], options: RunCLIOptions): Promise
         });
     } else if (subcommand === 'gate') {
         const lanesArg = getArgValue(args, '--lanes');
+        const briefPath = getArgValue(args, '--brief');
+        const profile = getArgValue(args, '--profile');
+        const policyPath = getArgValue(args, '--policy');
         if (process.exitCode === 1) return;
 
+        const brief = briefPath ? readJsonFile<ChangePackage>(path.resolve(cwd, briefPath)) : undefined;
+        const briefLane = brief ? ({
+            foundation: 'foundation',
+            'cloud-surface': 'cloud-surface',
+            runtime: 'runtime',
+            'runtime-hardening': 'runtime',
+            'node-integrations': 'node-integrations',
+            'dx-validation': 'dx-validation',
+        } as const)[brief.ownerLane] : undefined;
+
         result = await verifyLiveGate({
-            lanes: parseLiveVerifyGateLanes(lanesArg),
+            lanes: parseLiveVerifyGateLanes(lanesArg ?? briefLane),
             strict: args.includes('--strict'),
+            packageBriefPath: briefPath ? path.resolve(cwd, briefPath) : undefined,
+            policyProfile: profile,
+            policyPath,
             env: options.env,
         });
     } else {
@@ -661,6 +969,9 @@ export async function runCLI(args: string[], options: RunCLIOptions = {}): Promi
             return;
         case 'doctor':
             await runDoctorCommand(args, options);
+            return;
+        case 'package':
+            await runPackageCommand(args, options);
             return;
         case 'worktree':
             await runWorktreeCommand(args, options);

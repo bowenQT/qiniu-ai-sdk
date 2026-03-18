@@ -16,5 +16,6 @@ This directory stores durable repo knowledge for `qiniu_ai_sdk`.
 - `spec/guides/`: cross-cutting rules and expectations.
 - `spec/sdk/`: SDK-specific architecture, module boundaries, and verification.
 - `plans/`: durable plans created or promoted for future contributors.
+- `packages/`: tracked change-package briefs used by the package-first operating model.
 - `integrations/`: runtime bridge documents such as Antigravity integration notes.
 - `local/`: ignored cache or scratch state.

@@ -272,6 +272,49 @@ describe('Checkpointer Pending Approval', () => {
             expect(result.toolResult).toContain('SMTP failed');
         });
 
+        it('should reject malformed batch tool arguments without calling the executor', async () => {
+            const checkpoint: Checkpoint = {
+                metadata: {
+                    id: 'ckpt_batch',
+                    threadId: 'thread-1',
+                    createdAt: Date.now(),
+                    stepCount: 1,
+                    status: 'pending_approval',
+                    pendingApproval: {
+                        toolCalls: [{
+                            id: 'call_1',
+                            function: {
+                                name: 'sendEmail',
+                                arguments: '{"to":',
+                            },
+                        }],
+                        requestedAt: Date.now(),
+                    },
+                },
+                state: {
+                    internalMessages: [{ role: 'user', content: 'Send email' }],
+                    messages: [{ role: 'user', content: 'Send email' }],
+                    stepCount: 1,
+                    maxSteps: 10,
+                    done: false,
+                    output: '',
+                    reasoning: '',
+                    finishReason: null,
+                },
+            };
+
+            const mockExecutor = vi.fn();
+            const result = await resumeWithApproval(checkpoint, true, mockExecutor);
+
+            expect(mockExecutor).not.toHaveBeenCalled();
+            expect(result.toolExecuted).toBe(false);
+            expect(result.toolResults).toEqual([{
+                toolCallId: 'call_1',
+                result: expect.stringContaining('Invalid tool arguments JSON'),
+            }]);
+            expect(result.state.messages).toHaveLength(2);
+        });
+
         it('should throw if checkpoint has no pending approval', async () => {
             const checkpoint: Checkpoint = {
                 metadata: {
