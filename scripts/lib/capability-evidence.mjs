@@ -69,6 +69,9 @@ export function collectPromotionDecisions(files, { readJsonFile = readJson, rela
         evidenceBasis: Array.isArray(decision.evidenceBasis) ? decision.evidenceBasis : [],
         decisionSource: decision.decisionSource,
         decisionAt: decision.decisionAt,
+        requirements: decision.requirements && typeof decision.requirements === 'object'
+          ? decision.requirements
+          : undefined,
         trackedPath: relativeToRoot(filePath),
       });
     }
@@ -96,9 +99,29 @@ export function computeCapabilityEvidenceGeneratedAt(modules, decisions) {
   return latest > 0 ? new Date(latest).toISOString() : '1970-01-01T00:00:00.000Z';
 }
 
-function buildLatestDecisionIndex(decisions) {
+function matchesLiveVerifyGateRequirement(requirement, latestLiveVerifyGate) {
+  if (!requirement) return true;
+  if (!latestLiveVerifyGate) return false;
+  if (requirement.path && latestLiveVerifyGate.path !== requirement.path) return false;
+  if (requirement.policyProfile && latestLiveVerifyGate.policyProfile !== requirement.policyProfile) return false;
+  if (requirement.status && latestLiveVerifyGate.status !== requirement.status) return false;
+  if (
+    requirement.promotionGateStatus
+    && latestLiveVerifyGate.promotionGateStatus !== requirement.promotionGateStatus
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function isApplicablePromotionDecision(decision, latestLiveVerifyGate) {
+  return matchesLiveVerifyGateRequirement(decision.requirements?.liveVerifyGate, latestLiveVerifyGate);
+}
+
+function buildLatestDecisionIndex(decisions, latestLiveVerifyGate) {
   const index = new Map();
   for (const decision of decisions) {
+    if (!isApplicablePromotionDecision(decision, latestLiveVerifyGate)) continue;
     index.set(capabilityModuleKey(decision.module), decision);
   }
   return index;
@@ -197,27 +220,22 @@ export function buildCapabilityEvidenceSnapshot(baseline, decisions, decisionFil
 
   const modules = baseline.modules.map((entry) => ({ ...entry }));
   const index = new Map(modules.map((entry, offset) => [capabilityModuleKey(entry.name), offset]));
-  const latestDecisionIndex = buildLatestDecisionIndex(decisions);
+  const latestDecisionIndex = buildLatestDecisionIndex(decisions, latestLiveVerifyGate);
 
   for (const decision of decisions) {
-    const offset = index.get(capabilityModuleKey(decision.module));
-    if (typeof offset !== 'number') {
+    if (!index.has(capabilityModuleKey(decision.module))) {
       throw new Error(`Tracked promotion decision references unknown module "${decision.module}"`);
     }
-    modules[offset] = {
-      ...modules[offset],
-      maturity: decision.newMaturity,
-      trackedDecision: latestDecisionIndex.get(capabilityModuleKey(decision.module)),
-    };
   }
 
-  for (const entry of modules) {
-    if (!entry.trackedDecision) {
-      const trackedDecision = latestDecisionIndex.get(capabilityModuleKey(entry.name));
-      if (trackedDecision) {
-        entry.trackedDecision = trackedDecision;
-      }
-    }
+  for (const [moduleKey, offset] of index.entries()) {
+    const trackedDecision = latestDecisionIndex.get(moduleKey);
+    if (!trackedDecision) continue;
+    modules[offset] = {
+      ...modules[offset],
+      maturity: trackedDecision.newMaturity,
+      trackedDecision,
+    };
   }
 
   return {

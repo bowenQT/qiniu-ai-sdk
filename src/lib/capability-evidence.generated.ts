@@ -113,6 +113,13 @@ export const TRACKED_PROMOTION_DECISIONS = [
     ],
     "decisionSource": "codex",
     "decisionAt": "2026-03-18T00:00:00.000Z",
+    "requirements": {
+      "liveVerifyGate": {
+        "path": "artifacts/live-verify-gate-nightly.json",
+        "policyProfile": "nightly",
+        "promotionGateStatus": "pass"
+      }
+    },
     "trackedPath": ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json"
   }
 ] as const;
@@ -341,22 +348,19 @@ export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
     "sourceUpdatedAt": "2026-03-14",
     "validatedAt": "2026-03-15",
     "validationLevel": "unit",
-    "notes": "Core subset (create/followUp/createTextResult/followUpTextResult) is beta and requires fresh nightly response-api evidence; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only.",
+    "notes": "Core subset (create/followUp/createTextResult/followUpTextResult) remains beta via tracked promotion, and the stronger evidence-backed beta basis only applies when fresh nightly response-api evidence is present; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only.",
     "trackedDecision": {
-      "packageId": "phase3/cloud-surface/responseapi-evidence-hardening",
+      "packageId": "phase3/cloud-surface/responseapi-beta-promotion",
       "module": "ResponseAPI",
       "oldMaturity": "experimental",
       "newMaturity": "beta",
       "evidenceBasis": [
         "src/modules/response/index.ts#RESPONSE_API_PROMOTION_READINESS_CONTRACT",
-        ".trellis/packages/phase3/cloud-surface-responseapi-evidence-hardening.json",
-        ".trellis/spec/sdk/live-verify-policy.json#profiles.nightly.lanePolicies.cloud-surface",
-        "artifacts/live-verify-gate-nightly.json",
         "tests/unit/modules/response.test.ts"
       ],
       "decisionSource": "codex",
-      "decisionAt": "2026-03-18T00:00:00.000Z",
-      "trackedPath": ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json"
+      "decisionAt": "2026-03-17T13:02:32Z",
+      "trackedPath": ".trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json"
     }
   },
   {

@@ -14,6 +14,13 @@
         "artifacts/live-verify-gate-nightly.json",
         "tests/unit/modules/response.test.ts"
       ],
+      "requirements": {
+        "liveVerifyGate": {
+          "path": "artifacts/live-verify-gate-nightly.json",
+          "policyProfile": "nightly",
+          "promotionGateStatus": "pass"
+        }
+      },
       "decisionSource": "codex",
       "decisionAt": "2026-03-18T00:00:00.000Z"
     }

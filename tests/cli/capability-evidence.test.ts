@@ -21,6 +21,12 @@ describe('capability evidence helpers', () => {
                             oldMaturity: 'experimental',
                             newMaturity: 'beta',
                             evidenceBasis: ['artifacts/verification-report.md'],
+                            requirements: {
+                                liveVerifyGate: {
+                                    policyProfile: 'nightly',
+                                    promotionGateStatus: 'pass',
+                                },
+                            },
                             decisionSource: 'antigravity',
                             decisionAt: '2026-03-16T09:00:00.000Z',
                         },
@@ -45,19 +51,87 @@ describe('capability evidence helpers', () => {
         }, decisions, ['.trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json'], {
             path: 'artifacts/live-verify-gate.json',
             status: 'ok',
-            promotionGateStatus: 'held',
+            policyProfile: 'nightly',
+            promotionGateStatus: 'pass',
         });
 
         expect(snapshot.generatedAt).toBe('2026-03-16T09:00:00.000Z');
         expect(snapshot.modules[0]?.maturity).toBe('beta');
         expect(snapshot.modules[0]?.trackedDecision?.module).toBe('ResponseAPI');
         expect(snapshot.promotionDecisions).toHaveLength(1);
-        expect(snapshot.latestLiveVerifyGate?.promotionGateStatus).toBe('held');
+        expect(snapshot.latestLiveVerifyGate?.promotionGateStatus).toBe('pass');
 
         const generatedModule = renderCapabilityEvidenceGeneratedModule(snapshot);
         expect(generatedModule).toContain('LATEST_LIVE_VERIFY_GATE');
         expect(generatedModule).toContain('export const MODULE_MATURITY_SOURCE');
         expect(generatedModule).toContain('"maturity": "beta"');
+    });
+
+    it('keeps the earlier applicable decision when nightly-gated evidence is unavailable', () => {
+        const decisions = collectPromotionDecisions(
+            [
+                '/repo/.trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json',
+                '/repo/.trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json',
+            ],
+            {
+                readJsonFile: (filePath: string) => ({
+                    version: 1,
+                    packageId: filePath.includes('evidence-hardening')
+                        ? 'phase3/cloud-surface/responseapi-evidence-hardening'
+                        : 'phase3/cloud-surface/responseapi-beta-promotion',
+                    generatedAt: '2026-03-16T00:00:00.000Z',
+                    decisions: [
+                        filePath.includes('evidence-hardening')
+                            ? {
+                                module: 'ResponseAPI',
+                                oldMaturity: 'experimental',
+                                newMaturity: 'beta',
+                                evidenceBasis: ['artifacts/live-verify-gate-nightly.json'],
+                                requirements: {
+                                    liveVerifyGate: {
+                                        path: 'artifacts/live-verify-gate-nightly.json',
+                                        policyProfile: 'nightly',
+                                        promotionGateStatus: 'pass',
+                                    },
+                                },
+                                decisionSource: 'codex',
+                                decisionAt: '2026-03-18T00:00:00.000Z',
+                            }
+                            : {
+                                module: 'ResponseAPI',
+                                oldMaturity: 'experimental',
+                                newMaturity: 'beta',
+                                evidenceBasis: ['tests/unit/modules/response.test.ts'],
+                                decisionSource: 'codex',
+                                decisionAt: '2026-03-17T13:02:32.000Z',
+                            },
+                    ],
+                }),
+                relativeToRoot: (value: string) => value.replace('/repo/', ''),
+            },
+        );
+
+        const snapshot = buildCapabilityEvidenceSnapshot({
+            version: 1,
+            modules: [
+                {
+                    name: 'ResponseAPI',
+                    maturity: 'experimental',
+                    docsUrl: 'https://apidocs.qnaigc.com/417773141e0',
+                    sourceUpdatedAt: '2026-03-14',
+                    validatedAt: '2026-03-15',
+                    validationLevel: 'unit',
+                },
+            ],
+        }, decisions, [
+            '.trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json',
+            '.trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json',
+        ]);
+
+        expect(snapshot.modules[0]?.maturity).toBe('beta');
+        expect(snapshot.modules[0]?.trackedDecision?.packageId).toBe(
+            'phase3/cloud-surface/responseapi-beta-promotion',
+        );
     });
 
     it('rejects tracked promotion decisions for unknown modules', () => {

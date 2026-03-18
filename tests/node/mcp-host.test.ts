@@ -655,7 +655,7 @@ describe('NodeMCPHost', () => {
             'mcp-host-interop',
         ]);
         expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.deferredRisks).toEqual(
-            DEFAULT_MCP_INTEROP_DEFERRED_RISKS,
+            DEFAULT_MCP_INTEROP_DEFERRED_RISKS.slice(1),
         );
         expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.trackedDecisionPath).toBe(
             '.trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json',

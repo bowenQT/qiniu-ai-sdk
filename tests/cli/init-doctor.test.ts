@@ -205,7 +205,7 @@ describe('CLI init and doctor', () => {
             expect.stringContaining('tracked decision experimental -> beta'),
         );
         expect(consoleLogSpy).toHaveBeenCalledWith(
-            expect.stringContaining('requires fresh nightly response-api evidence'),
+            expect.stringContaining('only applies when fresh nightly response-api evidence is present'),
         );
     });
 
@@ -240,7 +240,7 @@ describe('CLI init and doctor', () => {
             expect.stringContaining('ResponseAPI imports detected (beta, unit, validated 2026-03-15, tracked decision experimental -> beta'),
         );
         expect(consoleLogSpy).toHaveBeenCalledWith(
-            expect.stringContaining('requires fresh nightly response-api evidence'),
+            expect.stringContaining('only applies when fresh nightly response-api evidence is present'),
         );
     });
 

@@ -47,7 +47,7 @@ This cookbook provides focused, copy‑ready examples for common workflows.
 
 ### Product Surface Notes (Phase 3)
 
-- `ResponseAPI` is treated as beta only for the core subset: `create`, `followUp`, `createTextResult`, and `followUpTextResult`; this beta claim depends on fresh nightly `response-api` evidence.
+- `ResponseAPI` is treated as beta only for the core subset: `create`, `followUp`, `createTextResult`, and `followUpTextResult`; the stronger evidence-backed beta basis only applies when fresh nightly `response-api` evidence is present.
 - Other `ResponseAPI` helpers remain deferred/provider-only in this phase, including stream, JSON/messages, reasoning, and chat-completion projection helpers.
 - `NodeMCPHost` remains `beta (held)`; it only forwards already-resolved bearer tokens via `token` or `tokenProvider`, and the remaining deferred risks are OAuth token acquisition beyond that boundary plus cross-server routing.
 

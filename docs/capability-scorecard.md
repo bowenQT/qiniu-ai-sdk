@@ -55,7 +55,7 @@ This document is generated from the SDK capability registry and is intended to m
 | NodeMCPHost | beta | beta (held) | unit |  | Beta is held on remaining deferred risks: OAuth token acquisition beyond already-resolved bearer tokens and cross-server routing. | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
 | PostgresCheckpointer | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
 | RedisCheckpointer | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
-| ResponseAPI | beta | experimental -> beta | unit | 2026-03-15 | Core subset (create/followUp/createTextResult/followUpTextResult) is beta and requires fresh nightly response-api evidence; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only. | https://apidocs.qnaigc.com/417773141e0 |
+| ResponseAPI | beta | experimental -> beta | unit | 2026-03-15 | Core subset (create/followUp/createTextResult/followUpTextResult) remains beta via tracked promotion, and the stronger evidence-backed beta basis only applies when fresh nightly response-api evidence is present; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only. | https://apidocs.qnaigc.com/417773141e0 |
 | sandbox | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | skills | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | A2A | experimental |  | unit |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |

@@ -118,7 +118,7 @@ export const DEFAULT_MCP_INTEROP_DEFERRED_RISKS = [
     'HTTP interop evidence is collected per server; cross-server routing remains a higher-level integration concern.',
 ] as const;
 
-const MCP_INTEROP_REDUCED_DEFERRED_RISKS = DEFAULT_MCP_INTEROP_DEFERRED_RISKS;
+const MCP_INTEROP_REDUCED_DEFERRED_RISKS = DEFAULT_MCP_INTEROP_DEFERRED_RISKS.slice(1);
 
 export const NODE_MCPHOST_PROMOTION_READINESS_CONTRACT: NodeMCPHostPromotionReadinessContract = Object.freeze({
     officialSurface: [

@@ -4,6 +4,17 @@ export type ModuleMaturity = 'ga' | 'beta' | 'experimental';
 export type ValidationLevel = 'static' | 'unit' | 'contract' | 'live';
 export type CapabilityType = 'chat' | 'image' | 'video';
 
+export interface TrackedPromotionDecisionLiveVerifyGateRequirement {
+    path?: string;
+    policyProfile?: string;
+    status?: 'ok' | 'warn' | 'fail';
+    promotionGateStatus?: 'pass' | 'held' | 'block' | 'unavailable';
+}
+
+export interface TrackedPromotionDecisionRequirements {
+    liveVerifyGate?: TrackedPromotionDecisionLiveVerifyGateRequirement;
+}
+
 export interface TrackedPromotionDecisionInfo {
     packageId: string;
     module: string;
@@ -12,6 +23,7 @@ export interface TrackedPromotionDecisionInfo {
     evidenceBasis: readonly string[];
     decisionSource: string;
     decisionAt: string;
+    requirements?: TrackedPromotionDecisionRequirements;
     trackedPath?: string;
 }
 
