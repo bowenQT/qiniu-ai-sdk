@@ -153,8 +153,10 @@ describe('Phase 3: Response API Module (@experimental)', () => {
             'pr: chat,response-api',
             'nightly: chat,response-api',
         ]);
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.nightlyEvidenceFreshness).toBe('required');
+        expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.evidenceBackedBeta).toBe('nightly');
         expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.trackedDecisionPath).toBe(
-            '.trellis/decisions/phase3/phase3-cloud-surface-responseapi-beta-promotion.json',
+            '.trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json',
         );
         expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.decisionStatus).toBe('held');
     });

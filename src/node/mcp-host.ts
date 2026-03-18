@@ -67,10 +67,6 @@ export interface NodeMCPHostInteropProbeResult {
 
 const MCP_INTEROP_LIST_CHANGED_RISK =
     'Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.';
-const MCP_INTEROP_REDUCED_DEFERRED_RISKS = [
-    'OAuth discovery covers metadata endpoints only; token acquisition flows remain out of scope for this package.',
-    'HTTP interop evidence is collected per server; multi-server routing remains a higher-level integration concern.',
-] as const;
 
 export interface NodeMCPHostToolInfo {
     serverName: string;
@@ -118,9 +114,11 @@ export interface NodeMCPHostPromotionReadinessContract {
 
 export const DEFAULT_MCP_INTEROP_DEFERRED_RISKS = [
     MCP_INTEROP_LIST_CHANGED_RISK,
-    'OAuth discovery covers metadata endpoints only; token acquisition flows remain out of scope for this package.',
-    'HTTP interop evidence is collected per server; multi-server routing remains a higher-level integration concern.',
+    'NodeMCPHost only forwards already-resolved HTTP bearer tokens through `token` or `tokenProvider`; OAuth discovery, authorization, refresh, callback, and device-code flows remain out of scope for this package.',
+    'HTTP interop evidence is collected per server; cross-server routing remains a higher-level integration concern.',
 ] as const;
+
+const MCP_INTEROP_REDUCED_DEFERRED_RISKS = DEFAULT_MCP_INTEROP_DEFERRED_RISKS;
 
 export const NODE_MCPHOST_PROMOTION_READINESS_CONTRACT: NodeMCPHostPromotionReadinessContract = Object.freeze({
     officialSurface: [
@@ -142,7 +140,7 @@ export const NODE_MCPHOST_PROMOTION_READINESS_CONTRACT: NodeMCPHostPromotionRead
         'mcp-host-interop',
     ],
     deferredRisks: MCP_INTEROP_REDUCED_DEFERRED_RISKS,
-    trackedDecisionPath: '.trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json',
+    trackedDecisionPath: '.trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json',
     decisionStatus: 'held',
 });
 
@@ -533,6 +531,7 @@ export class NodeMCPHost implements MCPHostProvider {
             });
         }
 
+        // NodeMCPHost does not initiate OAuth; it only forwards already-resolved bearer tokens.
         const token = server.token ?? await server.tokenProvider?.();
         const headers = buildHttpHeaders(server, token);
 
