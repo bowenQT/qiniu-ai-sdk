@@ -174,6 +174,30 @@ describe('NodeMCPHost', () => {
         );
     });
 
+    it('treats oauth config as metadata-only during HTTP connect', async () => {
+        const { NodeMCPHost } = await import('../../src/node/mcp-host');
+        const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
+
+        const host = new NodeMCPHost({
+            servers: [
+                {
+                    name: 'server-oauth',
+                    transport: 'http',
+                    url: 'http://localhost:3002/mcp',
+                    oauth: {
+                        clientId: 'client-id',
+                        scopes: ['read:tools'],
+                    },
+                },
+            ],
+        });
+
+        await host.connect();
+
+        const transportCall = vi.mocked(StreamableHTTPClientTransport).mock.calls[0];
+        expect(transportCall?.[1]?.requestInit?.headers).not.toHaveProperty('Authorization');
+    });
+
     it('getTools() returns RegisteredTool[] with MCP source', async () => {
         const { NodeMCPHost } = await import('../../src/node/mcp-host');
 
@@ -631,10 +655,10 @@ describe('NodeMCPHost', () => {
             'mcp-host-interop',
         ]);
         expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.deferredRisks).toEqual(
-            DEFAULT_MCP_INTEROP_DEFERRED_RISKS.slice(1),
+            DEFAULT_MCP_INTEROP_DEFERRED_RISKS,
         );
         expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.trackedDecisionPath).toBe(
-            '.trellis/decisions/phase3/phase3-node-integrations-mcphost-held-risk-reduction.json',
+            '.trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json',
         );
         expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.decisionStatus).toBe('held');
     });
