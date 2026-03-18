@@ -1,6 +1,6 @@
 # Phase 3 Batch 2 Direction Review
 
-Status: proposed
+Status: adopted
 
 Entry baseline: `2cb6bba`
 
@@ -39,3 +39,10 @@ Batch 2 should therefore prioritize turning nightly evidence into a first-class 
 - Is nightly evidence ingestion strong enough to support future maturity changes without transcript-only justification?
 - Should `ResponseAPI` remain `beta` if nightly evidence is temporarily absent, or should report output downgrade it to held/unverified until the next nightly run?
 - Is OAuth token acquisition the next highest-leverage `NodeMCPHost` risk, or should multi-server routing be clarified first?
+
+## Adopted Batch 2 Queue
+
+1. `phase3/foundation/nightly-evidence-ingestion`
+2. `phase3/cloud-surface/responseapi-evidence-hardening`
+3. `phase3/node-integrations/mcphost-oauth-boundary`
+4. `phase3/foundation/promoted-surface-docs-guard`
