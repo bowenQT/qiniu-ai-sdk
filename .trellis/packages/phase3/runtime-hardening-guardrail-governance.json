@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "packageId": "phase3/runtime-hardening/guardrail-governance",
+  "phase": "phase3",
+  "ownerLane": "runtime-hardening",
+  "category": "standard",
+  "topic": "guardrail-governance",
+  "goal": "Add versioned guardrail governance and promotion gating",
+  "successCriteria": [
+    "Guardrail policies can be versioned and referenced without changing runtime semantics.",
+    "Guardrail promotion decisions cite evaluation evidence and readiness state."
+  ],
+  "touchedSurfaces": [
+    "src/ai/guardrails",
+    "src/ai/control-plane",
+    "tests/unit/ai"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/runtime-hardening/guardrail-governance",
+  "branch": "codex/phase3/runtime-hardening/guardrail-governance",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/phase3-guardrail-governance",
+  "createdAt": "2026-03-18T13:18:19.782Z"
+}

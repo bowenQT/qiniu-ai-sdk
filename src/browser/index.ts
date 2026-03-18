@@ -136,6 +136,41 @@ export type {
     AgentThreadOptions,
 } from '../ai/create-agent';
 
+// Guardrails
+export {
+    GuardrailChain,
+    GuardrailBlockedError,
+    InMemoryGuardrailPolicyStore,
+    buildGuardrailPromotionDecision,
+    createGuardrailPolicyRecord,
+    createGuardrailPolicyRecordFromLabels,
+    evaluateGuardrailPolicy,
+    inputFilter,
+    outputFilter,
+    toolFilter,
+    tokenLimiter,
+    ACTION_PRIORITY,
+} from '../ai/guardrails';
+export type {
+    GuardrailPolicyEvaluationInput,
+    GuardrailPolicyEvaluationResult,
+    GuardrailPolicyEvaluationStatus,
+    GuardrailPolicyPromotionDecisionInput,
+    GuardrailPolicyRecord,
+    GuardrailPolicyStore,
+    Guardrail,
+    CanonicalGuardrailPhase,
+    GuardrailPhase,
+    GuardrailAction,
+    GuardrailContext,
+    GuardrailResult,
+    GuardrailChainResult,
+    ContentFilterConfig,
+    ContentCategory,
+    TokenLimiterConfig,
+    GuardrailTokenStore,
+} from '../ai/guardrails';
+
 // Tool Approval
 export type { ApprovalConfig, ApprovalHandler, ApprovalContext, ApprovalResult } from '../ai/tool-approval';
 

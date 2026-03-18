@@ -143,6 +143,10 @@ describe('entry points', () => {
         expect(root.listModels).toBeDefined();
         expect(root.getModuleMaturity).toBeDefined();
         expect(root.MemoryCheckpointer).toBeDefined();
+        expect(root.GuardrailChain).toBeDefined();
+        expect(root.InMemoryGuardrailPolicyStore).toBeDefined();
+        expect(root.createGuardrailPolicyRecord).toBeDefined();
+        expect(root.evaluateGuardrailPolicy).toBeDefined();
         expect('auditLogger' in root).toBe(false);
         expect('QiniuSandbox' in root).toBe(false);
         expect('SkillLoader' in root).toBe(false);
@@ -161,6 +165,8 @@ describe('entry points', () => {
 
         expect(core.createAgent).toBeDefined();
         expect(core.generateText).toBeDefined();
+        expect(core.GuardrailChain).toBeDefined();
+        expect(core.InMemoryGuardrailPolicyStore).toBeDefined();
         expect('QiniuAI' in core).toBe(false);
         expect('auditLogger' in core).toBe(false);
     });
@@ -199,6 +205,8 @@ describe('entry points', () => {
 
         expect(browser.createAgent).toBeDefined();
         expect(browser.listModels).toBeDefined();
+        expect(browser.GuardrailChain).toBeDefined();
+        expect(browser.InMemoryGuardrailPolicyStore).toBeDefined();
         expect('MCPHttpTransport' in browser).toBe(false);
         expect('FileTokenStore' in browser).toBe(false);
         expect('NodeMCPHost' in browser).toBe(false);

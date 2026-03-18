@@ -193,6 +193,11 @@ export type {
 export {
     GuardrailChain,
     GuardrailBlockedError,
+    InMemoryGuardrailPolicyStore,
+    buildGuardrailPromotionDecision,
+    createGuardrailPolicyRecord,
+    createGuardrailPolicyRecordFromLabels,
+    evaluateGuardrailPolicy,
     inputFilter,
     outputFilter,
     toolFilter,
@@ -200,6 +205,12 @@ export {
     ACTION_PRIORITY,
 } from './ai/guardrails';
 export type {
+    GuardrailPolicyEvaluationInput,
+    GuardrailPolicyEvaluationResult,
+    GuardrailPolicyEvaluationStatus,
+    GuardrailPolicyPromotionDecisionInput,
+    GuardrailPolicyRecord,
+    GuardrailPolicyStore,
     Guardrail,
     CanonicalGuardrailPhase,
     GuardrailPhase,

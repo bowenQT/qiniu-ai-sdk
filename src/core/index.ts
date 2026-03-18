@@ -145,23 +145,24 @@ export type {
 export {
     GuardrailChain,
     GuardrailBlockedError,
-} from '../ai/guardrails/chain';
-export {
+    InMemoryGuardrailPolicyStore,
+    buildGuardrailPromotionDecision,
+    createGuardrailPolicyRecord,
+    createGuardrailPolicyRecordFromLabels,
+    evaluateGuardrailPolicy,
     inputFilter,
-} from '../ai/guardrails/input-filter';
-export {
     outputFilter,
-} from '../ai/guardrails/output-filter';
-export {
     toolFilter,
-} from '../ai/guardrails/tool-filter';
-export {
     tokenLimiter,
-} from '../ai/guardrails/token-limiter';
-export {
     ACTION_PRIORITY,
-} from '../ai/guardrails/types';
+} from '../ai/guardrails';
 export type {
+    GuardrailPolicyEvaluationInput,
+    GuardrailPolicyEvaluationResult,
+    GuardrailPolicyEvaluationStatus,
+    GuardrailPolicyPromotionDecisionInput,
+    GuardrailPolicyRecord,
+    GuardrailPolicyStore,
     Guardrail,
     CanonicalGuardrailPhase,
     GuardrailPhase,
@@ -173,7 +174,7 @@ export type {
     ContentCategory,
     TokenLimiterConfig,
     GuardrailTokenStore,
-} from '../ai/guardrails/types';
+} from '../ai/guardrails';
 
 // Crew
 export {

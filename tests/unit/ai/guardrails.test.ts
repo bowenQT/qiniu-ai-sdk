@@ -9,15 +9,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
     GuardrailChain,
     GuardrailBlockedError,
+    InMemoryGuardrailPolicyStore,
+    buildGuardrailPromotionDecision,
+    createGuardrailPolicyRecord,
+    createGuardrailPolicyRecordFromLabels,
+    evaluateGuardrailPolicy,
     inputFilter,
     outputFilter,
     toolFilter,
     tokenLimiter,
     ACTION_PRIORITY,
 } from '../../../src/ai/guardrails';
+import { createRevisionRef } from '../../../src/ai/control-plane';
 import { auditLogger, AuditLoggerCollector } from '../../../src/node/audit-logger';
 import { resolveFileUrlPath } from '../../../src/node/audit-logger';
-import type { Guardrail, GuardrailContext, GuardrailResult } from '../../../src/ai/guardrails/types';
+import type {
+    Guardrail,
+    GuardrailChainResult,
+    GuardrailContext,
+    GuardrailResult,
+} from '../../../src/ai/guardrails/types';
 
 // ============================================================================
 // GuardrailChain Tests
@@ -156,6 +167,83 @@ describe('GuardrailChain', () => {
         expect(inputResult.action).toBe('warn');
         expect(outputResult.action).toBe('redact');
         expect(outputResult.content).toBe('[SAFE]');
+    });
+});
+
+describe('guardrail governance', () => {
+    it('creates guardrail policy records and keeps guardrail-policy kind', () => {
+        const record = createGuardrailPolicyRecordFromLabels({
+            policyId: 'guardrail-policy-1',
+            revisionId: 'revision-1',
+            labels: ['candidate', 'production'],
+            metadata: { owner: 'runtime-hardening' },
+        });
+
+        expect(record.revision.kind).toBe('guardrail-policy');
+        expect(record.revision.labels).toEqual(['candidate', 'production']);
+        expect(record.metadata).toEqual({ owner: 'runtime-hardening' });
+    });
+
+    it('evaluates guardrail policies from chain results and derives promotion decisions', () => {
+        const store = new InMemoryGuardrailPolicyStore();
+        const record = createGuardrailPolicyRecord({
+            policyId: 'guardrail-policy-2',
+            revision: createRevisionRef({
+                kind: 'guardrail-policy',
+                revisionId: 'revision-2',
+                labels: ['staging'],
+                createdAt: '2026-03-18T00:00:00.000Z',
+            }),
+            metadata: { owner: 'platform' },
+        });
+
+        store.put(record);
+
+        const chainResult: GuardrailChainResult = {
+            action: 'warn',
+            content: 'sanitized',
+            results: [
+                {
+                    action: 'warn',
+                    guardrailName: 'outputFilter',
+                    reason: 'sensitive content detected',
+                },
+            ],
+            shouldProceed: true,
+        };
+
+        const evaluation = evaluateGuardrailPolicy(record, {
+            chainResult,
+            artifactRefs: ['trace:1'],
+            metadata: { suite: 'smoke' },
+        });
+        const decision = buildGuardrailPromotionDecision(record, evaluation, {
+            artifactRefs: ['report:1'],
+            summary: 'manual review required',
+        });
+
+        expect(store.get('guardrail-policy-2')).toBe(record);
+        expect(evaluation.status).toBe('warn');
+        expect(evaluation.score).toBe(0.5);
+        expect(evaluation.summary).toContain('review');
+        expect(evaluation.warnings).toEqual([
+            '\"outputFilter\": sensitive content detected',
+        ]);
+        expect(decision.decisionStatus).toBe('hold');
+        expect(decision.targetKind).toBe('guardrail-policy');
+        expect(decision.candidateId).toBe('guardrail-policy-2@revision-2');
+        expect(decision.evidenceRefs).toEqual(['trace:1', 'report:1']);
+    });
+
+    it('rejects non guardrail-policy revisions', () => {
+        expect(() => createGuardrailPolicyRecord({
+            policyId: 'guardrail-policy-3',
+            revision: createRevisionRef({
+                kind: 'prompt',
+                revisionId: 'revision-3',
+                labels: ['candidate'],
+            }),
+        })).toThrow('Guardrail policy revision must use kind "guardrail-policy"');
     });
 });
 
