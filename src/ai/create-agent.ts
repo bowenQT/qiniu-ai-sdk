@@ -25,6 +25,13 @@ import {
 } from './generate-text';
 import { streamText, type StreamTextResult } from './stream-text';
 import type { ControlPlaneRunMetadata, PricePolicy, TraceStore } from './control-plane';
+import type {
+    ArtifactRegistry,
+    ControlPlaneResolutionContext,
+    LabelResolver,
+    ResolvableControlPlaneRunMetadata,
+} from './control-plane/revisions';
+import { resolveControlPlaneRunMetadata } from './control-plane/revisions';
 
 // ============================================================================
 // Types
@@ -82,7 +89,13 @@ export interface AgentConfig {
     /** Optional model pricing lookup for per-step cost attribution */
     pricePolicy?: PricePolicy;
     /** Optional run metadata/revision references attached to emitted traces */
-    runMetadata?: ControlPlaneRunMetadata;
+    runMetadata?: ResolvableControlPlaneRunMetadata;
+    /** Optional revision store for resolving selector-based run metadata */
+    revisionStore?: ControlPlaneResolutionContext['revisionStore'];
+    /** Optional label resolver for resolving selector-based run metadata */
+    labelResolver?: LabelResolver;
+    /** Optional artifact registry for resolving selector-based run metadata */
+    artifactRegistry?: ArtifactRegistry;
 }
 
 /** Options for single run (without thread) */
@@ -302,7 +315,18 @@ export function createAgent(config: AgentConfig): Agent {
         traceStore,
         pricePolicy,
         runMetadata,
+        revisionStore,
+        labelResolver,
+        artifactRegistry,
     } = config;
+
+    const controlPlaneResolutionContext: ControlPlaneResolutionContext = {
+        revisionStore,
+        labelResolver,
+        artifactRegistry,
+    };
+
+    const resolveRunMetadata = () => resolveControlPlaneRunMetadata(runMetadata, controlPlaneResolutionContext);
 
     // Tool registry for proper priority-based conflict resolution
     const toolRegistry = new ToolRegistry();
@@ -508,6 +532,7 @@ export function createAgent(config: AgentConfig): Agent {
 
     const createRuntimeGraph = (
         threadId: string,
+        resolvedRunMetadata: ControlPlaneRunMetadata | undefined,
         onStepFinish?: (step: StepResult) => void,
         onNodeEnter?: (nodeName: string) => void,
         onNodeExit?: (nodeName: string) => void,
@@ -533,7 +558,7 @@ export function createAgent(config: AgentConfig): Agent {
         skillReferenceMode: config.skillInjection?.referenceMode,
         traceStore,
         pricePolicy,
-        runMetadata,
+        runMetadata: resolvedRunMetadata,
         events: {
             onStepFinish,
             onNodeEnter,
@@ -584,6 +609,7 @@ export function createAgent(config: AgentConfig): Agent {
     const buildOptions = (
         prompt: string,
         threadId?: string,
+        resolvedRunMetadata?: ControlPlaneRunMetadata,
         onStepFinish?: (step: StepResult) => void,
         onNodeEnter?: (nodeName: string) => void,
         onNodeExit?: (nodeName: string) => void,
@@ -613,12 +639,13 @@ export function createAgent(config: AgentConfig): Agent {
         skillReferenceMode: config.skillInjection?.referenceMode,
         traceStore,
         pricePolicy,
-        runMetadata,
+        runMetadata: resolvedRunMetadata,
     });
 
     // Build options helper for streamText
     const buildStreamOptions = (
         prompt: string,
+        resolvedRunMetadata?: ControlPlaneRunMetadata,
         onStepFinish?: (step: StepResult) => void,
         onNodeEnter?: (nodeName: string) => void,
         onNodeExit?: (nodeName: string) => void,
@@ -642,6 +669,9 @@ export function createAgent(config: AgentConfig): Agent {
         guardrails,
         skillReferenceMode: config.skillInjection?.referenceMode,
         agentId,
+        traceStore,
+        pricePolicy,
+        runMetadata: resolvedRunMetadata,
         onStepFinish,
         onNodeEnter,
         onNodeExit,
@@ -663,6 +693,7 @@ export function createAgent(config: AgentConfig): Agent {
          */
         async run(options: AgentRunOptions): Promise<GenerateTextWithGraphResult> {
             const { prompt, onStepFinish, onNodeEnter, onNodeExit, abortSignal: runAbortSignal } = options;
+            const resolvedRunMetadata = await resolveRunMetadata();
 
             // Lazy connect MCP host on first run
             if (hostProvider && !hostConnected) {
@@ -670,7 +701,7 @@ export function createAgent(config: AgentConfig): Agent {
             }
 
             return generateTextWithGraph({
-                ...buildOptions(prompt, undefined, onStepFinish, onNodeEnter, onNodeExit),
+                ...buildOptions(prompt, undefined, resolvedRunMetadata, onStepFinish, onNodeEnter, onNodeExit),
                 abortSignal: runAbortSignal ?? abortSignal,
                 agentId,
             });
@@ -681,6 +712,7 @@ export function createAgent(config: AgentConfig): Agent {
          */
         async runWithThread(options: AgentRunWithThreadOptions): Promise<GenerateTextWithGraphResult> {
             const { prompt, threadId, resumeFromCheckpoint = true, onStepFinish, onNodeEnter, onNodeExit } = options;
+            const resolvedRunMetadata = await resolveRunMetadata();
 
             requirePersistentThreadSupport('runWithThread', threadId);
 
@@ -690,7 +722,7 @@ export function createAgent(config: AgentConfig): Agent {
             }
 
             return generateTextWithGraph({
-                ...buildOptions(prompt, threadId, onStepFinish, onNodeEnter, onNodeExit),
+                ...buildOptions(prompt, threadId, resolvedRunMetadata, onStepFinish, onNodeEnter, onNodeExit),
                 checkpointer,
                 sessionStore,
                 resumeFromCheckpoint,
@@ -703,6 +735,7 @@ export function createAgent(config: AgentConfig): Agent {
          */
         async stream(options: AgentStreamOptions): Promise<StreamTextResult> {
             const { prompt, onStepFinish, onNodeEnter, onNodeExit, abortSignal: streamAbortSignal } = options;
+            const resolvedRunMetadata = await resolveRunMetadata();
 
             // Lazy connect MCP host on first stream
             if (hostProvider && !hostConnected) {
@@ -710,7 +743,7 @@ export function createAgent(config: AgentConfig): Agent {
             }
 
             return streamText({
-                ...buildStreamOptions(prompt, onStepFinish, onNodeEnter, onNodeExit),
+                ...buildStreamOptions(prompt, resolvedRunMetadata, onStepFinish, onNodeEnter, onNodeExit),
                 abortSignal: streamAbortSignal ?? abortSignal,
             });
         },
@@ -720,6 +753,7 @@ export function createAgent(config: AgentConfig): Agent {
          */
         async streamWithThread(options: AgentStreamWithThreadOptions): Promise<StreamTextResult> {
             const { prompt, threadId, resumeFromCheckpoint = true, onStepFinish, onNodeEnter, onNodeExit, abortSignal: streamAbortSignal } = options;
+            const resolvedRunMetadata = await resolveRunMetadata();
 
             requirePersistentThreadSupport('streamWithThread', threadId);
 
@@ -729,7 +763,7 @@ export function createAgent(config: AgentConfig): Agent {
             }
 
             return streamText({
-                ...buildStreamOptions(prompt, onStepFinish, onNodeEnter, onNodeExit),
+                ...buildStreamOptions(prompt, resolvedRunMetadata, onStepFinish, onNodeEnter, onNodeExit),
                 threadId,
                 checkpointer,
                 sessionStore,
@@ -748,6 +782,7 @@ export function createAgent(config: AgentConfig): Agent {
                 onNodeExit,
                 abortSignal: runAbortSignal,
             } = options;
+            const resolvedRunMetadata = await resolveRunMetadata();
 
             requirePersistentThreadSupport('runResumableWithThread', threadId);
             const resumableCheckpointer = resolveResumableCheckpointer('runResumableWithThread');
@@ -758,6 +793,7 @@ export function createAgent(config: AgentConfig): Agent {
 
             const graph = createRuntimeGraph(
                 threadId,
+                resolvedRunMetadata,
                 onStepFinish,
                 onNodeEnter,
                 onNodeExit,
@@ -779,6 +815,7 @@ export function createAgent(config: AgentConfig): Agent {
 
         async resumeThread(options: AgentResumeThreadOptions): Promise<AgentResumableThreadResult> {
             const { threadId, approvalDecision } = options;
+            const resolvedRunMetadata = await resolveRunMetadata();
 
             requirePersistentThreadSupport('resumeThread', threadId);
             const resumableCheckpointer = resolveResumableCheckpointer('resumeThread');
@@ -788,7 +825,7 @@ export function createAgent(config: AgentConfig): Agent {
                 await agent.connectHost!();
             }
 
-            const graph = createRuntimeGraph(threadId, undefined, undefined, undefined, abortSignal);
+            const graph = createRuntimeGraph(threadId, resolvedRunMetadata, undefined, undefined, undefined, abortSignal);
             const result = await graph.invokeResumable([], {
                 threadId,
                 checkpointer: resumableCheckpointer,

@@ -15,6 +15,11 @@ export {
     createTraceUsage,
     estimateTraceCost,
 } from './runtime';
+export {
+    InMemoryArtifactRegistry,
+    resolveControlPlaneRevisionRef,
+    resolveControlPlaneRunMetadata,
+} from './revisions';
 
 export type {
     ArtifactLabel,
@@ -49,3 +54,10 @@ export type {
     ControlPlaneRunMetadata,
     RuntimeControlPlaneOptions,
 } from './runtime';
+export type {
+    ArtifactRegistry,
+    ControlPlaneResolutionContext,
+    LabelResolver,
+    ResolvableControlPlaneRunMetadata,
+    RevisionSelector,
+} from './revisions';
