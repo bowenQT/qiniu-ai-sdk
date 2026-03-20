@@ -951,6 +951,61 @@ describe('createAgent', () => {
             });
         });
 
+        it('accepts a duck-typed checkpointer-backed sessionStore for resumable runs', async () => {
+            const client = createSequentialStreamClient([
+                {
+                    tool_calls: [
+                        {
+                            id: 'call_duck_store',
+                            type: 'function',
+                            function: { name: 'needsApproval', arguments: '{}' },
+                        },
+                    ],
+                    finishReason: 'tool_calls',
+                },
+                {
+                    content: 'Completed from duck-typed session store',
+                    finishReason: 'stop',
+                },
+            ]);
+            const checkpointer = new MemoryCheckpointer();
+            const delegateStore = new CheckpointerSessionStore(checkpointer);
+            const sessionStore = {
+                checkpointer,
+                load: delegateStore.load.bind(delegateStore),
+                save: delegateStore.save.bind(delegateStore),
+                clear: delegateStore.clear.bind(delegateStore),
+            };
+
+            const agent = createAgent({
+                client,
+                model: 'test-model',
+                sessionStore,
+                tools: {
+                    needsApproval: {
+                        requiresApproval: true,
+                        approvalHandler: async () => ({ approved: false, deferred: true }),
+                        execute: async () => 'ok',
+                    },
+                },
+            });
+
+            const interrupted = await agent.runResumableWithThread({
+                threadId: 'thread-duck-store',
+                prompt: 'Need approval',
+            });
+
+            expect(interrupted.interrupted).toBe(true);
+
+            const resumed = await agent.resumeThread({
+                threadId: 'thread-duck-store',
+                approvalDecision: true,
+            });
+
+            expect(resumed.interrupted).toBe(false);
+            expect(resumed.text).toBe('Completed from duck-typed session store');
+        });
+
         it('rejects resumable runs for non-checkpointer session stores', async () => {
             const client = createMockClient();
             const sessionStore = new MemorySessionStore();

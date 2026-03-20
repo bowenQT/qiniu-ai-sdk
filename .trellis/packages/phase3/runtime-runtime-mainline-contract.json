@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "packageId": "phase3/runtime/runtime-mainline-contract",
+  "phase": "phase3",
+  "ownerLane": "runtime",
+  "category": "standard",
+  "topic": "runtime-mainline-contract",
+  "goal": "Converge the official runtime mainline contract around createAgent plus session store, checkpointer, approval interrupt/resume, memory, and MCP host composition without large-scale runtime rewrites.",
+  "successCriteria": [
+    "A single recommended runtime path is explicit in code-facing docs and examples.",
+    "Runtime mainline contract is backed by focused tests and a smokeable story.",
+    "Experimental orchestration surfaces remain clearly non-mainline."
+  ],
+  "touchedSurfaces": [
+    "src/core",
+    "src/ai",
+    "README.md",
+    "README.zh-CN.md",
+    "COOKBOOK.md"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "No broad agent runtime rewrite.",
+    "No new multi-agent public surface in this package."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/runtime/runtime-mainline-contract",
+  "branch": "codex/phase3/runtime/runtime-mainline-contract",
+  "integrationPrerequisites": [
+    "phase3/foundation/capability-ledger-completion"
+  ],
+  "liveVerifyStatus": {
+    "status": "unavailable",
+    "note": "This package converges runtime contract, docs, and focused verification around the mainline story without depending on broad live verification."
+  },
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/runtime",
+  "createdAt": "2026-03-20T13:42:13.304Z"
+}
