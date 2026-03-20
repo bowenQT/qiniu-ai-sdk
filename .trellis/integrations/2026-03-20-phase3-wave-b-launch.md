@@ -34,6 +34,25 @@ Status: package 1 integrated, remaining Wave B packages released
   - `phase3/runtime-hardening/agent-resume-e2e-contract`
   - `phase3/dx-validation/docs-api-drift-cleanup`
 
+## Active Wave B Workers
+
+- `phase3/cloud-surface/responseapi-surface-split`
+  - branch head: `ab9b961`
+  - worktree: `.worktrees/cloud-surface`
+  - worker: `019d0bab-ecfb-7ca0-989c-ecb363b1d6ee`
+- `phase3/node-integrations/qiniu-mcp-server-truth-sync`
+  - branch head: `68a4d33`
+  - worktree: `.worktrees/node-integrations`
+  - worker: `019d0bab-ed56-7593-93c8-919e98a8086d`
+- `phase3/runtime-hardening/agent-resume-e2e-contract`
+  - branch head: `28538a9`
+  - worktree: `.worktrees/runtime-hardening`
+  - worker: `019d0bab-ed9f-7323-a951-fd3db8e937e4`
+- `phase3/dx-validation/docs-api-drift-cleanup`
+  - branch head: `4e1d79e`
+  - worktree: `.worktrees/dx-validation`
+  - worker: `019d0bab-ef39-7573-b61f-b1eab1d6af2d`
+
 ## Conditions
 
 - `phase3/foundation/export-coverage-guard` must:
