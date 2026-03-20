@@ -4,6 +4,7 @@ import {
     collectPromotionDecisions,
     renderCapabilityEvidenceGeneratedModule,
     resolveCapabilityEvidenceGateArtifact,
+    validateCapabilitySurfaceCoverage,
 } from '../../scripts/lib/capability-evidence.mjs';
 
 describe('capability evidence helpers', () => {
@@ -365,5 +366,83 @@ describe('capability evidence helpers', () => {
             heldEvidenceCount: 0,
             unavailableEvidenceCount: 0,
         });
+    });
+
+    it('validates representative entrypoint exports for tracked public surfaces', () => {
+        expect(() => validateCapabilitySurfaceCoverage({
+            version: 1,
+            modules: [],
+            publicSurfaces: [
+                {
+                    name: 'streamObject',
+                    entrypointExports: {
+                        root: ['streamObject'],
+                        core: ['streamObject'],
+                    },
+                },
+            ],
+            surfaceExclusions: [
+                {
+                    surface: 'Alias-only remaps',
+                    reasonCode: 'duplicate-alias',
+                    reason: 'Re-export aliases that do not widen the contract are excluded from the first-class surface ledger.',
+                },
+            ],
+            surfaceTruthPolicy: {
+                exclusionReasonSemantics: {
+                    'duplicate-alias': 'Re-export aliases that do not widen the consumer-facing contract beyond an already-tracked surface.',
+                },
+            },
+        }, {
+            repoRoot: '/repo',
+            readTextFile: (filePath: string) => {
+                if (filePath.endsWith('src/index.ts') || filePath.endsWith('src/core/index.ts')) {
+                    return "export { streamObject } from './ai/stream-object';\n";
+                }
+                throw new Error(`Unexpected file read: ${filePath}`);
+            },
+        })).not.toThrow();
+    });
+
+    it('rejects public surfaces when representative entrypoint exports disappear', () => {
+        expect(() => validateCapabilitySurfaceCoverage({
+            version: 1,
+            modules: [],
+            publicSurfaces: [
+                {
+                    name: 'ToolRegistry',
+                    entrypointExports: {
+                        root: ['ToolRegistry'],
+                    },
+                },
+            ],
+            surfaceExclusions: [],
+            surfaceTruthPolicy: {
+                exclusionReasonSemantics: {},
+            },
+        }, {
+            repoRoot: '/repo',
+            readTextFile: () => "export { createAgent } from './ai/create-agent';\n",
+        })).toThrow('ToolRegistry');
+    });
+
+    it('rejects exclusion entries that use unknown reason codes', () => {
+        expect(() => validateCapabilitySurfaceCoverage({
+            version: 1,
+            modules: [],
+            publicSurfaces: [],
+            surfaceExclusions: [
+                {
+                    surface: 'Internal helper',
+                    reasonCode: 'unknown-reason',
+                    reason: 'Should fail until the policy is updated.',
+                },
+            ],
+            surfaceTruthPolicy: {
+                exclusionReasonSemantics: {
+                    'duplicate-alias': 'Known reason',
+                },
+            },
+        })).toThrow('unknown reason code');
     });
 });

@@ -44,7 +44,18 @@ export const CAPABILITY_PUBLIC_SURFACES = [
       "src/index.ts",
       "src/core/index.ts",
       "src/browser/index.ts"
-    ]
+    ],
+    "entrypointExports": {
+      "root": [
+        "streamObject"
+      ],
+      "core": [
+        "streamObject"
+      ],
+      "browser": [
+        "streamObject"
+      ]
+    }
   },
   {
     "name": "AgentGraph",
@@ -61,7 +72,18 @@ export const CAPABILITY_PUBLIC_SURFACES = [
       "src/index.ts",
       "src/core/index.ts",
       "src/browser/index.ts"
-    ]
+    ],
+    "entrypointExports": {
+      "root": [
+        "AgentGraph"
+      ],
+      "core": [
+        "AgentGraph"
+      ],
+      "browser": [
+        "AgentGraph"
+      ]
+    }
   },
   {
     "name": "MemoryManager",
@@ -77,7 +99,18 @@ export const CAPABILITY_PUBLIC_SURFACES = [
       "src/index.ts",
       "src/core/index.ts",
       "src/browser/index.ts"
-    ]
+    ],
+    "entrypointExports": {
+      "root": [
+        "MemoryManager"
+      ],
+      "core": [
+        "MemoryManager"
+      ],
+      "browser": [
+        "MemoryManager"
+      ]
+    }
   },
   {
     "name": "ControlPlane",
@@ -93,8 +126,22 @@ export const CAPABILITY_PUBLIC_SURFACES = [
       "tests/unit/ai/control-plane-runtime.test.ts",
       "tests/unit/ai/control-plane-revisions.test.ts",
       "tests/unit/ai/control-plane-optimizer.test.ts",
-      "tests/unit/ai/control-plane-reflection.test.ts"
-    ]
+      "tests/unit/ai/control-plane-reflection.test.ts",
+      "src/index.ts",
+      "src/core/index.ts"
+    ],
+    "entrypointExports": {
+      "root": [
+        "runBoundedReflectionLoop",
+        "DefaultOptimizerPolicy",
+        "InMemoryCandidateStore"
+      ],
+      "core": [
+        "runBoundedReflectionLoop",
+        "DefaultOptimizerPolicy",
+        "InMemoryCandidateStore"
+      ]
+    }
   },
   {
     "name": "ToolRegistry",
@@ -110,7 +157,18 @@ export const CAPABILITY_PUBLIC_SURFACES = [
       "src/index.ts",
       "src/core/index.ts",
       "src/browser/index.ts"
-    ]
+    ],
+    "entrypointExports": {
+      "root": [
+        "ToolRegistry"
+      ],
+      "core": [
+        "ToolRegistry"
+      ],
+      "browser": [
+        "ToolRegistry"
+      ]
+    }
   },
   {
     "name": "Metrics",
@@ -123,8 +181,20 @@ export const CAPABILITY_PUBLIC_SURFACES = [
     "evidenceBasis": [
       "src/lib/metrics.ts",
       "tests/unit/lib/metrics.test.ts",
-      "src/ai/agent-graph.ts"
-    ]
+      "src/ai/agent-graph.ts",
+      "src/index.ts",
+      "src/core/index.ts"
+    ],
+    "entrypointExports": {
+      "root": [
+        "MetricsCollector",
+        "createMetricsHandler"
+      ],
+      "core": [
+        "MetricsCollector",
+        "createMetricsHandler"
+      ]
+    }
   },
   {
     "name": "Tracing",
@@ -138,8 +208,26 @@ export const CAPABILITY_PUBLIC_SURFACES = [
       "src/lib/tracer.ts",
       "src/lib/otel-tracer.ts",
       "src/ai/agent-graph.ts",
-      "tests/unit/ai/agent-graph-trace.test.ts"
-    ]
+      "tests/unit/ai/agent-graph-trace.test.ts",
+      "src/index.ts",
+      "src/core/index.ts",
+      "src/browser/index.ts"
+    ],
+    "entrypointExports": {
+      "root": [
+        "NoopTracer",
+        "ConsoleTracer",
+        "OTelTracer"
+      ],
+      "core": [
+        "NoopTracer",
+        "ConsoleTracer"
+      ],
+      "browser": [
+        "NoopTracer",
+        "ConsoleTracer"
+      ]
+    }
   },
   {
     "name": "PartialJsonParser",
@@ -155,7 +243,21 @@ export const CAPABILITY_PUBLIC_SURFACES = [
       "src/index.ts",
       "src/core/index.ts",
       "src/browser/index.ts"
-    ]
+    ],
+    "entrypointExports": {
+      "root": [
+        "PartialJsonParser",
+        "parsePartialJson"
+      ],
+      "core": [
+        "PartialJsonParser",
+        "parsePartialJson"
+      ],
+      "browser": [
+        "PartialJsonParser",
+        "parsePartialJson"
+      ]
+    }
   },
   {
     "name": "ParallelExecution",
@@ -169,9 +271,16 @@ export const CAPABILITY_PUBLIC_SURFACES = [
       "src/ai/graph/parallel-executor.ts",
       "tests/unit/ai/parallel-executor.test.ts",
       "src/index.ts",
-      "src/core/index.ts",
-      "src/browser/index.ts"
-    ]
+      "src/core/index.ts"
+    ],
+    "entrypointExports": {
+      "root": [
+        "executeParallel"
+      ],
+      "core": [
+        "executeParallel"
+      ]
+    }
   },
   {
     "name": "QINIU_TOOLS",
@@ -186,7 +295,17 @@ export const CAPABILITY_PUBLIC_SURFACES = [
       "tests/unit/ai-tools/index.test.ts",
       "src/index.ts",
       "src/browser/index.ts"
-    ]
+    ],
+    "entrypointExports": {
+      "root": [
+        "QINIU_TOOLS",
+        "getQiniuToolsArray"
+      ],
+      "browser": [
+        "QINIU_TOOLS",
+        "getQiniuToolsArray"
+      ]
+    }
   },
   {
     "name": "Anthropic",
@@ -201,7 +320,15 @@ export const CAPABILITY_PUBLIC_SURFACES = [
       "tests/unit/modules/anthropic.test.ts",
       "src/index.ts",
       "src/qiniu/index.ts"
-    ]
+    ],
+    "entrypointExports": {
+      "root": [
+        "Anthropic"
+      ],
+      "qiniu": [
+        "Anthropic"
+      ]
+    }
   },
   {
     "name": "SkillSuite",
@@ -217,8 +344,17 @@ export const CAPABILITY_PUBLIC_SURFACES = [
       "tests/modules/skills/registry-protocol.test.ts",
       "tests/modules/skills/installer-and-references.test.ts",
       "tests/modules/skills/validator.test.ts",
-      "tests/modules/skills/install-remote.test.ts"
-    ]
+      "tests/modules/skills/install-remote.test.ts",
+      "src/node/index.ts"
+    ],
+    "entrypointExports": {
+      "node": [
+        "SkillLoader",
+        "SkillRegistry",
+        "SkillValidator",
+        "SkillInstaller"
+      ]
+    }
   },
   {
     "name": "SandboxSuite",
@@ -233,8 +369,16 @@ export const CAPABILITY_PUBLIC_SURFACES = [
       "src/node/sandbox/sandbox.ts",
       "src/node/sandbox/skill-trial.ts",
       "tests/unit/modules/sandbox.test.ts",
-      "tests/integration/sandbox.e2e.test.ts"
-    ]
+      "tests/integration/sandbox.e2e.test.ts",
+      "src/node/index.ts"
+    ],
+    "entrypointExports": {
+      "node": [
+        "QiniuSandbox",
+        "SandboxInstance",
+        "QiniuSandboxTrialAdapter"
+      ]
+    }
   }
 ] as const;
 export const CAPABILITY_SURFACE_EXCLUSIONS = [
