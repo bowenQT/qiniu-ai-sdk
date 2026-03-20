@@ -291,6 +291,7 @@ export const RESPONSE_API_HELPER_CONTRACT: ResponseHelperContract = Object.freez
         'JSON helpers default text.format.type=json_object unless the caller already sets text.format.',
         'ChatMessage[] input accepts only role/content fields and rejects tool/function-role payloads.',
         'createMessageStream returns the latest assistant output message at stream completion.',
+        'Official beta helpers stay on response.* while deferred helpers are recommended through response.experimental.*.',
     ],
 });
 
@@ -306,7 +307,10 @@ export const RESPONSE_API_PROMOTION_READINESS_CONTRACT: ResponsePromotionReadine
         'createText',
         'followUpText',
         'createTextStream/followUpTextStream',
+        'createMessage/followUpMessage',
+        'createMessageResult/followUpMessageResult',
         'createMessageStream/followUpMessageStream',
+        'createMessages/followUpMessages',
         'createMessagesStream/followUpMessagesStream',
         'createMessagesResult/followUpMessagesResult',
         'createJson',
@@ -317,8 +321,10 @@ export const RESPONSE_API_PROMOTION_READINESS_CONTRACT: ResponsePromotionReadine
         'followUpChatCompletion',
         'createChatCompletionResult/followUpChatCompletionResult',
         'createChatCompletionStream/followUpChatCompletionStream',
+        'createReasoningSummaryText/followUpReasoningSummaryText',
+        'createReasoningSummaryTextResult/followUpReasoningSummaryTextResult',
         'createReasoningResult/followUpReasoningResult',
-        'provider-only projection helpers outside the official result-oriented surface',
+        'response.experimental.* is the recommended access path for deferred helpers; direct methods remain compatibility aliases',
     ],
     requiredLiveEvidence: [
         'pr: chat,response-api',
@@ -341,9 +347,11 @@ export const RESPONSE_API_PROMOTION_READINESS_CONTRACT: ResponsePromotionReadine
  */
 export class ResponseAPI {
     private client: IQiniuClient;
+    public readonly experimental: ResponseAPIExperimentalHelpers;
 
     constructor(client: IQiniuClient) {
         this.client = client;
+        this.experimental = createResponseAPIExperimentalHelpers(this);
     }
 
     /**
@@ -1036,6 +1044,92 @@ export class ResponseAPI {
             reasoningSummaryText: extractResponseReasoningSummaryText(response),
         };
     }
+}
+
+export type ResponseAPIOfficialHelpers = Pick<
+    ResponseAPI,
+    'create' | 'followUp' | 'createTextResult' | 'followUpTextResult'
+>;
+
+export type ResponseAPIExperimentalHelpers = Pick<
+    ResponseAPI,
+    | 'createStream'
+    | 'followUpStream'
+    | 'createText'
+    | 'followUpText'
+    | 'createTextStream'
+    | 'followUpTextStream'
+    | 'createMessage'
+    | 'followUpMessage'
+    | 'createMessageResult'
+    | 'followUpMessageResult'
+    | 'createMessageStream'
+    | 'followUpMessageStream'
+    | 'createMessages'
+    | 'followUpMessages'
+    | 'createMessagesResult'
+    | 'followUpMessagesResult'
+    | 'createMessagesStream'
+    | 'followUpMessagesStream'
+    | 'createJson'
+    | 'followUpJson'
+    | 'createJsonResult'
+    | 'followUpJsonResult'
+    | 'createJsonStream'
+    | 'followUpJsonStream'
+    | 'createChatCompletion'
+    | 'followUpChatCompletion'
+    | 'createChatCompletionResult'
+    | 'followUpChatCompletionResult'
+    | 'createChatCompletionStream'
+    | 'followUpChatCompletionStream'
+    | 'createReasoningSummaryText'
+    | 'followUpReasoningSummaryText'
+    | 'createReasoningSummaryTextResult'
+    | 'followUpReasoningSummaryTextResult'
+    | 'createReasoningResult'
+    | 'followUpReasoningResult'
+>;
+
+function createResponseAPIExperimentalHelpers(api: ResponseAPI): ResponseAPIExperimentalHelpers {
+    return {
+        createStream: api.createStream.bind(api),
+        followUpStream: api.followUpStream.bind(api),
+        createText: api.createText.bind(api),
+        followUpText: api.followUpText.bind(api),
+        createTextStream: api.createTextStream.bind(api),
+        followUpTextStream: api.followUpTextStream.bind(api),
+        createMessage: api.createMessage.bind(api),
+        followUpMessage: api.followUpMessage.bind(api),
+        createMessageResult: api.createMessageResult.bind(api),
+        followUpMessageResult: api.followUpMessageResult.bind(api),
+        createMessageStream: api.createMessageStream.bind(api),
+        followUpMessageStream: api.followUpMessageStream.bind(api),
+        createMessages: api.createMessages.bind(api),
+        followUpMessages: api.followUpMessages.bind(api),
+        createMessagesResult: api.createMessagesResult.bind(api),
+        followUpMessagesResult: api.followUpMessagesResult.bind(api),
+        createMessagesStream: api.createMessagesStream.bind(api),
+        followUpMessagesStream: api.followUpMessagesStream.bind(api),
+        createJson: api.createJson.bind(api),
+        followUpJson: api.followUpJson.bind(api),
+        createJsonResult: api.createJsonResult.bind(api),
+        followUpJsonResult: api.followUpJsonResult.bind(api),
+        createJsonStream: api.createJsonStream.bind(api),
+        followUpJsonStream: api.followUpJsonStream.bind(api),
+        createChatCompletion: api.createChatCompletion.bind(api),
+        followUpChatCompletion: api.followUpChatCompletion.bind(api),
+        createChatCompletionResult: api.createChatCompletionResult.bind(api),
+        followUpChatCompletionResult: api.followUpChatCompletionResult.bind(api),
+        createChatCompletionStream: api.createChatCompletionStream.bind(api),
+        followUpChatCompletionStream: api.followUpChatCompletionStream.bind(api),
+        createReasoningSummaryText: api.createReasoningSummaryText.bind(api),
+        followUpReasoningSummaryText: api.followUpReasoningSummaryText.bind(api),
+        createReasoningSummaryTextResult: api.createReasoningSummaryTextResult.bind(api),
+        followUpReasoningSummaryTextResult: api.followUpReasoningSummaryTextResult.bind(api),
+        createReasoningResult: api.createReasoningResult.bind(api),
+        followUpReasoningResult: api.followUpReasoningResult.bind(api),
+    };
 }
 
 export function extractResponseOutputText(response: Pick<ResponseCreateResponse, 'output'>): string | undefined {

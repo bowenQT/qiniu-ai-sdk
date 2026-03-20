@@ -245,7 +245,7 @@
       "sourceUpdatedAt": "2026-03-14",
       "validatedAt": "2026-03-15",
       "validationLevel": "unit",
-      "notes": "Core subset (create/followUp/createTextResult/followUpTextResult) remains beta via tracked promotion, and the stronger evidence-backed beta basis only applies when fresh nightly response-api evidence is present; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only.",
+      "notes": "Core subset (create/followUp/createTextResult/followUpTextResult) remains beta via tracked promotion, and the stronger evidence-backed beta basis only applies when fresh nightly response-api evidence is present; deferred stream, message, JSON, reasoning, and chat-completion helpers are recommended through response.experimental.* while legacy direct helper methods remain compatibility aliases.",
       "trackedDecision": {
         "packageId": "phase3/cloud-surface/responseapi-beta-promotion",
         "module": "ResponseAPI",

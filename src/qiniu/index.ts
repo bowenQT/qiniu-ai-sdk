@@ -159,6 +159,8 @@ export {
     toChatCompletionResponse,
 } from '../modules/response';
 export type {
+    ResponseAPIOfficialHelpers,
+    ResponseAPIExperimentalHelpers,
     ResponseHelperContract,
     ResponsePromotionReadinessContract,
     ResponseCreateRequest,

@@ -71,10 +71,22 @@ npm install @bowenqt/qiniu-ai-sdk
 - `@bowenqt/qiniu-ai-sdk/node` 是 MCP、sandbox、audit sink 以及非内存 checkpointer 的唯一正式 Node integration 入口。
 - `@bowenqt/qiniu-ai-sdk/core` 和 `@bowenqt/qiniu-ai-sdk/browser` 保持不含 Node-only 传递依赖。
 - `ResponseAPI` 仅核心子集晋级为 beta：`create`、`followUp`、`createTextResult`、`followUpTextResult`；只有在存在 fresh nightly `response-api` 证据时，才会启用更强的 evidence-backed beta 结论。
-- 其余 `ResponseAPI` helpers 仍处于 deferred/provider-only（包括 stream、JSON/messages、reasoning、chat-completion projection）。
+- 其余 `ResponseAPI` helpers 仍处于 deferred/provider-only（包括 stream、JSON/messages、reasoning、chat-completion projection）。推荐通过 `client.response.experimental.*` 访问这部分 deferred surface；旧的直接 helper 仍保留为兼容别名，但不属于官方 beta surface。
 - `NodeMCPHost` 仍为 `beta (held)`；当前只负责透传已经解析好的 bearer token（`token` / `tokenProvider`），剩余 deferred risks 为超出该边界的 OAuth token acquisition 与 cross-server routing。
 - 本分支的 runtime story smoke 保持本地优先：只验证 `createAgent` + session/checkpointer、approval resume、MCP host 组合，最终 runtime/node contract 仍由对应 lane worker 收敛。
 - root 入口继续保留兼容性，但不再作为新项目的默认教学入口。
+
+```typescript
+const text = await client.response.createTextResult({
+  model: 'openai/gpt-5',
+  input: '请总结这个请求。',
+});
+
+const json = await client.response.experimental.createJson({
+  model: 'openai/gpt-5',
+  input: '返回 {"ok":true}。',
+});
+```
 
 ### Cloud API Quickstart
 
