@@ -50,6 +50,7 @@ This cookbook provides focused, copy‑ready examples for common workflows.
 - `ResponseAPI` is treated as beta only for the core subset: `create`, `followUp`, `createTextResult`, and `followUpTextResult`; the stronger evidence-backed beta basis only applies when fresh nightly `response-api` evidence is present.
 - Other `ResponseAPI` helpers remain deferred/provider-only in this phase, including stream, JSON/messages, reasoning, and chat-completion projection helpers. The recommended access path for those deferred helpers is `client.response.experimental.*`; legacy direct methods remain compatibility aliases.
 - `NodeMCPHost` remains `beta (held)`; it only forwards already-resolved bearer tokens via `token` or `tokenProvider`, and the remaining deferred risks are OAuth token acquisition beyond that boundary plus cross-server routing.
+- `QiniuMCPServer` is a separate experimental Node-only MCP server surface. Its built-in tool set is currently `qiniu_chat`, `qiniu_ocr`, `qiniu_image_censor`, `qiniu_video_censor`, and `qiniu_image_generate`; `qiniu_vframe` remains outside the server surface and stays available through `@bowenqt/qiniu-ai-sdk/ai-tools`.
 
 ```ts
 const text = await client.response.createTextResult({

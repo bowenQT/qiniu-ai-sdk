@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "packageId": "phase3/node-integrations/qiniu-mcp-server-truth-sync",
+  "phase": "phase3",
+  "ownerLane": "node-integrations",
+  "category": "standard",
+  "topic": "qiniu-mcp-server-truth-sync",
+  "goal": "Align QiniuMCPServer truth, docs, and capability evidence with the actual tool surface and remaining gaps.",
+  "successCriteria": [
+    "README, capability truth, and QiniuMCPServer implementation describe the same tool surface and the same deferred items.",
+    "Any documented tool or resource capability is either present in code or explicitly marked deferred.",
+    "Focused verification covers the updated truth sync path without regressing Node MCP tests."
+  ],
+  "touchedSurfaces": [
+    "QiniuMCPServer implementation and node-facing MCP truth",
+    "README and COOKBOOK references to QiniuMCPServer tool surface",
+    "capability evidence and node MCP verification coverage"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Implementing new QiniuMCPServer tools solely to satisfy existing docs",
+    "Changing NodeMCPHost OAuth or cross-server routing boundaries",
+    "Expanding non-node runtime orchestration surfaces"
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/node-integrations/qiniu-mcp-server-truth-sync",
+  "branch": "codex/phase3/node-integrations/qiniu-mcp-server-truth-sync",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/node-integrations",
+  "createdAt": "2026-03-20T14:31:27.794Z",
+  "integrationPrerequisites": [
+    "Wave B foundation/export-coverage-guard is integrated on codex/vnext-integration as 23e8fb9.",
+    "NodeMCPHost held-risk wording from Wave A remains the source boundary unless this package explicitly updates it."
+  ],
+  "liveVerifyStatus": {
+    "status": "env-gated",
+    "reason": "Truth sync itself is local, but any MCP interop proof beyond unit coverage remains environment-gated."
+  }
+}

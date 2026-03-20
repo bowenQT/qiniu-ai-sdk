@@ -40,7 +40,7 @@
 - 🔐 **安全加固** — 原子远程安装、累计大小限制、deny-first 工具策略 (v0.38.0+)
 - ⚡ **MCP 工具策略** — SDK 原生 timeout、进度重置、输出截断，按服务器配置 (v0.38.0+)
 - 🔗 **MCP Host** — `NodeMCPHost` 支持 stdio + HTTP 传输 + 按服务器工具策略
-- 🖥️ **MCP 服务端** — 内置七牛 MCP Server，提供对话、OCR、图片/视频审核与图片生成工具
+- 🖥️ **MCP 服务端** — 内置七牛 MCP Server（对话、OCR、图片/视频审核、图片生成）
 - 💾 **Checkpointer** — 状态持久化（Memory、Redis、PostgreSQL、Kodo）
 - 🧠 **Memory Manager** — 短期 + 长期记忆，LLM 自动摘要
 - ✅ **工具审批 (HITL)** — 敏感操作人工确认 + deny-first 来源策略 (v0.38.0+)
@@ -613,7 +613,7 @@ npx qiniu-ai doctor --template agent
 
 运行内置的七牛 MCP Server：
 
-当前内置工具包括：
+当前内置 `QiniuMCPServer` 提供的 built-in tools 为：
 
 - `qiniu_chat`
 - `qiniu_ocr`
@@ -621,7 +621,7 @@ npx qiniu-ai doctor --template agent
 - `qiniu_video_censor`
 - `qiniu_image_generate`
 
-`Vframe` 仍然通过 `@bowenqt/qiniu-ai-sdk/ai-tools` / `QINIU_TOOLS` 提供，不属于 `qiniu-mcp-server` 的当前工具面。
+当前不包含 `qiniu_vframe`。如果你需要抽帧，请直接使用 SDK 的 `@bowenqt/qiniu-ai-sdk/ai-tools` / `QINIU_TOOLS` 或 asset resolver 能力。
 
 ```bash
 npx qiniu-mcp-server
@@ -640,8 +640,7 @@ npx qiniu-ai skill remove <name>            # 删除 skill 与 lockfile 条目
 ```
 
 **环境变量：**
-- `QINIU_API_KEY` — 云 API 与 `qiniu-mcp-server` 的必需凭证
-- `QINIU_ACCESS_KEY` / `QINIU_SECRET_KEY` — Kodo、`qiniu://` 资源签名与抽帧类媒体流程的可选密钥对
+- `QINIU_API_KEY` — 运行上述内置 MCP tools 所需的 API Key
 
 ---
 

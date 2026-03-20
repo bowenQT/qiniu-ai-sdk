@@ -1,7 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SDK_VERSION } from '../../../src/lib/version';
 
-const serverCtorCalls: Array<{ info: Record<string, unknown> }> = [];
+const {
+    serverCtorCalls,
+    requestHandlers,
+    listToolsRequestSchema,
+    callToolRequestSchema,
+} = vi.hoisted(() => ({
+    serverCtorCalls: [] as Array<{ info: Record<string, unknown> }>,
+    requestHandlers: new Map<unknown, (...args: any[]) => unknown>(),
+    listToolsRequestSchema: Symbol('ListToolsRequestSchema'),
+    callToolRequestSchema: Symbol('CallToolRequestSchema'),
+}));
 
 // Mock MCP SDK modules to avoid requiring actual MCP dependencies in tests
 vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
@@ -13,30 +23,61 @@ vi.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
         constructor(info: Record<string, unknown>) {
             serverCtorCalls.push({ info });
         }
-        setRequestHandler() { }
+        setRequestHandler(schema: unknown, handler: (...args: any[]) => unknown) {
+            requestHandlers.set(schema, handler);
+        }
         connect() { return Promise.resolve(); }
         close() { return Promise.resolve(); }
     },
 }));
 
 vi.mock('@modelcontextprotocol/sdk/types.js', () => ({
-    ListToolsRequestSchema: {},
-    CallToolRequestSchema: {},
+    ListToolsRequestSchema: listToolsRequestSchema,
+    CallToolRequestSchema: callToolRequestSchema,
 }));
 
 // Import after mocks are set up
-import { QiniuMCPServer, type DynamicTool } from '../../../src/node/mcp/server';
+import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { QiniuMCPServer, startFromEnv, type DynamicTool } from '../../../src/node/mcp/server';
 
 describe('QiniuMCPServer - Dynamic Tool Registration', () => {
     let server: QiniuMCPServer;
 
     beforeEach(() => {
         serverCtorCalls.length = 0;
+        requestHandlers.clear();
+        vi.unstubAllEnvs();
         server = new QiniuMCPServer({ apiKey: 'test-key' });
     });
 
     it('should default the MCP server version to SDK_VERSION', () => {
         expect(serverCtorCalls[0]?.info.version).toBe(SDK_VERSION);
+    });
+
+    it('should expose the documented built-in MCP tool surface without vframe', async () => {
+        const listToolsHandler = requestHandlers.get(ListToolsRequestSchema);
+        expect(listToolsHandler).toBeTypeOf('function');
+
+        const result = await listToolsHandler!();
+        const tools = (result as { tools: Array<{ name: string }> }).tools.map((tool) => tool.name);
+
+        expect(tools).toEqual([
+            'qiniu_chat',
+            'qiniu_ocr',
+            'qiniu_image_censor',
+            'qiniu_video_censor',
+            'qiniu_image_generate',
+        ]);
+        expect(tools).not.toContain('qiniu_vframe');
+    });
+
+    it('startFromEnv should only require QINIU_API_KEY', async () => {
+        vi.stubEnv('QINIU_API_KEY', 'test-key');
+
+        const started = await startFromEnv();
+
+        expect(started).toBeInstanceOf(QiniuMCPServer);
+        await started.close();
     });
 
     describe('registerTool', () => {

@@ -8,7 +8,7 @@ This document is generated from the SDK capability registry and is intended to m
 
 - Validated models: 10
 - Validated chat/image/video split: chat=5, image=2, video=3
-- Public surfaces tracked: 13
+- Public surfaces tracked: 14
 - Surface exclusions tracked: 4
 - Module maturity split: ga=12, beta=15, experimental=4
 - Evidence snapshot generated at: 2026-03-20T00:00:00.000Z
@@ -47,6 +47,7 @@ This document is generated from the SDK capability registry and is intended to m
 
 | Surface | Kind | Maturity | Validation | Validated At | Evidence | Docs |
 | --- | --- | --- | --- | --- | --- | --- |
+| QiniuMCPServer | node-surface | experimental | unit | 2026-03-20 | src/node/mcp/server.ts; tests/unit/modules/mcp-server.test.ts; src/node/index.ts; src/node/mcp/index.ts | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
 | SandboxSuite | node-surface | beta | unit | 2026-03-20 | src/node/sandbox/index.ts; src/node/sandbox/sandbox.ts; src/node/sandbox/skill-trial.ts; tests/unit/modules/sandbox.test.ts; tests/integration/sandbox.e2e.test.ts; src/node/index.ts | https://apidocs.qnaigc.com/ |
 | SkillSuite | node-surface | beta | unit | 2026-03-20 | src/node/skills/index.ts; tests/modules/skills/registry-wrapper.test.ts; tests/modules/skills/registry-protocol.test.ts; tests/modules/skills/installer-and-references.test.ts; tests/modules/skills/validator.test.ts; tests/modules/skills/install-remote.test.ts; src/node/index.ts | https://apidocs.qnaigc.com/ |
 | Anthropic | protocol-surface | beta | unit | 2026-03-20 | src/modules/anthropic/index.ts; tests/unit/modules/anthropic.test.ts; src/index.ts; src/qiniu/index.ts | https://apidocs.qnaigc.com/ |
@@ -104,7 +105,7 @@ This document is generated from the SDK capability registry and is intended to m
 | A2A | experimental |  | unit |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
 | ai-tools | experimental |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | crew | experimental |  | static |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
-| QiniuMCPServer | experimental |  | unit |  |  | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
+| QiniuMCPServer | experimental |  | unit | 2026-03-20 | Built-in stdio server currently exposes qiniu_chat, qiniu_ocr, qiniu_image_censor, qiniu_video_censor, and qiniu_image_generate. Frame extraction remains outside the server surface and stays available through ai-tools or asset resolver helpers. | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
 
 ## Tracked Evidence Snapshot
 
@@ -112,7 +113,7 @@ This document is generated from the SDK capability registry and is intended to m
 | --- | --- |
 | Generated At | 2026-03-20T00:00:00.000Z |
 | Tracked Decision Files | 7 |
-| Public Surfaces | 13 |
+| Public Surfaces | 14 |
 | Surface Exclusions | 4 |
 | Tracked Promotion Decisions | 7 |
 | Latest Gate Artifact | artifacts/live-verify-gate.json |

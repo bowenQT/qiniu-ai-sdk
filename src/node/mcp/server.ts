@@ -63,6 +63,9 @@ export interface DynamicTool {
 // Tool Definitions
 // ============================================================================
 
+// Keep the built-in MCP server surface explicit. Frame extraction remains available
+// through the SDK's ai-tools and asset resolver layers, but is not exposed here.
+
 const TOOLS: Tool[] = [
     // AI Tools
     {
@@ -139,6 +142,8 @@ const TOOLS: Tool[] = [
         },
     },
 ];
+
+const BUILTIN_TOOL_NAMES = TOOLS.map((tool) => tool.name);
 
 // ============================================================================
 // Server Implementation
@@ -366,8 +371,7 @@ export class QiniuMCPServer {
         const onConflict = options?.onConflict ?? 'error';
 
         // Check for conflicts with built-in tools
-        const builtinNames = TOOLS.map(t => t.name);
-        if (builtinNames.includes(tool.name)) {
+        if (BUILTIN_TOOL_NAMES.includes(tool.name)) {
             if (onConflict === 'error') {
                 throw new Error(`Tool "${tool.name}" conflicts with built-in tool (built-ins cannot be replaced)`);
             }
