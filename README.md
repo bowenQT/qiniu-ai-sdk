@@ -40,7 +40,7 @@
 - 🔐 **Security Hardening** — Atomic remote install, cumulative size limits, deny-first tool policy (v0.38.0+)
 - ⚡ **MCP Tool Policy** — SDK-native timeout, progress reset, output truncation per server (v0.38.0+)
 - 🔗 **MCP Host** — `NodeMCPHost` with stdio + HTTP transport + per-server tool policies
-- 🖥️ **MCP Server** — Built-in Qiniu MCP server for OCR/Censor/Vframe tools
+- 🖥️ **MCP Server** — Built-in Qiniu MCP server for chat, OCR, image/video censor, and image generation tools
 - 💾 **Checkpointer** — State persistence (Memory, Redis, PostgreSQL, Kodo)
 - 🧠 **Memory Manager** — Short-term + long-term memory with LLM summarization
 - ✅ **Tool Approval (HITL)** — Human-in-the-loop with deny-first source policy (v0.38.0+)
@@ -593,6 +593,16 @@ npx qiniu-ai doctor --template agent
 
 ### MCP Server
 
+The built-in `qiniu-mcp-server` currently exposes:
+
+- `qiniu_chat`
+- `qiniu_ocr`
+- `qiniu_image_censor`
+- `qiniu_video_censor`
+- `qiniu_image_generate`
+
+`Vframe` remains available through `@bowenqt/qiniu-ai-sdk/ai-tools` / `QINIU_TOOLS`, not through `qiniu-mcp-server`.
+
 ```bash
 npx qiniu-mcp-server
 ```
@@ -610,8 +620,8 @@ npx qiniu-ai skill remove <name>  # Remove skill + lockfile entry
 ```
 
 **Environment variables:**
-- `QINIU_API_KEY` — API key for OCR/Censor operations
-- `QINIU_ACCESS_KEY` / `QINIU_SECRET_KEY` — For Vframe/signed operations
+- `QINIU_API_KEY` — Required for cloud API usage and `qiniu-mcp-server`
+- `QINIU_ACCESS_KEY` / `QINIU_SECRET_KEY` — Optional for Kodo-backed flows, `qiniu://` asset signing, and Vframe-style media workflows
 
 ---
 

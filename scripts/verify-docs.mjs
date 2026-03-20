@@ -21,6 +21,8 @@ const exampleDocs = [
   resolve(repoRoot, 'examples', 'TUTORIAL.md'),
 ];
 const capabilityScorecardPath = resolve(repoRoot, 'docs', 'capability-scorecard.md');
+const packageJsonPath = resolve(repoRoot, 'package.json');
+const packageVersion = JSON.parse(readFileSync(packageJsonPath, 'utf8')).version;
 
 const forbiddenRootSymbols = new Set([
   'QiniuAI',
@@ -107,6 +109,17 @@ if (!readme.includes('### Capability Metadata')) {
 if (!readme.includes('### Worktree Delivery')) {
   errors.push('README.md: missing "Worktree Delivery" section');
 }
+if (readme.includes('Built-in Qiniu MCP server for OCR/Censor/Vframe tools')) {
+  errors.push('README.md: MCP server summary still claims Vframe support');
+}
+for (const token of ['createTextResult', 'followUpTextResult', 'deferred/provider-only']) {
+  if (!readme.includes(token)) {
+    errors.push(`README.md: missing ResponseAPI contract token "${token}"`);
+  }
+}
+if (!readme.includes('qiniu_video_censor') || !readme.includes('qiniu_image_generate')) {
+  errors.push('README.md: MCP server section should list the current built-in tool surface');
+}
 
 
 const readmeZh = readFileSync(resolve(repoRoot, 'README.zh-CN.md'), 'utf8');
@@ -115,6 +128,17 @@ if (!readmeZh.includes('### 能力元数据')) {
 }
 if (!readmeZh.includes('### Worktree 交付流')) {
   errors.push('README.zh-CN.md: missing "Worktree 交付流" section');
+}
+if (readmeZh.includes('内置七牛 MCP Server（OCR/审核/抽帧）')) {
+  errors.push('README.zh-CN.md: MCP 服务端摘要仍然声称支持抽帧');
+}
+for (const token of ['createTextResult', 'followUpTextResult', 'deferred/provider-only']) {
+  if (!readmeZh.includes(token)) {
+    errors.push(`README.zh-CN.md: missing ResponseAPI contract token "${token}"`);
+  }
+}
+if (!readmeZh.includes('qiniu_video_censor') || !readmeZh.includes('qiniu_image_generate')) {
+  errors.push('README.zh-CN.md: MCP Server section should list the current built-in tool surface');
 }
 
 
@@ -137,6 +161,18 @@ for (const section of ['## Start Here', '## Common Workflows', '## Advanced Inte
 }
 if (cookbook.includes('MCP Client Integration')) {
   errors.push('COOKBOOK.md: legacy "MCP Client Integration" heading should be renamed to NodeMCPHost');
+}
+if (cookbook.includes('Built-in Qiniu MCP server for OCR/Censor/Vframe tools')) {
+  errors.push('COOKBOOK.md: MCP server wording still claims Vframe support');
+}
+if (!cookbook.includes('qiniu_video_censor') || !cookbook.includes('qiniu_image_generate')) {
+  errors.push('COOKBOOK.md: NodeMCPHost section should call out the current qiniu-mcp-server tool surface');
+}
+if (!cookbook.includes('qiniu_vframe')) {
+  errors.push('COOKBOOK.md: built-in cloud tools section should still distinguish qiniu_vframe from MCP server tools');
+}
+if (!tutorialExample.includes(`v${packageVersion}`)) {
+  errors.push(`examples/TUTORIAL.md: footer version should match package.json (${packageVersion})`);
 }
 
 if (errors.length > 0) {
