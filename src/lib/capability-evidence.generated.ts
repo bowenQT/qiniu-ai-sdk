@@ -357,6 +357,27 @@ export const CAPABILITY_PUBLIC_SURFACES = [
     }
   },
   {
+    "name": "QiniuMCPServer",
+    "kind": "node-surface",
+    "maturity": "experimental",
+    "docsUrl": "https://modelcontextprotocol.io/specification/2025-11-25/basic/transports",
+    "sourceUpdatedAt": "2026-03-20",
+    "validatedAt": "2026-03-20",
+    "validationLevel": "unit",
+    "evidenceBasis": [
+      "src/node/mcp/server.ts",
+      "tests/unit/modules/mcp-server.test.ts",
+      "src/node/index.ts",
+      "src/node/mcp/index.ts"
+    ],
+    "entrypointExports": {
+      "node": [
+        "QiniuMCPServer",
+        "startFromEnv"
+      ]
+    }
+  },
+  {
     "name": "SandboxSuite",
     "kind": "node-surface",
     "maturity": "beta",
@@ -794,7 +815,9 @@ export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
     "name": "QiniuMCPServer",
     "maturity": "experimental",
     "docsUrl": "https://modelcontextprotocol.io/specification/2025-11-25/basic/transports",
-    "sourceUpdatedAt": "2026-03-14",
-    "validationLevel": "unit"
+    "sourceUpdatedAt": "2026-03-20",
+    "validatedAt": "2026-03-20",
+    "validationLevel": "unit",
+    "notes": "Built-in stdio server currently exposes qiniu_chat, qiniu_ocr, qiniu_image_censor, qiniu_video_censor, and qiniu_image_generate. Frame extraction remains outside the server surface and stays available through ai-tools or asset resolver helpers."
   }
 ];

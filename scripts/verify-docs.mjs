@@ -49,6 +49,19 @@ const forbiddenRootSymbols = new Set([
 const rootImportPattern = /import\s+\{([^}]*)\}\s+from\s+['"]@bowenqt\/qiniu-ai-sdk['"]/g;
 const errors = [];
 
+function extractSection(source, heading) {
+  const start = source.indexOf(heading);
+  if (start === -1) {
+    return '';
+  }
+  const remainder = source.slice(start);
+  const nextHeading = remainder.slice(heading.length).search(/\n###\s+/);
+  if (nextHeading === -1) {
+    return remainder;
+  }
+  return remainder.slice(0, heading.length + nextHeading);
+}
+
 for (const filePath of docs) {
   const source = readFileSync(filePath, 'utf8');
   for (const match of source.matchAll(rootImportPattern)) {
@@ -92,6 +105,7 @@ for (const pattern of ['invokeResumable', '#20-mcp-client-integration', 'createC
 }
 
 const readme = readFileSync(resolve(repoRoot, 'README.md'), 'utf8');
+const readmeMcpServerSection = extractSection(readme, '### MCP Server');
 if (!readme.includes('### Cloud API Quickstart')) {
   errors.push('README.md: missing "Cloud API Quickstart" section');
 }
@@ -107,14 +121,27 @@ if (!readme.includes('### Capability Metadata')) {
 if (!readme.includes('### Worktree Delivery')) {
   errors.push('README.md: missing "Worktree Delivery" section');
 }
+if (readmeMcpServerSection.includes('OCR/Censor/Vframe')) {
+  errors.push('README.md: QiniuMCPServer should not be documented as exposing Vframe');
+}
+if (readmeMcpServerSection.includes('QINIU_ACCESS_KEY') || readmeMcpServerSection.includes('QINIU_SECRET_KEY')) {
+  errors.push('README.md: MCP Server section should not require QINIU_ACCESS_KEY / QINIU_SECRET_KEY');
+}
 
 
 const readmeZh = readFileSync(resolve(repoRoot, 'README.zh-CN.md'), 'utf8');
+const readmeZhMcpServerSection = extractSection(readmeZh, '### MCP Server');
 if (!readmeZh.includes('### 能力元数据')) {
   errors.push('README.zh-CN.md: missing "能力元数据" section');
 }
 if (!readmeZh.includes('### Worktree 交付流')) {
   errors.push('README.zh-CN.md: missing "Worktree 交付流" section');
+}
+if (readmeZhMcpServerSection.includes('OCR/审核/抽帧')) {
+  errors.push('README.zh-CN.md: QiniuMCPServer 不应继续声明抽帧能力');
+}
+if (readmeZhMcpServerSection.includes('QINIU_ACCESS_KEY') || readmeZhMcpServerSection.includes('QINIU_SECRET_KEY')) {
+  errors.push('README.zh-CN.md: MCP Server 段落不应继续要求 QINIU_ACCESS_KEY / QINIU_SECRET_KEY');
 }
 
 
@@ -137,6 +164,9 @@ for (const section of ['## Start Here', '## Common Workflows', '## Advanced Inte
 }
 if (cookbook.includes('MCP Client Integration')) {
   errors.push('COOKBOOK.md: legacy "MCP Client Integration" heading should be renamed to NodeMCPHost');
+}
+if (cookbook.includes('QiniuMCPServer') && cookbook.includes('built-in tool set is currently') && !cookbook.includes('stays available through `@bowenqt/qiniu-ai-sdk/ai-tools`')) {
+  errors.push('COOKBOOK.md: QiniuMCPServer note should keep qiniu_vframe outside the built-in server surface');
 }
 
 if (errors.length > 0) {
