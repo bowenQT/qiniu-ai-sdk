@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "packageId": "phase3/runtime-hardening/agent-resume-e2e-contract",
+  "phase": "phase3",
+  "ownerLane": "runtime-hardening",
+  "category": "standard",
+  "topic": "agent-resume-e2e-contract",
+  "goal": "Harden the createAgent session/checkpointer/approval resume story with stronger end-to-end contract evidence.",
+  "successCriteria": [
+    "The mainline resumable agent story has dedicated e2e-style evidence covering interrupt, approval decision, resume, and persisted thread state.",
+    "The new evidence path is tied to the mainline createAgent contract rather than a side-path runtime fixture.",
+    "Focused verification proves the resumable story remains stable after the Wave A sessionStore contract changes."
+  ],
+  "touchedSurfaces": [
+    "createAgent resumable thread flow and approval resume contract",
+    "runtime-hardening e2e or story-level verification for session/checkpointer behavior",
+    "runtime docs or test artifacts needed to explain the supported mainline flow"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Introducing a new runtime facade unrelated to the current createAgent mainline",
+    "Changing cloud-surface ResponseAPI semantics",
+    "Changing MCP host boundaries beyond what the resumable story consumes"
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/runtime-hardening/agent-resume-e2e-contract",
+  "branch": "codex/phase3/runtime-hardening/agent-resume-e2e-contract",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/runtime-hardening",
+  "createdAt": "2026-03-20T14:31:27.955Z",
+  "integrationPrerequisites": [
+    "Wave B foundation/export-coverage-guard is integrated on codex/vnext-integration as 23e8fb9.",
+    "Wave A runtime mainline contract remains the baseline; do not re-open sessionStore shape without evidence."
+  ],
+  "liveVerifyStatus": {
+    "status": "unavailable",
+    "reason": "This package strengthens local contract and e2e evidence for runtime resume behavior; live credentials are not required."
+  }
+}
