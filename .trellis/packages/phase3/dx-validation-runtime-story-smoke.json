@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "packageId": "phase3/dx-validation/runtime-story-smoke",
+  "phase": "phase3",
+  "ownerLane": "dx-validation",
+  "category": "standard",
+  "topic": "runtime-story-smoke",
+  "goal": "Add a user-facing smoke path for the runtime mainline story covering createAgent with session or checkpointer, approval interrupt or resume, and MCP host composition.",
+  "successCriteria": [
+    "A focused smoke path exists for the runtime mainline story.",
+    "The story is aligned with the runtime mainline contract and NodeMCPHost boundary.",
+    "The smoke path runs in deterministic local verification without requiring broad live credentials."
+  ],
+  "touchedSurfaces": [
+    "tests",
+    "scripts",
+    "examples",
+    "README.md",
+    "COOKBOOK.md"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "No new production runtime feature.",
+    "No release-gate policy expansion outside the smoke story."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/dx-validation/runtime-story-smoke",
+  "branch": "codex/phase3/dx-validation/runtime-story-smoke",
+  "integrationPrerequisites": [
+    "phase3/foundation/capability-ledger-completion",
+    "phase3/runtime/runtime-mainline-contract",
+    "phase3/node-integrations/mcphost-held-risk-closure"
+  ],
+  "liveVerifyStatus": {
+    "status": "unavailable",
+    "note": "The smoke path is intentionally deterministic and local-first; it should not depend on live cloud credentials to validate the mainline story."
+  },
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/dx-validation",
+  "createdAt": "2026-03-20T13:42:14.279Z"
+}

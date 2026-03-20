@@ -702,18 +702,20 @@ import { SkillRegistry } from '@bowenqt/qiniu-ai-sdk/node';
 
 // Create registry with security settings
 const registry = new SkillRegistry({
+  skillsDir: './.agent/skills',
   allowedDomains: [
     'skills.qiniu.com',    // Exact domain
     '*.trusted.dev',       // Wildcard subdomain
   ],
+  allowRemote: true,
 });
 
-// Register local skill
-await registry.registerLocal('./skills/git-workflow');
+await registry.discoverLocal();
 
 // Register remote skill with SHA256 integrity verification
-await registry.registerRemote('https://skills.qiniu.com/code-review', {
-  integrity: 'sha256:a3b4c5d6e7f8...',  // Required for security
+await registry.registerRemote({
+  url: 'https://skills.qiniu.com/code-review/skill.json',
+  integrityHash: 'sha256:a3b4c5d6e7f8...',  // Required for security
 });
 
 // Search skills by name, tags, or description
@@ -736,7 +738,8 @@ const allSkills = registry.list();
 console.log('Registered skills:', allSkills.length);
 
 // Refresh remote skills (re-download and verify)
-await registry.refreshSkill('code-review');
+await registry.refreshSkill('code-review', 'sha256:def456...');
+await registry.installRemote('code-review', { installDir: './.agent/skills' });
 ```
 
 **skill.json Manifest Format:**
@@ -927,10 +930,16 @@ Implement asynchronous approval flows with checkpoint-based resume:
 
 ```ts
 import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
-import { AgentGraph, MemoryCheckpointer, type ApprovalConfig, type PendingApproval } from '@bowenqt/qiniu-ai-sdk/core';
+import {
+  createAgent,
+  MemoryCheckpointer,
+  CheckpointerSessionStore,
+  type ApprovalConfig,
+  type ApprovalContext,
+} from '@bowenqt/qiniu-ai-sdk/core';
 
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
-const checkpointer = new MemoryCheckpointer();
+const sessionStore = new CheckpointerSessionStore(new MemoryCheckpointer());
 
 const tools = {
   sendEmail: {
@@ -948,65 +957,43 @@ const tools = {
   },
 };
 
-// Register tools for approval
-const registeredTools = Object.fromEntries(
-  Object.entries(tools).map(([name, tool]) => [
-    name,
-    { ...tool, name, source: { type: 'inline' as const } },
-  ])
-);
-
 const approvalConfig: ApprovalConfig = {
-  onApprovalRequired: async (ctx) => {
-    // Defer approval - this will interrupt execution
-    console.log('Deferring approval for:', ctx.toolName);
+  onApprovalRequired: async (_ctx: ApprovalContext) => {
     return { approved: false, deferred: true };
   },
 };
 
-const graph = new AgentGraph({
+const agent = createAgent({
   client,
   model: 'gemini-2.5-flash',
-  tools: registeredTools,
+  sessionStore,
+  tools,
   approvalConfig,
-  maxSteps: 5,
 });
 
 // --- Initial execution (will interrupt) ---
 const threadId = 'email-task-001';
-const messages = [{ role: 'user' as const, content: 'Send welcome email to alice@example.com' }];
-
-const result1 = await graph.invokeResumable(messages, {
+const result1 = await agent.runResumableWithThread({
   threadId,
-  checkpointer,
+  prompt: 'Send welcome email to alice@example.com',
 });
 
 if (result1.interrupted) {
   console.log('Execution interrupted! Pending approval:');
   console.log('Tool:', result1.pendingApproval?.toolCalls);
-  console.log('Deferred tools:', result1.pendingApproval?.deferredTools);
-  
-  // Store pendingApproval in DB for async UI approval
-  await savePendingApproval(threadId, result1.pendingApproval!);
 }
 
 // --- Later: Resume after user approval ---
 async function resumeWithUserApproval(threadId: string, approved: boolean) {
-  const result2 = await graph.invokeResumable([], {
+  const result2 = await agent.resumeThread({
     threadId,
-    checkpointer,
-    resume: true, // Resume from checkpoint
-    approvalDecision: approved, // User's decision
-    toolExecutor: async (toolName, args) => {
-      // Provide tool executor for approved tools
-      return tools[toolName].execute(args);
-    },
+    approvalDecision: approved,
   });
 
   if (result2.interrupted) {
     console.log('Still needs more approvals...');
   } else {
-    console.log('Completed:', result2);
+    console.log('Completed:', result2.text);
   }
 }
 
@@ -1498,13 +1485,13 @@ const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
 const piiRedactor: Guardrail = {
   name: 'pii-redactor',
-  phase: 'post-response',
-  execute: async (content) => ({
-    blocked: false,
-    modified: true,
-    content
+  phase: 'output',
+  process: async (context) => ({
+    action: 'redact',
+    modifiedContent: context.content
       .replace(/\b[\w.-]+@[\w.-]+\.\w+\b/g, '[REDACTED_EMAIL]')
       .replace(/\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g, '[REDACTED_PHONE]'),
+    reason: 'PII redacted before response is returned',
   }),
 };
 
@@ -1519,17 +1506,16 @@ const guardrails: Guardrail[] = [
   piiRedactor,
   {
     name: 'custom-check',
-    phase: 'post-response',
-    execute: async (content) => {
-      if (content.includes('secret')) {
+    phase: 'output',
+    process: async (context) => {
+      if (context.content.includes('secret')) {
         return {
-          blocked: false,
-          modified: true,
-          content: content.replace(/secret/gi, '[FILTERED]'),
+          action: 'redact',
+          modifiedContent: context.content.replace(/secret/gi, '[FILTERED]'),
           reason: 'Filtered sensitive word',
         };
       }
-      return { blocked: false, content };
+      return { action: 'pass' };
     },
   },
 ];
@@ -1567,11 +1553,10 @@ import { createAgent, MemoryCheckpointer } from '@bowenqt/qiniu-ai-sdk/core';
 const checkpointer = new MemoryCheckpointer();
 const piiRedactor = {
   name: 'pii-redactor',
-  phase: 'post-response',
-  execute: async (content) => ({
-    blocked: false,
-    modified: true,
-    content: content.replace(/\b[\w.-]+@[\w.-]+\.\w+\b/g, '[REDACTED_EMAIL]'),
+  phase: 'output',
+  process: async (context) => ({
+    action: 'redact',
+    modifiedContent: context.content.replace(/\b[\w.-]+@[\w.-]+\.\w+\b/g, '[REDACTED_EMAIL]'),
   }),
 };
 
@@ -1606,7 +1591,6 @@ Agents execute in order, passing output as context to the next:
 ```ts
 import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
 import { createAgent, createSequentialCrew } from '@bowenqt/qiniu-ai-sdk/core';
-
 const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
 // Create specialized agents
@@ -1635,13 +1619,13 @@ const crew = createSequentialCrew({
 
 // Kickoff the crew
 const result = await crew.kickoff({
-  prompt: 'Create a guide about GraphQL best practices',
+  task: 'Create a guide about GraphQL best practices',
   context: { targetAudience: 'backend developers' },
 });
 
-console.log('Final output:', result.finalOutput);
-console.log('Agent results:', result.results.length);
-result.results.forEach((r, i) => {
+console.log('Final output:', result.output);
+console.log('Agent results:', result.agentResults.length);
+result.agentResults.forEach((r, i) => {
   console.log(`Agent ${i + 1}: ${r.output.slice(0, 100)}...`);
 });
 ```
@@ -1662,12 +1646,12 @@ const crew = createParallelCrew({
 });
 
 const result = await crew.kickoff({
-  prompt: 'Review this code for issues',
+  task: 'Review this code for issues',
   context: { code: sourceCode },
   abortSignal: controller.signal, // Optional: abort all agents
 });
 
-console.log('Aggregated output:', result.finalOutput);
+console.log('Aggregated output:', result.output);
 console.log('Errors:', result.errors); // Partial failures captured
 ```
 
@@ -1687,15 +1671,15 @@ Output JSON: { "delegations": [{ "agent": "agentId", "task": "description" }] }`
 
 const crew = createHierarchicalCrew({
   manager,
-  workers: [frontendDev, backendDev, designer],
+  agents: [frontendDev, backendDev, designer],
 });
 
 const result = await crew.kickoff({
-  prompt: 'Build a login page with authentication',
+  task: 'Build a login page with authentication',
 });
 
 // Manager automatically delegates and aggregates results
-console.log('Final output:', result.finalOutput);
+console.log('Final output:', result.output);
 ```
 
 ### Crew with Abort Signal
@@ -1710,7 +1694,7 @@ setTimeout(() => controller.abort(), 30000);
 
 try {
   const result = await crew.kickoff({
-    prompt: 'Complex multi-step task',
+    task: 'Complex multi-step task',
     abortSignal: controller.signal,
   });
 } catch (error) {
@@ -1729,9 +1713,9 @@ Securely execute code in isolated cloud sandboxes.
 ### Lifecycle Management
 
 ```ts
-import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
+import { createNodeQiniuAI } from '@bowenqt/qiniu-ai-sdk/node';
 
-const client = new QiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
+const client = createNodeQiniuAI({ apiKey: process.env.QINIU_API_KEY || '' });
 
 // Create and wait for sandbox to be fully ready
 const instance = await client.sandbox.createAndWait(
@@ -1878,7 +1862,7 @@ const result = await generateText({
   model: 'deepseek-v3',
   prompt: 'Search the codebase for auth bugs',
   tools: myTools,
-  approval: {
+  approvalConfig: {
     denySources: ['mcp:untrusted-server'],
     autoApproveSources: ['mcp:filesystem'],
     // deny > autoApprove > handler > fail-closed

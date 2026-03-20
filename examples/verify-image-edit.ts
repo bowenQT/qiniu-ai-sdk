@@ -7,7 +7,7 @@
  * Run with: npx tsx examples/verify-image-edit.ts
  */
 
-import { QiniuAI, consoleLogger, ImageEditRequest } from '../src';
+import { QiniuAI, consoleLogger, ImageEditRequest } from '@bowenqt/qiniu-ai-sdk';
 
 const client = new QiniuAI({
     apiKey: 'sk-test-key-for-type-checking',
@@ -21,7 +21,7 @@ console.log('='.repeat(60));
 
 // Kling multi-image edit
 const klingEdit: ImageEditRequest = {
-    model: 'kling-v1',
+    model: 'kling-image-o1',
     prompt: 'Make the subject look like a watercolor painting',
     image_reference: 'subject',
     subject_image_list: [
@@ -49,9 +49,9 @@ console.log('\nAll type checks passed! ✅');
 
 /*
 async function liveTest() {
-    const apiKey = process.env.QINIU_AI_API_KEY;
+    const apiKey = process.env.QINIU_API_KEY;
     if (!apiKey) {
-        console.log('⚠️  QINIU_AI_API_KEY not set, skipping live tests');
+        console.log('⚠️  QINIU_API_KEY not set, skipping live tests');
         return;
     }
 
