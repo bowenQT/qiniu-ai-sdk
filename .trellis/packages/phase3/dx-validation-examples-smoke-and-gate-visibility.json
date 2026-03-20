@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "packageId": "phase3/dx-validation/examples-smoke-and-gate-visibility",
+  "phase": "phase3",
+  "ownerLane": "dx-validation",
+  "category": "standard",
+  "topic": "examples-smoke-and-gate-visibility",
+  "goal": "Expand examples smoke coverage and make gate artifact/status visibility explicit in tracked docs and verification outputs.",
+  "successCriteria": [
+    "Examples smoke covers the current supported examples path and verification artifacts no longer leave gate status/artifact visibility ambiguous.",
+    "Tracked docs and verification outputs render gate artifact/status fields without unexplained blanks.",
+    "Focused verification proves the new smoke and visibility checks are wired into the DX lane."
+  ],
+  "touchedSurfaces": [
+    "examples smoke scripts and tests",
+    "verification report or related tracked docs for gate visibility",
+    "DX docs describing artifact and gate output semantics"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Changing live-verify policy semantics beyond visibility/reporting",
+    "Adding new product capabilities outside examples and verification outputs",
+    "Rewriting unrelated docs sections already fixed in Wave B"
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/dx-validation/examples-smoke-and-gate-visibility",
+  "branch": "codex/phase3/dx-validation/examples-smoke-and-gate-visibility",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/dx-validation",
+  "createdAt": "2026-03-20T14:43:55.349Z",
+  "integrationPrerequisites": [
+    "Wave B is integrated on codex/vnext-integration through commit c3a5d15.",
+    "DX package should align with the current verification-report and docs contract rather than redefine policy."
+  ],
+  "liveVerifyStatus": {
+    "status": "unavailable",
+    "reason": "This package improves smoke coverage and gate visibility rendering; it does not require live credentials."
+  }
+}
