@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "packageId": "phase3/foundation/export-coverage-guard",
+  "phase": "phase3",
+  "ownerLane": "foundation",
+  "category": "standard",
+  "topic": "export-coverage-guard",
+  "goal": "Freeze capability coverage enforcement so new formal public surfaces cannot bypass the Wave A ledger.",
+  "successCriteria": [
+    "Tracked capability truth fails fast when public first-class surfaces drift from the audited ledger.",
+    "Tracked capability truth fails fast when exclusion semantics drift without an explicit ledger update.",
+    "Focused verification covers the new guard path and docs/evidence renders still stay in sync."
+  ],
+  "touchedSurfaces": [
+    "capability-evidence baseline and generated snapshot",
+    "capability scorecard rendering and verification report",
+    "docs/truth drift verification guardrails",
+    "foundation lane tests for capability coverage enforcement"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Adding new product capabilities or maturity promotions",
+    "Changing ResponseAPI public contract",
+    "Expanding runtime facade or MCP surface behavior",
+    "Launching or integrating non-foundation Wave B packages"
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/foundation/export-coverage-guard",
+  "branch": "codex/phase3/foundation/export-coverage-guard",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/foundation",
+  "createdAt": "2026-03-20T14:24:04.958Z",
+  "integrationPrerequisites": [
+    "Wave A integration artifacts stay green on codex/vnext-integration.",
+    "This package lands before any other Wave B package begins integration review."
+  ],
+  "liveVerifyStatus": {
+    "status": "unavailable",
+    "reason": "This package hardens coverage enforcement and render consistency only; it does not change GA/Beta runtime behavior that requires live credentials."
+  }
+}
