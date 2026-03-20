@@ -1,6 +1,6 @@
 # Phase 3 Worktree Multi-Agent Execution
 
-Status: Wave A integrated, antigravity gate pending
+Status: Wave A integrated, Wave B conditionally released
 
 Main baseline: `5067a8d`
 
@@ -115,3 +115,7 @@ Each completed package must provide:
   - `npm run test:package-smoke`
   - `npm run test:template-smoke`
 - Wave B remains queued pending antigravity review of Wave A outputs
+- Wave B release recommendation after Wave A review:
+  - no blocking findings in Wave A integration verification
+  - release `phase3/foundation/export-coverage-guard` first
+  - keep the other Wave B packages queued until package 1 lands
