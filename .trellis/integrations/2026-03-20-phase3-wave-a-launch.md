@@ -2,7 +2,7 @@
 
 Date: 2026-03-20
 
-Status: launched
+Status: integrated, pending antigravity review
 
 ## Scope
 
@@ -57,7 +57,54 @@ Packages 2 through 4 may develop in parallel, but integration stays blocked on p
   - docs impact summary
   - artifact links
 
+## Package Outcomes
+
+- `phase3/foundation/capability-ledger-completion`
+  - package branch head: `ce8148e`
+  - integration merge: `613169f`
+  - review packet: `.worktrees/foundation/artifacts/phase3-foundation-capability-ledger-completion-review-packet.md`
+  - evidence: `.worktrees/foundation/artifacts/phase3-foundation-capability-ledger-completion-evidence.json`
+- `phase3/runtime/runtime-mainline-contract`
+  - package branch head: `611d6df`
+  - integration merge: `83e57f4`
+  - review packet: `.worktrees/runtime/artifacts/phase3-runtime-runtime-mainline-contract-review-packet.md`
+  - evidence: `.worktrees/runtime/artifacts/phase3-runtime-runtime-mainline-contract-evidence.json`
+- `phase3/node-integrations/mcphost-held-risk-closure`
+  - package branch head: `9a7b82f`
+  - integration merge: `f66de44`
+  - review packet: `.worktrees/node-integrations/artifacts/phase3-node-integrations-mcphost-held-risk-closure-review-packet.md`
+  - evidence: `.worktrees/node-integrations/artifacts/phase3-node-integrations-mcphost-held-risk-closure-evidence.json`
+- `phase3/dx-validation/runtime-story-smoke`
+  - package branch head: `32d36a3`
+  - integration merge: `7832bd9`
+  - review packet: `.worktrees/dx-validation/artifacts/phase3-dx-validation-runtime-story-smoke-review-packet.md`
+  - evidence: `.worktrees/dx-validation/artifacts/phase3-dx-validation-runtime-story-smoke-evidence.json`
+
+## Integration Verification
+
+- integration snapshot refresh: `d42bb1b`
+- `npm run build`
+  - result: pass
+- `npm test`
+  - result: pass
+  - notes: `102` test files, `1077` tests
+- `npm run test:docs`
+  - result: pass after refreshing capability evidence snapshot
+- `npm run test:package-smoke`
+  - result: pass
+- `npm run test:template-smoke`
+  - result: pass
+
+## Wave Gate Decision
+
+- Wave A is integrated on `codex/vnext-integration`
+- Wave B remains blocked pending antigravity review of:
+  - capability coverage contract
+  - runtime mainline public contract
+  - NodeMCPHost held-risk boundary
+  - runtime story smoke/docs alignment
+
 ## Notes
 
 - `runtime-hardening` lane worktree now exists and is reserved for Wave B package `phase3/runtime-hardening/agent-resume-e2e-contract`
-- Wave B and Wave C remain queued only; they do not launch until Wave A lands on `codex/vnext-integration`
+- Wave B and Wave C remain queued only; Wave B does not launch until antigravity review clears Wave A

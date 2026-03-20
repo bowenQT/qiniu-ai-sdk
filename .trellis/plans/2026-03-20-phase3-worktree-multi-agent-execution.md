@@ -1,6 +1,6 @@
 # Phase 3 Worktree Multi-Agent Execution
 
-Status: active
+Status: Wave A integrated, antigravity gate pending
 
 Main baseline: `5067a8d`
 
@@ -101,4 +101,17 @@ Each completed package must provide:
 ## Current Launch State
 
 - `runtime-hardening` lane worktree was created for this execution set
-- Wave A package branches and briefs are the current launch target
+- Wave A package branches, briefs, artifacts, and integration merges are complete
+- integration merge chain:
+  - foundation: `613169f`
+  - runtime: `83e57f4`
+  - node-integrations: `f66de44`
+  - dx-validation: `7832bd9`
+  - snapshot refresh: `d42bb1b`
+- integration verification passed:
+  - `npm run build`
+  - `npm test`
+  - `npm run test:docs`
+  - `npm run test:package-smoke`
+  - `npm run test:template-smoke`
+- Wave B remains queued pending antigravity review of Wave A outputs
