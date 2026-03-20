@@ -1,6 +1,6 @@
 # Phase 3 Worktree Multi-Agent Execution
 
-Status: Wave A and Wave B integrated, Wave C in progress
+Status: Phase 3 closeout candidate
 
 Main baseline: `5067a8d`
 
@@ -137,6 +137,7 @@ Each completed package must provide:
   - `npm run test:template-smoke`
 - Wave C package `phase3/cloud-surface/task-cancel-contract-truth` landed on `codex/vnext-integration` as `b667379`
 - Wave C package `phase3/dx-validation/examples-smoke-and-gate-visibility` landed on `codex/vnext-integration` as `f2dba9a`
+- Wave C package `phase3/cloud-surface/admin-account-surface-truth` landed on `codex/vnext-integration` as `369f2fc`
 - integration verification stayed green after the first Wave C tranche:
   - `npm run build`
   - `npm test`
@@ -144,5 +145,5 @@ Each completed package must provide:
   - `npm run test:package-smoke`
   - `npm run test:template-smoke`
 - Remaining Wave C queue:
-  - `phase3/cloud-surface/admin-account-surface-truth`
   - `phase3/foundation/release-scorecard-closure`
+- Phase 3 now enters closeout-candidate review with no further queued feature packages

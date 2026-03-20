@@ -2,7 +2,7 @@
 
 Date: 2026-03-20
 
-Status: packages 1 and 3 integrated; cloud-surface/admin-account and foundation closeout queued
+Status: Wave C integrated; foundation closeout in progress
 
 ## Launch Decision
 
@@ -26,12 +26,15 @@ Status: packages 1 and 3 integrated; cloud-surface/admin-account and foundation 
   - review packet: `.worktrees/dx-validation/artifacts/phase3-dx-validation-examples-smoke-and-gate-visibility-review-packet.md`
   - evidence: `.worktrees/dx-validation/artifacts/phase3-dx-validation-examples-smoke-and-gate-visibility-evidence.json`
 
-## Queued Packages
+## Remaining Queue
 
 - `phase3/cloud-surface/admin-account-surface-truth`
-  - queue reason: same-lane serialization; starts after `task-cancel-contract-truth`
+  - package branch head: `8449324`
+  - integration merge: `369f2fc`
+  - review packet: `.worktrees/cloud-surface/artifacts/phase3-cloud-surface-admin-account-surface-truth-review-packet.md`
+  - evidence: `.worktrees/cloud-surface/artifacts/phase3-cloud-surface-admin-account-surface-truth-evidence.json`
 - `phase3/foundation/release-scorecard-closure`
-  - queue reason: release closeout package; must land last
+  - queue reason: release closeout package; currently active and must land last
 
 ## Verification Spine
 
@@ -46,7 +49,7 @@ Status: packages 1 and 3 integrated; cloud-surface/admin-account and foundation 
 
 ## Current Verification State
 
-- integration verification after packages 1 and 3:
+- integration verification after packages 1, 2, and 3:
   - `npm run build`
   - `npm test`
   - `npm run test:docs`
