@@ -36,6 +36,7 @@ describe('Phase 3: Response API Module (@experimental)', () => {
             adapter: createStaticMockFetch({ status: 200, body: {} }).adapter,
         });
         expect(client.response).toBeDefined();
+        expect(client.response.experimental).toBeDefined();
     });
 
     it('should create a response via /v1/llm/v1/responses', async () => {
@@ -135,7 +136,10 @@ describe('Phase 3: Response API Module (@experimental)', () => {
             'createText',
             'followUpText',
             'createTextStream/followUpTextStream',
+            'createMessage/followUpMessage',
+            'createMessageResult/followUpMessageResult',
             'createMessageStream/followUpMessageStream',
+            'createMessages/followUpMessages',
             'createMessagesStream/followUpMessagesStream',
             'createMessagesResult/followUpMessagesResult',
             'createJson',
@@ -146,8 +150,10 @@ describe('Phase 3: Response API Module (@experimental)', () => {
             'followUpChatCompletion',
             'createChatCompletionResult/followUpChatCompletionResult',
             'createChatCompletionStream/followUpChatCompletionStream',
+            'createReasoningSummaryText/followUpReasoningSummaryText',
+            'createReasoningSummaryTextResult/followUpReasoningSummaryTextResult',
             'createReasoningResult/followUpReasoningResult',
-            'provider-only projection helpers outside the official result-oriented surface',
+            'response.experimental.* is the recommended access path for deferred helpers; direct methods remain compatibility aliases',
         ]);
         expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.requiredLiveEvidence).toEqual([
             'pr: chat,response-api',
@@ -159,6 +165,35 @@ describe('Phase 3: Response API Module (@experimental)', () => {
             '.trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json',
         );
         expect(RESPONSE_API_PROMOTION_READINESS_CONTRACT.decisionStatus).toBe('held');
+    });
+
+    it('routes deferred helper access through response.experimental without changing behavior', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'resp-json',
+                status: 'completed',
+                output: [
+                    {
+                        type: 'message',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: '{"ok":true,"answer":42}' }],
+                    },
+                ],
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await expect(client.response.experimental.createJson<{ ok: boolean; answer: number }>({
+            model: 'openai/gpt-5',
+            input: 'Return JSON',
+        })).resolves.toEqual({
+            ok: true,
+            answer: 42,
+        });
     });
 
     it('should return structured reasoning payloads via createReasoningResult()', async () => {

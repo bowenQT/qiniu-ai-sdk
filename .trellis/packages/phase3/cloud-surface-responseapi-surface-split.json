@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "packageId": "phase3/cloud-surface/responseapi-surface-split",
+  "phase": "phase3",
+  "ownerLane": "cloud-surface",
+  "category": "standard",
+  "topic": "responseapi-surface-split",
+  "goal": "Split ResponseAPI into an explicit official beta surface and a clearly deferred experimental surface without removing existing implementation.",
+  "successCriteria": [
+    "Users can distinguish official beta helpers from deferred experimental helpers at the import and docs layer without behavior ambiguity.",
+    "The stable versus deferred ResponseAPI surface is reflected consistently across exports, docs, and capability truth.",
+    "Focused verification covers ResponseAPI surface routing without breaking existing supported helpers."
+  ],
+  "touchedSurfaces": [
+    "ResponseAPI exports and helper routing",
+    "cloud-surface docs and capability truth for official versus deferred helpers",
+    "ResponseAPI-focused tests and package-level review artifacts"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Removing existing deferred helper implementations",
+    "Promoting additional ResponseAPI helpers beyond the tracked official beta subset",
+    "Changing runtime session or MCP host behavior outside ResponseAPI call paths"
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/cloud-surface/responseapi-surface-split",
+  "branch": "codex/phase3/cloud-surface/responseapi-surface-split",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/cloud-surface",
+  "createdAt": "2026-03-20T14:31:27.626Z",
+  "integrationPrerequisites": [
+    "Wave B foundation/export-coverage-guard is integrated on codex/vnext-integration as 23e8fb9.",
+    "Public contract changes must stay aligned with current capability truth and docs wording."
+  ],
+  "liveVerifyStatus": {
+    "status": "unavailable",
+    "reason": "This package clarifies public surface boundaries and export paths; it does not require live credentials unless a new GA/Beta runtime behavior is introduced."
+  }
+}
