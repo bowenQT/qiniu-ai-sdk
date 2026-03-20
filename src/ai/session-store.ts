@@ -40,12 +40,38 @@ export interface SessionStore {
     clear(threadId: string): Promise<void>;
 }
 
+/**
+ * Session store contract that can also surface its underlying checkpointer.
+ * Resumable thread helpers can use this instead of a separate top-level checkpointer.
+ */
+export interface CheckpointerBackedSessionStore extends SessionStore {
+    readonly checkpointer: Checkpointer;
+}
+
 function isSessionRecord(value: SessionRecord | Checkpoint): value is SessionRecord {
     return 'threadId' in value && !('metadata' in value);
 }
 
 function isSerializedState(value: AgentState | SerializedAgentState): value is SerializedAgentState {
     return 'internalMessages' in value || 'messages' in value;
+}
+
+/**
+ * Detect whether a session store can provide resumable checkpointer semantics.
+ */
+export function isCheckpointerBackedSessionStore(
+    value: SessionStore | null | undefined,
+): value is CheckpointerBackedSessionStore {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+
+    const candidate = (value as { checkpointer?: unknown }).checkpointer;
+    return !!candidate &&
+        typeof candidate === 'object' &&
+        typeof (candidate as Checkpointer).load === 'function' &&
+        typeof (candidate as Checkpointer).save === 'function' &&
+        typeof (candidate as Checkpointer).clear === 'function';
 }
 
 function buildCheckpoint(threadId: string, input: SessionSaveInput): Checkpoint | undefined {
@@ -233,10 +259,10 @@ export class MemorySessionStore implements SessionStore {
  * Checkpoint persistence is delegated to the underlying checkpointer, and summaries are mirrored
  * into checkpoint metadata so they survive process restarts.
  */
-export class CheckpointerSessionStore implements SessionStore {
+export class CheckpointerSessionStore implements CheckpointerBackedSessionStore {
     private summaries = new Map<string, string>();
 
-    constructor(private readonly checkpointer: Checkpointer) {}
+    constructor(public readonly checkpointer: Checkpointer) {}
 
     async load(threadId: string): Promise<SessionRecord | null> {
         const checkpoint = await this.checkpointer.load(threadId);

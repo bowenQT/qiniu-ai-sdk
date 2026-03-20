@@ -15,7 +15,12 @@ import type { MCPHostProvider } from '../lib/mcp-host-types';
 import type { RegisteredTool } from '../lib/tool-registry';
 import type { SessionStore, SessionRecord } from './session-store';
 import { ToolRegistry } from '../lib/tool-registry';
-import { buildSessionRecord, extractSessionMessages, forkSessionSaveInput } from './session-store';
+import {
+    buildSessionRecord,
+    extractSessionMessages,
+    forkSessionSaveInput,
+    isCheckpointerBackedSessionStore,
+} from './session-store';
 import { AgentGraph, type ResumableResult } from './agent-graph';
 import {
     generateTextWithGraph,
@@ -80,7 +85,10 @@ export interface AgentConfig {
     checkpointer?: Checkpointer;
     /** Memory manager for conversation summarization */
     memory?: MemoryManager;
-    /** Higher-level session persistence (checkpoint + summary) */
+    /**
+     * Higher-level session persistence (checkpoint + summary).
+     * If the store exposes a `checkpointer`, resumable thread helpers will use it.
+     */
     sessionStore?: SessionStore;
     /** Guardrails for input/output filtering */
     guardrails?: Guardrail[];
@@ -434,9 +442,8 @@ export function createAgent(config: AgentConfig): Agent {
         if (checkpointer) {
             return checkpointer;
         }
-        const sessionCheckpointer = (sessionStore as unknown as { checkpointer?: Checkpointer } | undefined)?.checkpointer;
-        if (sessionCheckpointer) {
-            return sessionCheckpointer;
+        if (isCheckpointerBackedSessionStore(sessionStore)) {
+            return sessionStore.checkpointer;
         }
         throw new Error(`${operation} requires a checkpointer or checkpointer-backed sessionStore`);
     };
@@ -914,13 +921,8 @@ export function createAgent(config: AgentConfig): Agent {
                 await sessionStore.clear(threadId);
             }
 
-            if (checkpointer && !sessionStore) {
+            if (checkpointer && (!isCheckpointerBackedSessionStore(sessionStore) || sessionStore.checkpointer !== checkpointer)) {
                 await checkpointer.clear(threadId);
-            } else if (checkpointer && sessionStore) {
-                const sessionCheckpointer = (sessionStore as unknown as { checkpointer?: Checkpointer }).checkpointer;
-                if (sessionCheckpointer !== checkpointer) {
-                    await checkpointer.clear(threadId);
-                }
             }
         },
 

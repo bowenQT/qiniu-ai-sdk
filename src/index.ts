@@ -475,10 +475,12 @@ export {
     CheckpointerSessionStore,
     buildSessionRecord,
     extractSessionMessages,
+    isCheckpointerBackedSessionStore,
     replaySession,
 } from './ai/session-store';
 export type {
     SessionStore,
+    CheckpointerBackedSessionStore,
     SessionRecord,
     SessionSaveInput,
     SessionRecordSource,
