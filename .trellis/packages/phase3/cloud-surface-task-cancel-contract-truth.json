@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "packageId": "phase3/cloud-surface/task-cancel-contract-truth",
+  "phase": "phase3",
+  "ownerLane": "cloud-surface",
+  "category": "standard",
+  "topic": "task-cancel-contract-truth",
+  "goal": "Clarify task cancellation truth for media task handles without breaking the existing API.",
+  "successCriteria": [
+    "TaskHandle cancel semantics for image/video/video-censor are explicit in docs, truth, and tests, with fail-fast behavior treated as the current contract.",
+    "Capability truth and generated scorecard stop implying cancellability beyond the current fail-fast contract.",
+    "Focused verification covers media task handles and the user-facing cancellation wording."
+  ],
+  "touchedSurfaces": [
+    "image/video/censor task-handle cancel semantics",
+    "cloud-surface docs and capability truth for media task cancellation",
+    "unit tests covering fail-fast cancel behavior"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Implementing true server-side task cancellation for media jobs",
+    "Breaking or removing the current TaskHandle cancel API",
+    "Expanding unrelated ResponseAPI or admin/account surfaces"
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/cloud-surface/task-cancel-contract-truth",
+  "branch": "codex/phase3/cloud-surface/task-cancel-contract-truth",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/cloud-surface",
+  "createdAt": "2026-03-20T14:43:55.349Z",
+  "integrationPrerequisites": [
+    "Wave B is integrated on codex/vnext-integration through commit c3a5d15.",
+    "This cloud-surface lane package must finish before queued package phase3/cloud-surface/admin-account-surface-truth starts."
+  ],
+  "liveVerifyStatus": {
+    "status": "unavailable",
+    "reason": "This package clarifies current task-handle contract semantics and local evidence only; it does not add live cancellation support."
+  }
+}
