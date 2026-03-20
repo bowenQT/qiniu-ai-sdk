@@ -241,5 +241,258 @@
       "sourceUpdatedAt": "2026-03-14",
       "validationLevel": "unit"
     }
+  ],
+  "surfaceTruthPolicy": {
+    "firstClassSurfaceDefinition": [
+      "User-facing package entrypoints and CLI bins are first-class surfaces.",
+      "Named runtime APIs exported from root/core/qiniu/node/browser entrypoints are first-class surfaces when they have dedicated contract or unit evidence.",
+      "Alias-only exports, type-only exports, generated artifacts, and internal glue remain excluded unless they widen the consumer-facing contract."
+    ],
+    "exclusionReasonSemantics": {
+      "internal-only": "Implementation detail or transitive glue that is not intended for direct consumer use.",
+      "type-only": "Type-only export with no runtime surface to audit.",
+      "generated-artifact": "Derived build output, rendered docs, or evidence artifact rather than an SDK surface.",
+      "duplicate-alias": "Alias that does not expand the consumer-facing contract beyond an already-tracked surface."
+    },
+    "gateBlankReasonSemantics": {
+      "not-configured": "No live verify gate input was configured for the current snapshot.",
+      "missing-artifact": "A live verify gate path was configured, but no artifact existed at that path.",
+      "not-produced": "The package run is not expected to emit a live verify gate artifact.",
+      "unavailable": "A live verify gate artifact is intentionally unavailable for this package or run."
+    }
+  },
+  "publicSurfaces": [
+    {
+      "name": "streamObject",
+      "kind": "runtime-surface",
+      "maturity": "beta",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "contract",
+      "evidenceBasis": [
+        "src/ai/stream-object.ts",
+        "tests/unit/ai/stream-object.test.ts",
+        "src/index.ts",
+        "src/core/index.ts",
+        "src/browser/index.ts"
+      ]
+    },
+    {
+      "name": "AgentGraph",
+      "kind": "runtime-surface",
+      "maturity": "beta",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "contract",
+      "evidenceBasis": [
+        "src/ai/agent-graph.ts",
+        "tests/unit/ai/agent-graph.test.ts",
+        "tests/unit/ai/agent-graph-trace.test.ts",
+        "src/index.ts",
+        "src/core/index.ts",
+        "src/browser/index.ts"
+      ]
+    },
+    {
+      "name": "MemoryManager",
+      "kind": "runtime-surface",
+      "maturity": "beta",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "unit",
+      "evidenceBasis": [
+        "src/ai/memory/index.ts",
+        "tests/unit/ai/memory.test.ts",
+        "src/index.ts",
+        "src/core/index.ts",
+        "src/browser/index.ts"
+      ]
+    },
+    {
+      "name": "ControlPlane",
+      "kind": "runtime-surface",
+      "maturity": "beta",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "contract",
+      "evidenceBasis": [
+        "src/ai/control-plane/index.ts",
+        "tests/unit/ai/control-plane-contracts.test.ts",
+        "tests/unit/ai/control-plane-runtime.test.ts",
+        "tests/unit/ai/control-plane-revisions.test.ts",
+        "tests/unit/ai/control-plane-optimizer.test.ts",
+        "tests/unit/ai/control-plane-reflection.test.ts"
+      ]
+    },
+    {
+      "name": "ToolRegistry",
+      "kind": "tooling-surface",
+      "maturity": "beta",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "unit",
+      "evidenceBasis": [
+        "src/lib/tool-registry.ts",
+        "tests/unit/lib/tool-registry.test.ts",
+        "src/index.ts",
+        "src/core/index.ts",
+        "src/browser/index.ts"
+      ]
+    },
+    {
+      "name": "Metrics",
+      "kind": "tooling-surface",
+      "maturity": "beta",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "unit",
+      "evidenceBasis": [
+        "src/lib/metrics.ts",
+        "tests/unit/lib/metrics.test.ts",
+        "src/ai/agent-graph.ts"
+      ]
+    },
+    {
+      "name": "Tracing",
+      "kind": "tooling-surface",
+      "maturity": "beta",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "static",
+      "evidenceBasis": [
+        "src/lib/tracer.ts",
+        "src/lib/otel-tracer.ts",
+        "src/ai/agent-graph.ts",
+        "tests/unit/ai/agent-graph-trace.test.ts"
+      ]
+    },
+    {
+      "name": "PartialJsonParser",
+      "kind": "tooling-surface",
+      "maturity": "beta",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "unit",
+      "evidenceBasis": [
+        "src/lib/partial-json-parser.ts",
+        "tests/unit/lib/partial-json-parser.test.ts",
+        "src/index.ts",
+        "src/core/index.ts",
+        "src/browser/index.ts"
+      ]
+    },
+    {
+      "name": "ParallelExecution",
+      "kind": "runtime-surface",
+      "maturity": "beta",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "unit",
+      "evidenceBasis": [
+        "src/ai/graph/parallel-executor.ts",
+        "tests/unit/ai/parallel-executor.test.ts",
+        "src/index.ts",
+        "src/core/index.ts",
+        "src/browser/index.ts"
+      ]
+    },
+    {
+      "name": "QINIU_TOOLS",
+      "kind": "tooling-surface",
+      "maturity": "experimental",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "unit",
+      "evidenceBasis": [
+        "src/ai-tools/qiniu-tools.ts",
+        "tests/unit/ai-tools/index.test.ts",
+        "src/index.ts",
+        "src/browser/index.ts"
+      ]
+    },
+    {
+      "name": "Anthropic",
+      "kind": "protocol-surface",
+      "maturity": "beta",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "unit",
+      "evidenceBasis": [
+        "src/modules/anthropic/index.ts",
+        "tests/unit/modules/anthropic.test.ts",
+        "src/index.ts",
+        "src/qiniu/index.ts"
+      ]
+    },
+    {
+      "name": "SkillSuite",
+      "kind": "node-surface",
+      "maturity": "beta",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "unit",
+      "evidenceBasis": [
+        "src/node/skills/index.ts",
+        "tests/modules/skills/registry-wrapper.test.ts",
+        "tests/modules/skills/registry-protocol.test.ts",
+        "tests/modules/skills/installer-and-references.test.ts",
+        "tests/modules/skills/validator.test.ts",
+        "tests/modules/skills/install-remote.test.ts"
+      ]
+    },
+    {
+      "name": "SandboxSuite",
+      "kind": "node-surface",
+      "maturity": "beta",
+      "docsUrl": "https://apidocs.qnaigc.com/",
+      "sourceUpdatedAt": "2026-03-20",
+      "validatedAt": "2026-03-20",
+      "validationLevel": "unit",
+      "evidenceBasis": [
+        "src/node/sandbox/index.ts",
+        "src/node/sandbox/sandbox.ts",
+        "src/node/sandbox/skill-trial.ts",
+        "tests/unit/modules/sandbox.test.ts",
+        "tests/integration/sandbox.e2e.test.ts"
+      ]
+    }
+  ],
+  "surfaceExclusions": [
+    {
+      "surface": "Internal glue exports",
+      "reasonCode": "internal-only",
+      "reason": "Implementation glue and transitive helpers are not first-class public surfaces.",
+      "notes": "Examples include private call-chain helpers and source-only composition utilities that are only reachable through public wrappers."
+    },
+    {
+      "surface": "Type-only declarations",
+      "reasonCode": "type-only",
+      "reason": "Type declarations do not add a runtime surface that can be validated separately.",
+      "notes": "Type exports remain tracked indirectly through the runtime surface that owns them."
+    },
+    {
+      "surface": "Generated evidence artifacts",
+      "reasonCode": "generated-artifact",
+      "reason": "Rendered markdown, JSON snapshots, and generated TS artifacts are support outputs, not SDK surfaces.",
+      "notes": "These are tracked as verification inputs and outputs rather than product contracts."
+    },
+    {
+      "surface": "Alias-only remaps",
+      "reasonCode": "duplicate-alias",
+      "reason": "Re-export aliases that do not widen the contract are excluded from the first-class surface ledger.",
+      "notes": "Alias shims stay documented through their owning surface instead of duplicating scorecard rows."
+    }
   ]
 }

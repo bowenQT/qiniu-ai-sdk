@@ -85,6 +85,25 @@ export interface FinalPromotionGateSummary extends FinalPromotionGateSummaryInpu
 export interface CapabilityEvidenceSummaryInput {
     generatedAt?: string;
     decisionFiles?: string[];
+    publicSurfaces?: {
+        name: string;
+        kind?: string;
+        maturity?: string;
+        validationLevel?: string;
+        validatedAt?: string;
+        docsUrl?: string;
+    }[];
+    surfaceExclusions?: {
+        surface: string;
+        reasonCode?: string;
+        reason?: string;
+        notes?: string;
+    }[];
+    surfaceTruthPolicy?: {
+        firstClassSurfaceDefinition?: string[];
+        exclusionReasonSemantics?: Record<string, string>;
+        gateBlankReasonSemantics?: Record<string, string>;
+    };
     promotionDecisions?: PromotionDecisionSummaryEntry[];
     latestLiveVerifyGate?: {
         path?: string;
@@ -95,6 +114,8 @@ export interface CapabilityEvidenceSummaryInput {
         blockingFailuresCount?: number;
         heldEvidenceCount?: number;
         unavailableEvidenceCount?: number;
+        reasonCode?: string;
+        reason?: string;
     };
 }
 
@@ -422,6 +443,9 @@ export function renderPromotionGateSummary(entry?: CloseoutPromotionGateSummaryE
 
 export function renderCapabilityEvidenceSummary(snapshot: CapabilityEvidenceSummaryInput): string {
     const decisionFiles = Array.isArray(snapshot.decisionFiles) ? snapshot.decisionFiles : [];
+    const publicSurfaces = Array.isArray(snapshot.publicSurfaces) ? snapshot.publicSurfaces : [];
+    const surfaceExclusions = Array.isArray(snapshot.surfaceExclusions) ? snapshot.surfaceExclusions : [];
+    const surfaceTruthPolicy = snapshot.surfaceTruthPolicy;
     const promotionDecisions = Array.isArray(snapshot.promotionDecisions) ? snapshot.promotionDecisions : [];
     const latestGate = snapshot.latestLiveVerifyGate;
     return [
@@ -429,6 +453,8 @@ export function renderCapabilityEvidenceSummary(snapshot: CapabilityEvidenceSumm
         '',
         `Generated at: ${snapshot.generatedAt ?? 'unknown'}`,
         `Tracked decision files: ${decisionFiles.length}`,
+        `Public surfaces tracked: ${publicSurfaces.length}`,
+        `Surface exclusions tracked: ${surfaceExclusions.length}`,
         ...(decisionFiles.length > 0
             ? [
                 '',
@@ -451,6 +477,42 @@ export function renderCapabilityEvidenceSummary(snapshot: CapabilityEvidenceSumm
                 }),
             ]
             : []),
+        ...(publicSurfaces.length > 0
+            ? [
+                '',
+                'Public surface records:',
+                ...publicSurfaces.map((surface) => {
+                    const coverage = [
+                        surface.kind ?? 'surface',
+                        surface.maturity ?? 'unknown',
+                        surface.validationLevel ?? 'unknown',
+                    ].join(' / ');
+                    return `- ${surface.name}: ${coverage}${surface.validatedAt ? ` @ ${surface.validatedAt}` : ''}`;
+                }),
+            ]
+            : []),
+        ...(surfaceExclusions.length > 0
+            ? [
+                '',
+                'Surface exclusions:',
+                ...surfaceExclusions.map((entry) => `- ${entry.surface}: ${entry.reasonCode ?? 'unknown'} (${entry.reason ?? 'no reason recorded'})`),
+            ]
+            : []),
+        ...(surfaceTruthPolicy
+            ? [
+                '',
+                'Surface truth policy:',
+                ...(surfaceTruthPolicy.firstClassSurfaceDefinition?.length
+                    ? surfaceTruthPolicy.firstClassSurfaceDefinition.map((item) => `- Inclusion: ${item}`)
+                    : []),
+                ...(surfaceTruthPolicy.exclusionReasonSemantics
+                    ? Object.entries(surfaceTruthPolicy.exclusionReasonSemantics).map(([code, meaning]) => `- Exclusion ${code}: ${meaning}`)
+                    : []),
+                ...(surfaceTruthPolicy.gateBlankReasonSemantics
+                    ? Object.entries(surfaceTruthPolicy.gateBlankReasonSemantics).map(([code, meaning]) => `- Gate blank ${code}: ${meaning}`)
+                    : []),
+            ]
+            : []),
         ...(latestGate
             ? [
                 '',
@@ -461,6 +523,7 @@ export function renderCapabilityEvidenceSummary(snapshot: CapabilityEvidenceSumm
                 `- Blocking failures: ${latestGate.blockingFailuresCount ?? 0}`,
                 `- Held evidence: ${latestGate.heldEvidenceCount ?? 0}`,
                 `- Unavailable evidence: ${latestGate.unavailableEvidenceCount ?? 0}`,
+                ...(latestGate.reasonCode || latestGate.reason ? [`- Reason: ${latestGate.reason ?? latestGate.reasonCode}`] : []),
                 ...(latestGate.packageId ? [`- Package: ${latestGate.packageId}`] : []),
             ]
             : []),

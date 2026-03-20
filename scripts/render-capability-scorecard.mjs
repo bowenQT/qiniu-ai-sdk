@@ -25,6 +25,11 @@ function escapeCell(value) {
   return String(value ?? '').replace(/\|/g, '\\|');
 }
 
+function formatValue(value) {
+  if (value == null || value === '') return 'n/a';
+  return String(value);
+}
+
 function renderTable(headers, rows) {
   const headerLine = `| ${headers.join(' | ')} |`;
   const separatorLine = `| ${headers.map(() => '---').join(' | ')} |`;
@@ -39,6 +44,12 @@ function renderScorecard(models, modules, evidenceSnapshot) {
   const moduleRows = modules
     .slice()
     .sort((a, b) => maturityRank[a.maturity] - maturityRank[b.maturity] || a.name.localeCompare(b.name));
+  const publicSurfaceRows = Array.isArray(evidenceSnapshot?.publicSurfaces)
+    ? evidenceSnapshot.publicSurfaces.slice().sort((a, b) => String(a.kind ?? '').localeCompare(String(b.kind ?? '')) || String(a.name ?? '').localeCompare(String(b.name ?? '')))
+    : [];
+  const surfaceExclusionRows = Array.isArray(evidenceSnapshot?.surfaceExclusions)
+    ? evidenceSnapshot.surfaceExclusions.slice().sort((a, b) => String(a.reasonCode ?? '').localeCompare(String(b.reasonCode ?? '')) || String(a.surface ?? '').localeCompare(String(b.surface ?? '')))
+    : [];
 
   const validatedCounts = validatedModels.reduce((acc, model) => {
     acc[model.type] = (acc[model.type] ?? 0) + 1;
@@ -50,10 +61,26 @@ function renderScorecard(models, modules, evidenceSnapshot) {
     return acc;
   }, {});
 
-  const syncedAt = moduleRows[0]?.sourceUpdatedAt ?? 'unknown';
+  const syncedAt = evidenceSnapshot?.generatedAt ?? moduleRows[0]?.sourceUpdatedAt ?? 'unknown';
   const evidenceGeneratedAt = evidenceSnapshot?.generatedAt ?? 'unknown';
   const trackedDecisionCount = evidenceSnapshot?.promotionDecisions?.length ?? 0;
   const latestGate = evidenceSnapshot?.latestLiveVerifyGate;
+  const latestGateReason = latestGate?.reason ?? latestGate?.reasonCode ?? 'n/a';
+  const surfacePolicy = evidenceSnapshot?.surfaceTruthPolicy ?? {};
+  const firstClassSurfaceDefinition = Array.isArray(surfacePolicy.firstClassSurfaceDefinition)
+    ? surfacePolicy.firstClassSurfaceDefinition
+    : [];
+  const exclusionReasonSemantics = surfacePolicy.exclusionReasonSemantics && typeof surfacePolicy.exclusionReasonSemantics === 'object'
+    ? surfacePolicy.exclusionReasonSemantics
+    : {};
+  const gateBlankReasonSemantics = surfacePolicy.gateBlankReasonSemantics && typeof surfacePolicy.gateBlankReasonSemantics === 'object'
+    ? surfacePolicy.gateBlankReasonSemantics
+    : {};
+  const surfacePolicyRows = [
+    ['Surface inclusion', 'first-class', firstClassSurfaceDefinition.join(' ') || 'User-visible package entrypoints and direct runtime APIs are tracked as first-class surfaces.'],
+    ...Object.entries(exclusionReasonSemantics).map(([code, meaning]) => ['Surface exclusion', code, meaning]),
+    ...Object.entries(gateBlankReasonSemantics).map(([code, meaning]) => ['Gate blank reason', code, meaning]),
+  ];
 
   return [
     '# Capability Scorecard',
@@ -66,9 +93,18 @@ function renderScorecard(models, modules, evidenceSnapshot) {
     '',
     `- Validated models: ${validatedModels.length}`,
     `- Validated chat/image/video split: chat=${validatedCounts.chat ?? 0}, image=${validatedCounts.image ?? 0}, video=${validatedCounts.video ?? 0}`,
+    `- Public surfaces tracked: ${publicSurfaceRows.length}`,
+    `- Surface exclusions tracked: ${surfaceExclusionRows.length}`,
     `- Module maturity split: ga=${maturityCounts.ga ?? 0}, beta=${maturityCounts.beta ?? 0}, experimental=${maturityCounts.experimental ?? 0}`,
     `- Evidence snapshot generated at: ${evidenceGeneratedAt}`,
     `- Tracked promotion decisions: ${trackedDecisionCount}`,
+    '',
+    '## Coverage Semantics',
+    '',
+    renderTable(
+      ['Kind', 'Code', 'Meaning'],
+      surfacePolicyRows,
+    ),
     '',
     '## Validated Models',
     '',
@@ -82,6 +118,35 @@ function renderScorecard(models, modules, evidenceSnapshot) {
         model.validationLevel,
         model.validatedAt ?? '',
         model.docsUrl,
+      ]),
+    ),
+    '',
+    '## Public Surfaces',
+    '',
+    renderTable(
+      ['Surface', 'Kind', 'Maturity', 'Validation', 'Validated At', 'Evidence', 'Docs'],
+      publicSurfaceRows.map((entry) => [
+        entry.name,
+        entry.kind ?? 'n/a',
+        entry.maturity ?? 'n/a',
+        entry.validationLevel ?? 'n/a',
+        formatValue(entry.validatedAt),
+        Array.isArray(entry.evidenceBasis) && entry.evidenceBasis.length > 0
+          ? entry.evidenceBasis.join('; ')
+          : formatValue(entry.notes),
+        entry.docsUrl ?? 'n/a',
+      ]),
+    ),
+    '',
+    '## Surface Exclusions',
+    '',
+    renderTable(
+      ['Surface', 'Code', 'Reason', 'Notes'],
+      surfaceExclusionRows.map((entry) => [
+        entry.surface ?? 'n/a',
+        entry.reasonCode ?? 'n/a',
+        entry.reason ?? 'n/a',
+        entry.notes ?? 'n/a',
       ]),
     ),
     '',
@@ -111,11 +176,14 @@ function renderScorecard(models, modules, evidenceSnapshot) {
       [
         ['Generated At', evidenceGeneratedAt],
         ['Tracked Decision Files', String(evidenceSnapshot?.decisionFiles?.length ?? 0)],
+        ['Public Surfaces', String(publicSurfaceRows.length)],
+        ['Surface Exclusions', String(surfaceExclusionRows.length)],
         ['Tracked Promotion Decisions', String(trackedDecisionCount)],
-        ['Latest Gate Artifact', latestGate?.path ?? ''],
-        ['Latest Gate Status', latestGate?.status ?? ''],
-        ['Latest Promotion Gate', latestGate?.promotionGateStatus ?? ''],
-        ['Latest Gate Package', latestGate?.packageId ?? ''],
+        ['Latest Gate Artifact', formatValue(latestGate?.path)],
+        ['Latest Gate Status', formatValue(latestGate?.status)],
+        ['Latest Promotion Gate', formatValue(latestGate?.promotionGateStatus)],
+        ['Latest Gate Package', formatValue(latestGate?.packageId)],
+        ['Latest Gate Reason', latestGateReason],
       ],
     ),
     '',

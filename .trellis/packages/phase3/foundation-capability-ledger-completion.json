@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "packageId": "phase3/foundation/capability-ledger-completion",
+  "phase": "phase3",
+  "ownerLane": "foundation",
+  "category": "standard",
+  "topic": "capability-ledger-completion",
+  "goal": "Complete capability truth so every formal first-class public surface is represented in capability evidence and scorecard outputs with explicit gate reason semantics.",
+  "successCriteria": [
+    "Capability evidence and scorecard cover all formal first-class public surfaces or record explicit exclusion reasons.",
+    "Latest gate status and artifact fields never render unexplained blanks.",
+    "No runtime behavior change is introduced in the truth-completion package."
+  ],
+  "touchedSurfaces": [
+    ".trellis/spec/sdk",
+    "docs",
+    "scripts/render-capability-evidence-snapshot.mjs",
+    "scripts/render-capability-scorecard.mjs"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "No new runtime or cloud API behavior.",
+    "No maturity promotion without separate tracked decision artifacts."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/foundation/capability-ledger-completion",
+  "branch": "codex/phase3/foundation/capability-ledger-completion",
+  "integrationPrerequisites": [],
+  "liveVerifyStatus": {
+    "status": "unavailable",
+    "note": "This package updates capability truth, scorecard rendering, and gate-reason semantics without requiring live cloud credentials."
+  },
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/foundation",
+  "createdAt": "2026-03-20T13:42:13.304Z"
+}

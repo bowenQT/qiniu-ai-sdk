@@ -48,6 +48,33 @@ describe('capability evidence helpers', () => {
                     validationLevel: 'unit',
                 },
             ],
+            publicSurfaces: [
+                {
+                    name: 'streamObject',
+                    kind: 'runtime-surface',
+                    maturity: 'beta',
+                    docsUrl: 'https://apidocs.qnaigc.com/',
+                    sourceUpdatedAt: '2026-03-20',
+                    validatedAt: '2026-03-20',
+                    validationLevel: 'contract',
+                },
+            ],
+            surfaceExclusions: [
+                {
+                    surface: 'Internal glue exports',
+                    reasonCode: 'internal-only',
+                    reason: 'Implementation detail or transitive glue that is not intended for direct consumer use.',
+                },
+            ],
+            surfaceTruthPolicy: {
+                firstClassSurfaceDefinition: ['User-facing package entrypoints are first-class surfaces.'],
+                exclusionReasonSemantics: {
+                    'internal-only': 'Implementation detail or transitive glue that is not intended for direct consumer use.',
+                },
+                gateBlankReasonSemantics: {
+                    unavailable: 'A live verify gate artifact is intentionally unavailable for this package or run.',
+                },
+            },
         }, decisions, ['.trellis/decisions/phase3/phase3-cloud-surface-responseapi-evidence-hardening.json'], {
             path: 'artifacts/live-verify-gate.json',
             status: 'ok',
@@ -55,14 +82,20 @@ describe('capability evidence helpers', () => {
             promotionGateStatus: 'pass',
         });
 
-        expect(snapshot.generatedAt).toBe('2026-03-16T09:00:00.000Z');
+        expect(snapshot.generatedAt).toBe('2026-03-20T00:00:00.000Z');
         expect(snapshot.modules[0]?.maturity).toBe('beta');
         expect(snapshot.modules[0]?.trackedDecision?.module).toBe('ResponseAPI');
         expect(snapshot.promotionDecisions).toHaveLength(1);
         expect(snapshot.latestLiveVerifyGate?.promotionGateStatus).toBe('pass');
+        expect(snapshot.publicSurfaces).toHaveLength(1);
+        expect(snapshot.surfaceExclusions).toHaveLength(1);
+        expect(snapshot.surfaceTruthPolicy?.firstClassSurfaceDefinition).toHaveLength(1);
 
         const generatedModule = renderCapabilityEvidenceGeneratedModule(snapshot);
         expect(generatedModule).toContain('LATEST_LIVE_VERIFY_GATE');
+        expect(generatedModule).toContain('CAPABILITY_PUBLIC_SURFACES');
+        expect(generatedModule).toContain('CAPABILITY_SURFACE_EXCLUSIONS');
+        expect(generatedModule).toContain('CAPABILITY_SURFACE_TRUTH_POLICY');
         expect(generatedModule).toContain('export const MODULE_MATURITY_SOURCE');
         expect(generatedModule).toContain('"maturity": "beta"');
     });
@@ -253,6 +286,22 @@ describe('capability evidence helpers', () => {
             required: true,
             fileExists: () => false,
         })).toThrow('Required live verify gate artifact not found');
+    });
+
+    it('returns explicit unavailable gate metadata when a non-required artifact is missing', () => {
+        const summary = resolveCapabilityEvidenceGateArtifact({
+            gatePath: '/repo/artifacts/live-verify-gate.json',
+            required: false,
+            fileExists: () => false,
+        });
+
+        expect(summary).toMatchObject({
+            path: '/repo/artifacts/live-verify-gate.json',
+            status: 'unavailable',
+            promotionGateStatus: 'unavailable',
+            reasonCode: 'missing-artifact',
+        });
+        expect(summary?.reason).toBe('Live verify gate artifact was not found for the configured input path.');
     });
 
     it('rejects gate artifacts with the wrong policy profile', () => {
