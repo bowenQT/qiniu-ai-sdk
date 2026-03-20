@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "packageId": "phase3/dx-validation/docs-api-drift-cleanup",
+  "phase": "phase3",
+  "ownerLane": "dx-validation",
+  "category": "standard",
+  "topic": "docs-api-drift-cleanup",
+  "goal": "Remove the remaining docs and example API drift around runtime, MCP, ResponseAPI, and node-only surfaces.",
+  "successCriteria": [
+    "README, COOKBOOK, tutorial, and examples no longer contain known stale API patterns or misleading import paths.",
+    "Docs and examples reflect the current runtime mainline, QiniuMCPServer truth, and ResponseAPI official/deferred split.",
+    "Focused verification extends docs drift checks or smoke paths so the cleaned examples do not regress silently."
+  ],
+  "touchedSurfaces": [
+    "README, COOKBOOK, tutorial, and examples",
+    "docs verification scripts and smoke checks",
+    "DX wording for runtime, MCP, ResponseAPI, and node-only surfaces"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Changing production runtime behavior only to match stale docs",
+    "Rewriting the full docs IA or template system",
+    "Adding new product capabilities outside the documented current surface"
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/dx-validation/docs-api-drift-cleanup",
+  "branch": "codex/phase3/dx-validation/docs-api-drift-cleanup",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/dx-validation",
+  "createdAt": "2026-03-20T14:31:28.198Z",
+  "integrationPrerequisites": [
+    "Wave B foundation/export-coverage-guard is integrated on codex/vnext-integration as 23e8fb9.",
+    "Runtime, node-integrations, and cloud-surface packages remain the source of truth for their contracts; docs must follow those contracts."
+  ],
+  "liveVerifyStatus": {
+    "status": "unavailable",
+    "reason": "This package cleans docs and examples and relies on local smoke coverage rather than live credentials."
+  }
+}
