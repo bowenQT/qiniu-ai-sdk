@@ -10,6 +10,7 @@ import {
   renderCapabilityEvidenceGeneratedModule,
   resolveCapabilityEvidenceGateArtifact,
   renderCapabilityEvidenceJson,
+  validateCapabilitySurfaceCoverage,
   walkJsonFiles,
 } from './lib/capability-evidence.mjs';
 
@@ -44,6 +45,10 @@ const liveVerifyGatePath = resolve(
 );
 
 const baseline = readJson(baselinePath);
+validateCapabilitySurfaceCoverage(baseline, {
+  repoRoot,
+  readTextFile: (filePath) => readFileSync(filePath, 'utf8'),
+});
 const trackedDecisionFiles = walkJsonFiles(decisionRoot);
 const decisionFiles = trackedDecisionFiles.map((filePath) => relative(repoRoot, filePath));
 const decisions = collectPromotionDecisions(trackedDecisionFiles, {

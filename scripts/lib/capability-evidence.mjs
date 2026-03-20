@@ -1,10 +1,45 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { extname, join, resolve } from 'node:path';
 
 const LIVE_VERIFY_GATE_PROMOTION_STATUSES = new Set(['pass', 'held', 'block', 'unavailable']);
+const FORMAL_ENTRYPOINT_FILES = Object.freeze({
+  root: 'src/index.ts',
+  core: 'src/core/index.ts',
+  browser: 'src/browser/index.ts',
+  qiniu: 'src/qiniu/index.ts',
+  node: 'src/node/index.ts',
+});
 
 function cloneEntries(entries) {
   return Array.isArray(entries) ? entries.map((entry) => ({ ...entry })) : [];
+}
+
+function parseNamedValueExportList(fragment) {
+  return fragment
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const pieces = part.split(/\s+as\s+/i).map((piece) => piece.trim()).filter(Boolean);
+      return pieces.length > 1 ? pieces[pieces.length - 1] : pieces[0];
+    });
+}
+
+function extractNamedValueExports(source) {
+  const exports = new Set();
+  const blockPattern = /(^|\n)export\s*\{([\s\S]*?)\}\s*from\s*['"][^'"]+['"]/g;
+
+  for (const match of source.matchAll(blockPattern)) {
+    const leading = match[0].split('{', 1)[0] ?? '';
+    if (leading.includes('export type')) {
+      continue;
+    }
+    for (const name of parseNamedValueExportList(match[2] ?? '')) {
+      exports.add(name);
+    }
+  }
+
+  return exports;
 }
 
 function buildUnavailableLiveVerifyGateArtifact(gatePath, reasonCode, reason) {
@@ -71,6 +106,57 @@ export function renderCapabilityEvidenceGeneratedModule(snapshot) {
     `export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = ${JSON.stringify(snapshot.modules, null, 2)};`,
     '',
   ].join('\n');
+}
+
+export function validateCapabilitySurfaceCoverage(
+  baseline,
+  {
+    repoRoot = process.cwd(),
+    readTextFile = (filePath) => readFileSync(filePath, 'utf8'),
+  } = {},
+) {
+  if (baseline.version !== 1) {
+    throw new Error('Invalid capability evidence baseline payload.');
+  }
+
+  const exclusionSemantics = baseline.surfaceTruthPolicy?.exclusionReasonSemantics ?? {};
+  for (const exclusion of baseline.surfaceExclusions ?? []) {
+    if (!exclusion.reasonCode || !Object.prototype.hasOwnProperty.call(exclusionSemantics, exclusion.reasonCode)) {
+      throw new Error(`Surface exclusion "${exclusion.surface ?? 'unknown'}" uses unknown reason code "${exclusion.reasonCode ?? 'missing'}"`);
+    }
+  }
+
+  const entrypointExportCache = new Map();
+  for (const surface of baseline.publicSurfaces ?? []) {
+    const entrypointExports = surface.entrypointExports;
+    if (!entrypointExports || typeof entrypointExports !== 'object' || Object.keys(entrypointExports).length === 0) {
+      throw new Error(`Public surface "${surface.name}" is missing entrypointExports coverage.`);
+    }
+
+    for (const [entrypoint, exports] of Object.entries(entrypointExports)) {
+      const entrypointFile = FORMAL_ENTRYPOINT_FILES[entrypoint];
+      if (!entrypointFile) {
+        throw new Error(`Public surface "${surface.name}" references unknown entrypoint "${entrypoint}"`);
+      }
+      if (!Array.isArray(exports) || exports.length === 0) {
+        throw new Error(`Public surface "${surface.name}" entrypoint "${entrypoint}" must list at least one export.`);
+      }
+
+      if (!entrypointExportCache.has(entrypoint)) {
+        const source = readTextFile(resolve(repoRoot, entrypointFile));
+        entrypointExportCache.set(entrypoint, extractNamedValueExports(source));
+      }
+
+      const exportedNames = entrypointExportCache.get(entrypoint);
+      for (const exportName of exports) {
+        if (!exportedNames.has(exportName)) {
+          throw new Error(
+            `Public surface "${surface.name}" expects export "${exportName}" in ${entrypointFile}, but the entrypoint no longer exports it.`,
+          );
+        }
+      }
+    }
+  }
 }
 
 export function collectPromotionDecisions(files, { readJsonFile = readJson, relativeToRoot = (value) => value } = {}) {

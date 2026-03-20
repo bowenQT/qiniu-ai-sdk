@@ -47,19 +47,19 @@ This document is generated from the SDK capability registry and is intended to m
 
 | Surface | Kind | Maturity | Validation | Validated At | Evidence | Docs |
 | --- | --- | --- | --- | --- | --- | --- |
-| SandboxSuite | node-surface | beta | unit | 2026-03-20 | src/node/sandbox/index.ts; src/node/sandbox/sandbox.ts; src/node/sandbox/skill-trial.ts; tests/unit/modules/sandbox.test.ts; tests/integration/sandbox.e2e.test.ts | https://apidocs.qnaigc.com/ |
-| SkillSuite | node-surface | beta | unit | 2026-03-20 | src/node/skills/index.ts; tests/modules/skills/registry-wrapper.test.ts; tests/modules/skills/registry-protocol.test.ts; tests/modules/skills/installer-and-references.test.ts; tests/modules/skills/validator.test.ts; tests/modules/skills/install-remote.test.ts | https://apidocs.qnaigc.com/ |
+| SandboxSuite | node-surface | beta | unit | 2026-03-20 | src/node/sandbox/index.ts; src/node/sandbox/sandbox.ts; src/node/sandbox/skill-trial.ts; tests/unit/modules/sandbox.test.ts; tests/integration/sandbox.e2e.test.ts; src/node/index.ts | https://apidocs.qnaigc.com/ |
+| SkillSuite | node-surface | beta | unit | 2026-03-20 | src/node/skills/index.ts; tests/modules/skills/registry-wrapper.test.ts; tests/modules/skills/registry-protocol.test.ts; tests/modules/skills/installer-and-references.test.ts; tests/modules/skills/validator.test.ts; tests/modules/skills/install-remote.test.ts; src/node/index.ts | https://apidocs.qnaigc.com/ |
 | Anthropic | protocol-surface | beta | unit | 2026-03-20 | src/modules/anthropic/index.ts; tests/unit/modules/anthropic.test.ts; src/index.ts; src/qiniu/index.ts | https://apidocs.qnaigc.com/ |
 | AgentGraph | runtime-surface | beta | contract | 2026-03-20 | src/ai/agent-graph.ts; tests/unit/ai/agent-graph.test.ts; tests/unit/ai/agent-graph-trace.test.ts; src/index.ts; src/core/index.ts; src/browser/index.ts | https://apidocs.qnaigc.com/ |
-| ControlPlane | runtime-surface | beta | contract | 2026-03-20 | src/ai/control-plane/index.ts; tests/unit/ai/control-plane-contracts.test.ts; tests/unit/ai/control-plane-runtime.test.ts; tests/unit/ai/control-plane-revisions.test.ts; tests/unit/ai/control-plane-optimizer.test.ts; tests/unit/ai/control-plane-reflection.test.ts | https://apidocs.qnaigc.com/ |
+| ControlPlane | runtime-surface | beta | contract | 2026-03-20 | src/ai/control-plane/index.ts; tests/unit/ai/control-plane-contracts.test.ts; tests/unit/ai/control-plane-runtime.test.ts; tests/unit/ai/control-plane-revisions.test.ts; tests/unit/ai/control-plane-optimizer.test.ts; tests/unit/ai/control-plane-reflection.test.ts; src/index.ts; src/core/index.ts | https://apidocs.qnaigc.com/ |
 | MemoryManager | runtime-surface | beta | unit | 2026-03-20 | src/ai/memory/index.ts; tests/unit/ai/memory.test.ts; src/index.ts; src/core/index.ts; src/browser/index.ts | https://apidocs.qnaigc.com/ |
-| ParallelExecution | runtime-surface | beta | unit | 2026-03-20 | src/ai/graph/parallel-executor.ts; tests/unit/ai/parallel-executor.test.ts; src/index.ts; src/core/index.ts; src/browser/index.ts | https://apidocs.qnaigc.com/ |
+| ParallelExecution | runtime-surface | beta | unit | 2026-03-20 | src/ai/graph/parallel-executor.ts; tests/unit/ai/parallel-executor.test.ts; src/index.ts; src/core/index.ts | https://apidocs.qnaigc.com/ |
 | streamObject | runtime-surface | beta | contract | 2026-03-20 | src/ai/stream-object.ts; tests/unit/ai/stream-object.test.ts; src/index.ts; src/core/index.ts; src/browser/index.ts | https://apidocs.qnaigc.com/ |
-| Metrics | tooling-surface | beta | unit | 2026-03-20 | src/lib/metrics.ts; tests/unit/lib/metrics.test.ts; src/ai/agent-graph.ts | https://apidocs.qnaigc.com/ |
+| Metrics | tooling-surface | beta | unit | 2026-03-20 | src/lib/metrics.ts; tests/unit/lib/metrics.test.ts; src/ai/agent-graph.ts; src/index.ts; src/core/index.ts | https://apidocs.qnaigc.com/ |
 | PartialJsonParser | tooling-surface | beta | unit | 2026-03-20 | src/lib/partial-json-parser.ts; tests/unit/lib/partial-json-parser.test.ts; src/index.ts; src/core/index.ts; src/browser/index.ts | https://apidocs.qnaigc.com/ |
 | QINIU_TOOLS | tooling-surface | experimental | unit | 2026-03-20 | src/ai-tools/qiniu-tools.ts; tests/unit/ai-tools/index.test.ts; src/index.ts; src/browser/index.ts | https://apidocs.qnaigc.com/ |
 | ToolRegistry | tooling-surface | beta | unit | 2026-03-20 | src/lib/tool-registry.ts; tests/unit/lib/tool-registry.test.ts; src/index.ts; src/core/index.ts; src/browser/index.ts | https://apidocs.qnaigc.com/ |
-| Tracing | tooling-surface | beta | static | 2026-03-20 | src/lib/tracer.ts; src/lib/otel-tracer.ts; src/ai/agent-graph.ts; tests/unit/ai/agent-graph-trace.test.ts | https://apidocs.qnaigc.com/ |
+| Tracing | tooling-surface | beta | static | 2026-03-20 | src/lib/tracer.ts; src/lib/otel-tracer.ts; src/ai/agent-graph.ts; tests/unit/ai/agent-graph-trace.test.ts; src/index.ts; src/core/index.ts; src/browser/index.ts | https://apidocs.qnaigc.com/ |
 
 ## Surface Exclusions
 
@@ -95,7 +95,7 @@ This document is generated from the SDK capability registry and is intended to m
 | guardrails | beta |  | unit |  |  | https://openai.github.io/openai-agents-js/guides/guardrails/ |
 | KodoCheckpointer | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | memory | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
-| NodeMCPHost | beta | beta (held) | unit |  | Beta is held on remaining deferred risks: OAuth token acquisition beyond already-resolved bearer tokens and cross-server routing. | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
+| NodeMCPHost | beta | beta (held) | unit |  | Beta is held on remaining deferred risks: NodeMCPHost only forwards already-resolved HTTP bearer tokens through `token` or `tokenProvider`; OAuth discovery, authorization, refresh, callback, and device-code flows remain out of scope for this package. HTTP interop evidence is collected per server; cross-server routing remains a higher-level integration concern. | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
 | PostgresCheckpointer | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
 | RedisCheckpointer | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
 | ResponseAPI | beta | experimental -> beta | unit | 2026-03-15 | Core subset (create/followUp/createTextResult/followUpTextResult) remains beta via tracked promotion, and the stronger evidence-backed beta basis only applies when fresh nightly response-api evidence is present; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only. | https://apidocs.qnaigc.com/417773141e0 |
