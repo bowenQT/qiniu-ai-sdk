@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "packageId": "phase3/cloud-surface/admin-account-surface-truth",
+  "phase": "phase3",
+  "ownerLane": "cloud-surface",
+  "category": "standard",
+  "topic": "admin-account-surface-truth",
+  "goal": "Make the current admin/account management surface explicit in product truth and docs without expanding API scope.",
+  "successCriteria": [
+    "Account and admin surfaces are documented and tracked exactly as they exist today, with clear backlog boundaries for non-existent management capabilities.",
+    "Capability truth and generated scorecard stop implying broader management coverage than the current methods provide.",
+    "Focused verification covers account/admin tests and docs consistency without introducing new API behavior."
+  ],
+  "touchedSurfaces": [
+    "account/admin docs and capability truth",
+    "cloud-surface scorecard and verification wording for management surface breadth",
+    "unit tests around account/admin modules if wording or method assumptions change"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Adding new billing/quota/project/tenant/admin APIs",
+    "Changing auth or request semantics for existing account/admin methods",
+    "Reworking unrelated media or ResponseAPI surfaces"
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/cloud-surface/admin-account-surface-truth",
+  "branch": "codex/phase3/cloud-surface/admin-account-surface-truth",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/cloud-surface",
+  "createdAt": "2026-03-20T14:50:57.035Z",
+  "integrationPrerequisites": [
+    "Wave C task-cancel-contract-truth is integrated on codex/vnext-integration as b667379.",
+    "This package must land before foundation/release-scorecard-closure begins final closeout."
+  ],
+  "liveVerifyStatus": {
+    "status": "unavailable",
+    "reason": "This package clarifies current management surface truth and docs only; it does not add new live-managed APIs."
+  }
+}

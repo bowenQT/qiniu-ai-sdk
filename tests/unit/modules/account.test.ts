@@ -26,6 +26,14 @@ describe('Account Module', () => {
         vi.unstubAllGlobals();
     });
 
+    it('currently exposes only the usage surface', () => {
+        const publicMethods = Object.getOwnPropertyNames(Account.prototype)
+            .filter((name) => name !== 'constructor')
+            .sort();
+
+        expect(publicMethods).toEqual(['usage']);
+    });
+
     it('should sign AK/SK usage requests with a Qiniu authorization header', async () => {
         const mockClient = createMockClient();
         const account = new Account(mockClient as any);

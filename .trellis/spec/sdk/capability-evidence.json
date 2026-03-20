@@ -127,7 +127,7 @@
       "sourceUpdatedAt": "2026-03-14",
       "validatedAt": "2026-03-15",
       "validationLevel": "unit",
-      "notes": "Usage auth signing and response handling are covered by unit tests; live verification remains opt-in."
+      "notes": "The current account surface is limited to usage() time-series queries; usage auth signing and response handling are covered by unit tests, and live verification remains opt-in."
     },
     {
       "name": "admin",
@@ -135,7 +135,8 @@
       "docsUrl": "https://apidocs.qnaigc.com/",
       "sourceUpdatedAt": "2026-03-14",
       "validatedAt": "2026-03-15",
-      "validationLevel": "unit"
+      "validationLevel": "unit",
+      "notes": "The current admin surface is limited to API key CRUD (createKeys, listKeys, getKey, revokeKey); broader quota, billing, project, or tenant administration is not part of the shipped SDK surface."
     },
     {
       "name": "batch",
