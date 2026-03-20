@@ -93,6 +93,7 @@
     "generate:verification-report": "npm run generate:final-promotion-gate && node scripts/render-verification-report.mjs",
     "generate:phase2-closeout-report": "node scripts/render-phase2-closeout-report.mjs",
     "test:truth-drift": "node scripts/verify-capability-truth-drift.mjs",
+    "test:runtime-story-smoke": "vitest run tests/cli/runtime-story-smoke.test.ts",
     "build": "npm run prebuild && npm run build:cjs && npm run build:esm",
     "build:cjs": "tsc -p tsconfig.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm.js",

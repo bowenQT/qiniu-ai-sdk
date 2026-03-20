@@ -8,6 +8,18 @@ const docs = [
   resolve(repoRoot, 'README.zh-CN.md'),
   resolve(repoRoot, 'COOKBOOK.md'),
 ];
+const exampleDocs = [
+  resolve(repoRoot, 'examples', '01-basic-weather-agent.ts'),
+  resolve(repoRoot, 'examples', '02-research-assistant.ts'),
+  resolve(repoRoot, 'examples', '03-code-review-agent.ts'),
+  resolve(repoRoot, 'examples', '04-content-crew.ts'),
+  resolve(repoRoot, 'examples', 'usage.ts'),
+  resolve(repoRoot, 'examples', 'verify.ts'),
+  resolve(repoRoot, 'examples', 'verify-streaming.ts'),
+  resolve(repoRoot, 'examples', 'verify-image-edit.ts'),
+  resolve(repoRoot, 'examples', 'verify-video-frames.ts'),
+  resolve(repoRoot, 'examples', 'TUTORIAL.md'),
+];
 const capabilityScorecardPath = resolve(repoRoot, 'docs', 'capability-scorecard.md');
 
 const forbiddenRootSymbols = new Set([
@@ -48,6 +60,34 @@ for (const filePath of docs) {
     if (offenders.length > 0) {
       errors.push(`${filePath}: root import should use subpaths for ${offenders.join(', ')}`);
     }
+  }
+}
+
+for (const filePath of exampleDocs) {
+  const source = readFileSync(filePath, 'utf8');
+  if (source.includes("from '../src'") || source.includes('from "../src"')) {
+    errors.push(`${filePath}: examples should import from package entrypoints, not ../src`);
+  }
+}
+
+const usageExample = readFileSync(resolve(repoRoot, 'examples', 'usage.ts'), 'utf8');
+for (const pattern of ['QINIU_AI_API_KEY', 'client.sys.search', 'kling-v1']) {
+  if (usageExample.includes(pattern)) {
+    errors.push(`examples/usage.ts: stale pattern still present: ${pattern}`);
+  }
+}
+
+const verifyExample = readFileSync(resolve(repoRoot, 'examples', 'verify.ts'), 'utf8');
+for (const pattern of ['QINIU_AI_API_KEY', 'client.sys.search', 'image.create(', 'kling-v1']) {
+  if (verifyExample.includes(pattern)) {
+    errors.push(`examples/verify.ts: stale pattern still present: ${pattern}`);
+  }
+}
+
+const tutorialExample = readFileSync(resolve(repoRoot, 'examples', 'TUTORIAL.md'), 'utf8');
+for (const pattern of ['invokeResumable', '#20-mcp-client-integration', 'createCrew']) {
+  if (tutorialExample.includes(pattern)) {
+    errors.push(`examples/TUTORIAL.md: stale pattern still present: ${pattern}`);
   }
 }
 

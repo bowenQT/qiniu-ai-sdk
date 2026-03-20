@@ -7,7 +7,7 @@
  * Run with: npx tsx examples/verify-video-frames.ts
  */
 
-import { QiniuAI, consoleLogger, VideoGenerationRequest, FrameInput, VideoReference } from '../src';
+import { QiniuAI, consoleLogger, VideoGenerationRequest, FrameInput, VideoReference } from '@bowenqt/qiniu-ai-sdk';
 
 // Mock client for type checking (no real API calls)
 const client = new QiniuAI({
@@ -185,7 +185,7 @@ console.log('All type checks passed! ✅');
 console.log('='.repeat(60));
 console.log(`
 Next steps for live testing:
-1. Set QINIU_AI_API_KEY environment variable
+1. Set QINIU_API_KEY environment variable
 2. Uncomment the actual API calls below
 3. Run: npx tsx examples/verify-video-frames.ts
 `);
@@ -196,9 +196,9 @@ Next steps for live testing:
 
 /*
 async function liveTest() {
-    const apiKey = process.env.QINIU_AI_API_KEY;
+    const apiKey = process.env.QINIU_API_KEY;
     if (!apiKey) {
-        console.log('⚠️  QINIU_AI_API_KEY not set, skipping live tests');
+        console.log('⚠️  QINIU_API_KEY not set, skipping live tests');
         return;
     }
 

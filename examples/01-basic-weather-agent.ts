@@ -10,7 +10,7 @@
  * npx tsx examples/01-basic-weather-agent.ts
  */
 
-import { QiniuAI, generateText, type Tool } from '../src';
+import { QiniuAI, generateText, type Tool } from '@bowenqt/qiniu-ai-sdk';
 
 // ============================================================================
 // 配置

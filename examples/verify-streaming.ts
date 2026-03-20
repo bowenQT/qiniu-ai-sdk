@@ -6,16 +6,16 @@
  * - reasoning_content (if model supports it)
  * 
  * Usage:
- * export QINIU_AI_API_KEY="sk-..."
+ * export QINIU_API_KEY="sk-..."
  * npx tsx examples/verify-streaming.ts
  */
 
-import { QiniuAI, consoleLogger } from '../src';
+import { QiniuAI, consoleLogger } from '@bowenqt/qiniu-ai-sdk';
 
-const apiKey = process.env.QINIU_AI_API_KEY;
+const apiKey = process.env.QINIU_API_KEY;
 
 if (!apiKey) {
-    console.error('❌ Error: Please set QINIU_AI_API_KEY environment variable.');
+    console.error('❌ Error: Please set QINIU_API_KEY environment variable.');
     process.exit(1);
 }
 

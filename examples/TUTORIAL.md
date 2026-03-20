@@ -57,7 +57,7 @@ Agent: "北京今天天气晴朗，气温 25°C"
 **学习目标**：
 - 多工具协同（搜索 → 分析 → 保存）
 - `Checkpointer` 状态持久化
-- `invokeResumable` 断点续跑
+- `runResumableWithThread` / `resumeThread` 断点续跑
 
 ```
 User: "帮我研究一下 AI Agent 的发展趋势"
@@ -104,7 +104,7 @@ Agent: "发现 3 个问题：1. 未处理空指针..."
 **场景**：内容创作团队，包含 Researcher、Writer、Editor 三个专业 Agent 协作。
 
 **学习目标**：
-- `createCrew` 多智能体编排
+- `createSequentialCrew` / `createParallelCrew` / `createHierarchicalCrew` 多智能体编排
 - 顺序/并行/层级编排模式
 - 智能体间消息传递
 - 任务分解与聚合
@@ -128,7 +128,7 @@ Agent: "文章已完成：《量子计算入门：从比特到量子比特》"
 
 完成以上示例后，可继续探索：
 
-- **MCP 集成**：连接外部工具服务器 ([COOKBOOK #20](../COOKBOOK.md#20-mcp-client-integration))
+- **MCP 集成**：连接外部工具服务器 ([COOKBOOK #20](../COOKBOOK.md#20-nodemcphost-integration))
 - **工具审批 (HITL)**：敏感操作人工确认 ([COOKBOOK #18](../COOKBOOK.md#18-tool-approval-hitl))
 - **Prometheus 监控**：生产环境指标导出 ([COOKBOOK #23b](../COOKBOOK.md#23b-structured-telemetry---prometheus-export-v0320))
 - **Vercel AI SDK 适配**：前端流式显示 ([COOKBOOK #8](../COOKBOOK.md#8-vercel-ai-sdk-integration))

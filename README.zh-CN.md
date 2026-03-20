@@ -73,6 +73,7 @@ npm install @bowenqt/qiniu-ai-sdk
 - `ResponseAPI` 仅核心子集晋级为 beta：`create`、`followUp`、`createTextResult`、`followUpTextResult`；只有在存在 fresh nightly `response-api` 证据时，才会启用更强的 evidence-backed beta 结论。
 - 其余 `ResponseAPI` helpers 仍处于 deferred/provider-only（包括 stream、JSON/messages、reasoning、chat-completion projection）。
 - `NodeMCPHost` 仍为 `beta (held)`；当前只负责透传已经解析好的 bearer token（`token` / `tokenProvider`），剩余 deferred risks 为超出该边界的 OAuth token acquisition 与 cross-server routing。
+- 本分支的 runtime story smoke 保持本地优先：只验证 `createAgent` + session/checkpointer、approval resume、MCP host 组合，最终 runtime/node contract 仍由对应 lane worker 收敛。
 - root 入口继续保留兼容性，但不再作为新项目的默认教学入口。
 
 ### Cloud API Quickstart

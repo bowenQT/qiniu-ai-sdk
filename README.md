@@ -73,6 +73,7 @@ npm install @bowenqt/qiniu-ai-sdk
 - `ResponseAPI` is promoted to beta for the core subset only: `create`, `followUp`, `createTextResult`, and `followUpTextResult`; the stronger evidence-backed beta basis only applies when fresh nightly `response-api` evidence is present.
 - Other `ResponseAPI` helpers remain deferred/provider-only in this phase, including stream, JSON/messages, reasoning, and chat-completion projection helpers.
 - `NodeMCPHost` remains `beta (held)`; it only forwards already-resolved bearer tokens via `token` or `tokenProvider`, and the remaining deferred risks are OAuth token acquisition beyond that boundary plus cross-server routing.
+- The runtime story smoke in this branch is intentionally local-first: it validates `createAgent` plus session/checkpointer, approval resume, and MCP host composition, while leaving the final runtime/node contract to the dedicated lane workers.
 - The root entry remains a compatibility surface, not the recommended teaching surface for new projects.
 
 ### Cloud API Quickstart
