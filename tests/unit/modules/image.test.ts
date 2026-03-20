@@ -24,6 +24,9 @@ describe('Image Module', () => {
             expect(result.id).toBe('task-123');
             expect(result.get).toBeTypeOf('function');
             expect(result.wait).toBeTypeOf('function');
+            await expect(result.cancel()).rejects.toThrow(
+                'image task cancellation is not supported for task task-123',
+            );
             expect(mockFetch.calls[0].url).toContain('/images/generations');
         });
 
@@ -99,6 +102,9 @@ describe('Image Module', () => {
                 expect(result.task_id).toBe('task-123');
                 expect(result.get).toBeTypeOf('function');
                 expect(result.wait).toBeTypeOf('function');
+                await expect(result.cancel()).rejects.toThrow(
+                    'image task cancellation is not supported for task task-123',
+                );
             }
         });
 

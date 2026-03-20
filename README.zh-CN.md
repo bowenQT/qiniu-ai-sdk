@@ -350,6 +350,7 @@ const videoTask = await client.video.create({
 });
 const videoResult = await client.video.waitForCompletion(videoTask.id);
 console.log(videoResult.task_result?.videos[0].url);
+// videoTask.cancel() 当前会显式报错，因为远端媒体任务取消还不支持
 
 // viduq 视频生成 (v0.36.0+)
 const viduqTask = await client.video.create({
@@ -360,6 +361,7 @@ const viduqTask = await client.video.create({
 // 使用完整句柄进行可靠轮询
 const viduqResult = await client.video.waitForCompletion(viduqTask);
 console.log(viduqResult.task_result?.videos[0].url);
+// 如需停止本地等待，请使用 AbortSignal；viduqTask.cancel() 当前仍为 fail-fast
 
 // kling-image-o1 高质量图像 (v0.36.0+)
 const klingImg = await client.image.generate({

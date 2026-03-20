@@ -125,6 +125,27 @@ describe('Video Module', () => {
             expect(body.image_tail).toBe('https://example.com/end.jpg');
             expect(body.image_list).toBeUndefined();
         });
+
+        it('should surface unsupported cancel() explicitly for provider-backed video handles', async () => {
+            const mockFetch = createStaticMockFetch({
+                status: 200,
+                body: { id: 'qvideo-unsupported-cancel' },
+            });
+
+            const client = new QiniuAI({
+                apiKey: 'sk-test',
+                adapter: mockFetch.adapter,
+            });
+
+            const handle = await client.video.create({
+                model: 'kling-v3',
+                prompt: 'A lantern drifting across the water',
+            });
+
+            await expect(handle.cancel()).rejects.toThrow(
+                'video task cancellation is not supported for task qvideo-unsupported-cancel',
+            );
+        });
     });
 
     describe('get()', () => {
