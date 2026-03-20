@@ -81,31 +81,31 @@ This document is generated from the SDK capability registry and is intended to m
 | file | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | generateObject | ga |  | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | generateText | ga |  | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| image | ga |  | unit | 2026-03-14 | Async image task handles expose cancel(), but current provider-backed handles fail fast because remote cancellation is not supported; AbortSignal only cancels local waiting/polling. | https://apidocs.qnaigc.com/ |
+| image | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | log | ga |  | unit | 2026-03-15 | Absolute export contract is covered by unit tests; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
 | ocr | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | streamText | ga |  | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | tts | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| video | ga |  | unit | 2026-03-15 | Dedicated unit suites cover Veo/Kling normalization and task-handle behavior. VideoTaskHandle.cancel() currently fails fast for provider-backed media jobs because remote cancellation is not supported; AbortSignal only cancels local waiting/polling. Live verification remains opt-in. | https://apidocs.qnaigc.com/ |
-| account | beta |  | unit | 2026-03-15 | The current account surface is limited to usage() time-series queries; usage auth signing and response handling are covered by unit tests, and live verification remains opt-in. | https://apidocs.qnaigc.com/ |
+| video | ga |  | unit | 2026-03-15 | Dedicated unit suites cover Veo/Kling normalization and task-handle behavior; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
+| account | beta |  | unit | 2026-03-15 | Usage auth signing and response handling are covered by unit tests; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
 | adapter | beta |  | unit |  |  | https://ai-sdk.dev/docs |
-| admin | beta |  | unit | 2026-03-15 | The current admin surface is limited to API key CRUD (createKeys, listKeys, getKey, revokeKey); broader quota, billing, project, or tenant administration is not part of the shipped SDK surface. | https://apidocs.qnaigc.com/ |
+| admin | beta |  | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
 | auditLogger | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | batch | beta |  | unit | 2026-03-15 | Core task lifecycle and handle behavior are covered; live verification remains env-gated. | https://apidocs.qnaigc.com/ |
-| censor | beta |  | unit | 2026-03-15 | Video censor task handles expose cancel(), but current jobs fail fast because remote cancellation is not supported; callers should treat cancel() as an explicit unsupported contract today. | https://apidocs.qnaigc.com/ |
+| censor | beta |  | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
 | guardrails | beta |  | unit |  |  | https://openai.github.io/openai-agents-js/guides/guardrails/ |
 | KodoCheckpointer | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | memory | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
-| NodeMCPHost | beta | beta (held) | unit |  | Beta is held on remaining deferred risks: NodeMCPHost only forwards already-resolved HTTP bearer tokens through `token` or `tokenProvider`; OAuth discovery, authorization, refresh, callback, and device-code flows remain out of scope for this package. HTTP interop evidence is collected per server; cross-server routing remains a higher-level integration concern. | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
+| NodeMCPHost | beta | beta (held) | unit |  | Beta is held on remaining deferred risks: OAuth token acquisition beyond already-resolved bearer tokens and cross-server routing. | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
 | PostgresCheckpointer | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
 | RedisCheckpointer | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
-| ResponseAPI | beta | experimental -> beta | unit | 2026-03-15 | Core subset (create/followUp/createTextResult/followUpTextResult) remains beta via tracked promotion, and the stronger evidence-backed beta basis only applies when fresh nightly response-api evidence is present; deferred stream, message, JSON, reasoning, and chat-completion helpers are recommended through response.experimental.* while legacy direct helper methods remain compatibility aliases. | https://apidocs.qnaigc.com/417773141e0 |
+| ResponseAPI | beta | experimental -> beta | unit | 2026-03-15 | Core subset (create/followUp/createTextResult/followUpTextResult) remains beta via tracked promotion, and the stronger evidence-backed beta basis only applies when fresh nightly response-api evidence is present; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only. | https://apidocs.qnaigc.com/417773141e0 |
 | sandbox | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | skills | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | A2A | experimental |  | unit |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
 | ai-tools | experimental |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | crew | experimental |  | static |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
-| QiniuMCPServer | experimental |  | unit | 2026-03-20 | Built-in stdio server currently exposes qiniu_chat, qiniu_ocr, qiniu_image_censor, qiniu_video_censor, and qiniu_image_generate. Frame extraction remains outside the server surface and stays available through ai-tools or asset resolver helpers. | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
+| QiniuMCPServer | experimental |  | unit |  |  | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
 
 ## Tracked Evidence Snapshot
 
