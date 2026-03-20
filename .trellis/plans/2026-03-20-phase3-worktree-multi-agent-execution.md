@@ -1,6 +1,6 @@
 # Phase 3 Worktree Multi-Agent Execution
 
-Status: Wave A integrated, Wave B in progress
+Status: Wave A and Wave B integrated, Wave C queued
 
 Main baseline: `5067a8d`
 
@@ -127,12 +127,12 @@ Each completed package must provide:
   - `phase3/dx-validation/docs-api-drift-cleanup`
 - Wave B package 4 landed on `codex/vnext-integration` as `495594d`
 - Wave B package 5 landed on `codex/vnext-integration` as `3778502`
-- integration verification stayed green after packages 4 and 5:
+- Wave B package 2 landed on `codex/vnext-integration` as `c4dc6ed`
+- Wave B package 3 landed on `codex/vnext-integration` as `c3a5d15`
+- integration verification stayed green after the full Wave B stack:
   - `npm run build`
   - `npm test`
   - `npm run test:docs`
   - `npm run test:package-smoke`
   - `npm run test:template-smoke`
-- Active Wave B execution is now narrowed to:
-  - `phase3/cloud-surface/responseapi-surface-split`
-  - `phase3/node-integrations/qiniu-mcp-server-truth-sync`
+- Wave C remains queued; no Wave C package has been launched yet from this orchestration branch
