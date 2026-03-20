@@ -151,4 +151,4 @@ onStepFinish: (step) => console.log(`[${step.type}]`, step.content?.slice(0, 100
 
 ---
 
-*Built with ❤️ using @bowenqt/qiniu-ai-sdk v0.32.0*
+*Built with ❤️ using @bowenqt/qiniu-ai-sdk v0.49.1*

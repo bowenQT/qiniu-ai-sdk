@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "packageId": "phase3/dx-validation/docs-api-drift-cleanup",
+  "ownerLane": "dx-validation",
+  "generatedAt": "2026-03-20T14:40:00.000Z",
+  "changedFiles": [
+    "README.md",
+    "README.zh-CN.md",
+    "COOKBOOK.md",
+    "examples/TUTORIAL.md",
+    "scripts/verify-docs.mjs"
+  ],
+  "changedSurfaces": [
+    "README / README.zh-CN MCP server truth and env guidance",
+    "COOKBOOK NodeMCPHost and built-in cloud tools distinction",
+    "examples/TUTORIAL.md version sync",
+    "docs drift verification guard for MCP server truth and ResponseAPI contract tokens"
+  ],
+  "focusedVerification": [
+    "npm run build",
+    "npm run test:runtime-story-smoke",
+    "npm run test:docs",
+    "npm run test:template-smoke"
+  ],
+  "fullGateStatus": [
+    "build: pass",
+    "runtime-story-smoke: pass",
+    "test:docs: pass",
+    "test:template-smoke: pass"
+  ],
+  "liveVerifyDelta": [
+    "unavailable: docs/examples cleanup package does not require live credentials"
+  ],
+  "deferredRisks": [
+    "verify-docs uses string-level contract checks rather than parsing README/COOKBOOK structure semantically",
+    "QiniuMCPServer truth may still drift again if node-integrations changes the server tool surface without updating docs guards"
+  ],
+  "artifactLinks": [
+    "artifacts/phase3-dx-validation-docs-api-drift-cleanup-review-packet.md"
+  ]
+}

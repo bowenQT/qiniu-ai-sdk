@@ -1005,6 +1005,10 @@ await resumeWithUserApproval('email-task-001', true);
 
 Connect to Model Context Protocol servers via `NodeMCPHost`:
 
+`NodeMCPHost` is the client-side MCP host/provider. The built-in `qiniu-mcp-server` currently exposes
+`qiniu_chat`, `qiniu_ocr`, `qiniu_image_censor`, `qiniu_video_censor`, and `qiniu_image_generate`.
+`Vframe` stays in `QINIU_TOOLS` rather than the MCP server.
+
 ### Stdio Transport
 
 ```ts
@@ -1138,6 +1142,9 @@ console.log('Cache size:', cachedSigner.cacheSize);
 ## 22. Built-in Cloud Tools (OCR/Censor/Vframe)
 
 Use pre-built Qiniu cloud tools in your agent:
+
+This section covers `QINIU_TOOLS` from `@bowenqt/qiniu-ai-sdk` / `@bowenqt/qiniu-ai-sdk/ai-tools`.
+It is broader than the built-in `qiniu-mcp-server` surface and still includes `qiniu_vframe`.
 
 ```ts
 import { QiniuAI } from '@bowenqt/qiniu-ai-sdk/qiniu';
