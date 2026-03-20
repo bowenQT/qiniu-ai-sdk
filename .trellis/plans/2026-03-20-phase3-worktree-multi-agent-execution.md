@@ -1,6 +1,6 @@
 # Phase 3 Worktree Multi-Agent Execution
 
-Status: Wave A and Wave B integrated, Wave C queued
+Status: Wave A and Wave B integrated, Wave C in progress
 
 Main baseline: `5067a8d`
 
@@ -135,4 +135,14 @@ Each completed package must provide:
   - `npm run test:docs`
   - `npm run test:package-smoke`
   - `npm run test:template-smoke`
-- Wave C remains queued; no Wave C package has been launched yet from this orchestration branch
+- Wave C package `phase3/cloud-surface/task-cancel-contract-truth` landed on `codex/vnext-integration` as `b667379`
+- Wave C package `phase3/dx-validation/examples-smoke-and-gate-visibility` landed on `codex/vnext-integration` as `f2dba9a`
+- integration verification stayed green after the first Wave C tranche:
+  - `npm run build`
+  - `npm test`
+  - `npm run test:docs`
+  - `npm run test:package-smoke`
+  - `npm run test:template-smoke`
+- Remaining Wave C queue:
+  - `phase3/cloud-surface/admin-account-surface-truth`
+  - `phase3/foundation/release-scorecard-closure`
