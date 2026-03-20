@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "packageId": "phase3/node-integrations/mcphost-held-risk-closure",
+  "phase": "phase3",
+  "ownerLane": "node-integrations",
+  "category": "standard",
+  "topic": "mcphost-held-risk-closure",
+  "goal": "Resolve the Phase 3 NodeMCPHost held-risk package by formalizing the product boundary for OAuth acquisition or refresh and cross-server routing, then sync that boundary into tracked truth and docs.",
+  "successCriteria": [
+    "NodeMCPHost held basis is stated consistently across code, truth artifacts, and docs.",
+    "OAuth acquisition or refresh scope is explicitly in or out of host responsibility.",
+    "Cross-server routing is explicitly supported, deferred, or excluded with rationale."
+  ],
+  "touchedSurfaces": [
+    "src/node",
+    ".trellis/spec/sdk",
+    "tests/node"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "No expansion of QiniuMCPServer tool surface.",
+    "No unrelated skills or sandbox changes."
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/node-integrations/mcphost-held-risk-closure",
+  "branch": "codex/phase3/node-integrations/mcphost-held-risk-closure",
+  "integrationPrerequisites": [
+    "phase3/foundation/capability-ledger-completion",
+    "phase3/runtime/runtime-mainline-contract"
+  ],
+  "liveVerifyStatus": {
+    "status": "env-gated",
+    "note": "Live MCP interop evidence may be attached when credentials and target servers are available, but focused verification must still pass locally without them."
+  },
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/node-integrations",
+  "createdAt": "2026-03-20T13:42:14.279Z"
+}

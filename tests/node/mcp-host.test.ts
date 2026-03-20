@@ -198,6 +198,23 @@ describe('NodeMCPHost', () => {
         expect(transportCall?.[1]?.requestInit?.headers).not.toHaveProperty('Authorization');
     });
 
+    it('documents the explicit held boundary for OAuth acquisition, refresh, and routing', async () => {
+        const {
+            DEFAULT_MCP_INTEROP_DEFERRED_RISKS,
+            NODE_MCPHOST_PROMOTION_READINESS_CONTRACT,
+        } = await import('../../src/node/mcp-host');
+
+        expect(DEFAULT_MCP_INTEROP_DEFERRED_RISKS).toEqual([
+            'Server-initiated notifications and list_changed updates are still covered by unit tests, not live verification.',
+            'NodeMCPHost only forwards already-resolved HTTP bearer tokens through `token` or `tokenProvider`; OAuth discovery, authorization, refresh, callback, and device-code flows remain out of scope for this package.',
+            'HTTP interop evidence is collected per server; cross-server routing remains a higher-level integration concern.',
+        ]);
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.decisionStatus).toBe('held');
+        expect(NODE_MCPHOST_PROMOTION_READINESS_CONTRACT.deferredRisks).toEqual(
+            DEFAULT_MCP_INTEROP_DEFERRED_RISKS.slice(1),
+        );
+    });
+
     it('getTools() returns RegisteredTool[] with MCP source', async () => {
         const { NodeMCPHost } = await import('../../src/node/mcp-host');
 

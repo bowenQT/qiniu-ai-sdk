@@ -55,7 +55,11 @@ export interface MCPHttpServerConfig extends MCPServerConfigBase {
     token?: string;
     /** Dynamic token provider (e.g., from TokenManager) */
     tokenProvider?: () => Promise<string>;
-    /** OAuth configuration (for reference, use with TokenManager) */
+    /**
+     * OAuth configuration metadata only.
+     * NodeMCPHost does not initiate OAuth discovery or refresh; use TokenManager
+     * or MCPHttpTransport for those flows.
+     */
     oauth?: MCPOAuthConfig;
     /** Custom headers */
     headers?: Record<string, string>;

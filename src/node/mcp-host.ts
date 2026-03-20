@@ -531,7 +531,9 @@ export class NodeMCPHost implements MCPHostProvider {
             });
         }
 
-        // NodeMCPHost does not initiate OAuth; it only forwards already-resolved bearer tokens.
+        // NodeMCPHost does not initiate OAuth discovery or refresh.
+        // It only forwards already-resolved bearer tokens, while cross-server routing
+        // remains a higher-level integration concern.
         const token = server.token ?? await server.tokenProvider?.();
         const headers = buildHttpHeaders(server, token);
 

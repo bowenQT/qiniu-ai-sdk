@@ -180,7 +180,7 @@
       "docsUrl": "https://modelcontextprotocol.io/specification/2025-11-25/basic/transports",
       "sourceUpdatedAt": "2026-03-14",
       "validationLevel": "unit",
-      "notes": "Beta is held on remaining deferred risks: OAuth token acquisition beyond already-resolved bearer tokens and cross-server routing.",
+      "notes": "Beta is held on remaining deferred risks: NodeMCPHost only forwards already-resolved HTTP bearer tokens through `token` or `tokenProvider`; OAuth discovery, authorization, refresh, callback, and device-code flows remain out of scope for this package. HTTP interop evidence is collected per server; cross-server routing remains a higher-level integration concern.",
       "trackedDecision": {
         "packageId": "phase3/node-integrations/mcphost-oauth-boundary",
         "module": "NodeMCPHost",
