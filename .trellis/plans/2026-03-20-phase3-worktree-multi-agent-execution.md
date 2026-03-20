@@ -125,3 +125,14 @@ Each completed package must provide:
   - `phase3/node-integrations/qiniu-mcp-server-truth-sync`
   - `phase3/runtime-hardening/agent-resume-e2e-contract`
   - `phase3/dx-validation/docs-api-drift-cleanup`
+- Wave B package 4 landed on `codex/vnext-integration` as `495594d`
+- Wave B package 5 landed on `codex/vnext-integration` as `3778502`
+- integration verification stayed green after packages 4 and 5:
+  - `npm run build`
+  - `npm test`
+  - `npm run test:docs`
+  - `npm run test:package-smoke`
+  - `npm run test:template-smoke`
+- Active Wave B execution is now narrowed to:
+  - `phase3/cloud-surface/responseapi-surface-split`
+  - `phase3/node-integrations/qiniu-mcp-server-truth-sync`
