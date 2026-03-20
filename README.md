@@ -350,6 +350,7 @@ const videoTask = await client.video.create({
 });
 const videoResult = await client.video.waitForCompletion(videoTask.id);
 console.log(videoResult.task_result?.videos[0].url);
+// videoTask.cancel() currently rejects explicitly because remote media-task cancellation is unsupported
 
 // viduq video generation (v0.36.0+)
 const viduqTask = await client.video.create({
@@ -360,6 +361,7 @@ const viduqTask = await client.video.create({
 // Use full handle for reliable polling
 const viduqResult = await client.video.waitForCompletion(viduqTask);
 console.log(viduqResult.task_result?.videos[0].url);
+// Use AbortSignal to stop local waiting; viduqTask.cancel() still fails fast today
 
 // kling-image-o1 high-quality image (v0.36.0+)
 const klingImg = await client.image.generate({

@@ -35,7 +35,8 @@
       "docsUrl": "https://apidocs.qnaigc.com/",
       "sourceUpdatedAt": "2026-03-14",
       "validatedAt": "2026-03-14",
-      "validationLevel": "unit"
+      "validationLevel": "unit",
+      "notes": "Async image task handles expose cancel(), but current provider-backed handles fail fast because remote cancellation is not supported; AbortSignal only cancels local waiting/polling."
     },
     {
       "name": "video",
@@ -44,7 +45,7 @@
       "sourceUpdatedAt": "2026-03-14",
       "validatedAt": "2026-03-15",
       "validationLevel": "unit",
-      "notes": "Dedicated unit suites cover Veo/Kling normalization and task-handle behavior; live verification remains opt-in."
+      "notes": "Dedicated unit suites cover Veo/Kling normalization and task-handle behavior. VideoTaskHandle.cancel() currently fails fast for provider-backed media jobs because remote cancellation is not supported; AbortSignal only cancels local waiting/polling. Live verification remains opt-in."
     },
     {
       "name": "ocr",
@@ -151,7 +152,8 @@
       "docsUrl": "https://apidocs.qnaigc.com/",
       "sourceUpdatedAt": "2026-03-14",
       "validatedAt": "2026-03-15",
-      "validationLevel": "unit"
+      "validationLevel": "unit",
+      "notes": "Video censor task handles expose cancel(), but current jobs fail fast because remote cancellation is not supported; callers should treat cancel() as an explicit unsupported contract today."
     },
     {
       "name": "adapter",

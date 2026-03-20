@@ -343,6 +343,10 @@ const result = await client.video.waitForCompletion(task.id);
 console.log(result.task_result?.videos[0].url);
 ```
 
+`VideoTaskHandle.cancel()` is part of the shared handle contract, but current media jobs fail fast because remote cancellation is not supported yet. Use `AbortSignal` to stop local waiting or polling.
+
+`VideoTaskHandle.cancel()` 属于统一句柄接口的一部分，但当前媒体任务会直接报 unsupported，因为远端取消尚未支持。若要停止本地等待或轮询，请使用 `AbortSignal`。
+
 ## 11b. viduq Video Generation (v0.36.0+)
 
 viduq models use the fal-ai queue system. `create()` returns a `VideoTaskHandle` for reliable async polling.
