@@ -87,9 +87,9 @@ This document is generated from the SDK capability registry and is intended to m
 | streamText | ga |  | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | tts | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | video | ga |  | unit | 2026-03-15 | Dedicated unit suites cover Veo/Kling normalization and task-handle behavior. VideoTaskHandle.cancel() currently fails fast for provider-backed media jobs because remote cancellation is not supported; AbortSignal only cancels local waiting/polling. Live verification remains opt-in. | https://apidocs.qnaigc.com/ |
-| account | beta |  | unit | 2026-03-15 | Usage auth signing and response handling are covered by unit tests; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
+| account | beta |  | unit | 2026-03-15 | The current account surface is limited to usage() time-series queries; usage auth signing and response handling are covered by unit tests, and live verification remains opt-in. | https://apidocs.qnaigc.com/ |
 | adapter | beta |  | unit |  |  | https://ai-sdk.dev/docs |
-| admin | beta |  | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
+| admin | beta |  | unit | 2026-03-15 | The current admin surface is limited to API key CRUD (createKeys, listKeys, getKey, revokeKey); broader quota, billing, project, or tenant administration is not part of the shipped SDK surface. | https://apidocs.qnaigc.com/ |
 | auditLogger | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | batch | beta |  | unit | 2026-03-15 | Core task lifecycle and handle behavior are covered; live verification remains env-gated. | https://apidocs.qnaigc.com/ |
 | censor | beta |  | unit | 2026-03-15 | Video censor task handles expose cancel(), but current jobs fail fast because remote cancellation is not supported; callers should treat cancel() as an explicit unsupported contract today. | https://apidocs.qnaigc.com/ |

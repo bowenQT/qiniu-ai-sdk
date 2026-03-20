@@ -16,6 +16,14 @@ function createMockClient() {
 }
 
 describe('Admin', () => {
+    it('currently exposes only API key CRUD operations', () => {
+        const publicMethods = Object.getOwnPropertyNames(Admin.prototype)
+            .filter((name) => name !== 'constructor')
+            .sort();
+
+        expect(publicMethods).toEqual(['createKeys', 'getKey', 'listKeys', 'revokeKey']);
+    });
+
     it('creates API keys via the current /apikeys contract and normalizes nested key payloads', async () => {
         const client = createMockClient();
         client.post.mockResolvedValue({

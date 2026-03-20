@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "packageId": "phase3/cloud-surface/admin-account-surface-truth",
+  "ownerLane": "cloud-surface",
+  "generatedAt": "2026-03-20T14:53:37Z",
+  "changedFiles": [
+    "README.md",
+    "README.zh-CN.md",
+    "COOKBOOK.md",
+    ".trellis/spec/sdk/capability-evidence-baseline.json",
+    ".trellis/spec/sdk/capability-evidence.json",
+    "src/lib/capability-evidence.generated.ts",
+    "docs/capability-scorecard.md",
+    "tests/unit/modules/account.test.ts",
+    "tests/unit/modules/admin.test.ts"
+  ],
+  "changedSurfaces": [
+    "account/admin docs and capability truth",
+    "cloud-surface scorecard and verification wording for management surface breadth",
+    "unit tests around account/admin public surface assumptions"
+  ],
+  "focusedVerification": [
+    "npm run build",
+    "npm test -- tests/unit/modules/account.test.ts tests/unit/modules/admin.test.ts",
+    "npm run test:docs"
+  ],
+  "fullGateStatus": [
+    "build: passed",
+    "account/admin tests: passed",
+    "docs contract: passed"
+  ],
+  "liveVerifyDelta": [
+    "unavailable: package clarifies current management surface truth only; no new live-managed APIs were added"
+  ],
+  "deferredRisks": [
+    "account remains limited to usage() and admin remains limited to API key CRUD; broader quota, billing, project, or tenant surfaces remain backlog only",
+    "this package does not add type-level markers for missing management domains; the boundary remains enforced through docs, truth, and tests"
+  ],
+  "artifactLinks": [
+    "artifacts/phase3-cloud-surface-admin-account-surface-truth-evidence.json",
+    "artifacts/phase3-cloud-surface-admin-account-surface-truth-review-packet.md",
+    "docs/capability-scorecard.md"
+  ]
+}
