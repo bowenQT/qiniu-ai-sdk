@@ -92,6 +92,9 @@ describe('verification report renderer', () => {
         expect(output).toContain('Reason: Live verify gate artifact was not found for the configured input path.');
         expect(output).toContain('## Promotion Gate Summary');
         expect(output).toContain('- Status: unavailable');
+        expect(output).toContain('## Gate Visibility Contract');
+        expect(output).toContain('Latest gate path, status, package, and reason are tracked through the Capability Evidence Snapshot and generated scorecard.');
+        expect(output).toContain('absence never implies an unexplained blank gate state.');
         expect(output).toContain('## Live Verification');
         expect(output).toContain('Latest live evidence.');
         expect(output).toContain('## Review Packet');
@@ -124,6 +127,8 @@ describe('verification report renderer', () => {
         expect(output).toContain('Phase policy summary was not produced for this run.');
         expect(output).toContain('Capability evidence snapshot was not produced for this run.');
         expect(output).toContain('Promotion gate summary was not produced for this run.');
+        expect(output).toContain('## Gate Visibility Contract');
+        expect(output).toContain('Review packet, promotion decisions, and final promotion gate sections must render explicit fallback text whenever their artifacts are unavailable.');
         expect(output).toContain('Live verification artifact was not produced for this run.');
         expect(output).toContain('Review packet artifact was not produced for this run.');
         expect(output).toContain('Promotion decision artifact was not produced for this run.');

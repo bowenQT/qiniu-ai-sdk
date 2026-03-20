@@ -651,6 +651,11 @@ export function renderVerificationReport(input: VerificationReportInput): string
     const finalPromotionGateSummary = input.finalPromotionGateSummary
         ? trimEmbeddedHeading(input.finalPromotionGateSummary)
         : undefined;
+    const gateVisibilityContract = [
+        '- Latest gate path, status, package, and reason are tracked through the Capability Evidence Snapshot and generated scorecard.',
+        '- When a live verification markdown artifact is absent, this report must say so explicitly; absence never implies an unexplained blank gate state.',
+        '- Review packet, promotion decisions, and final promotion gate sections must render explicit fallback text whenever their artifacts are unavailable.',
+    ].join('\n');
 
     return [
         '# Verification Report',
@@ -680,6 +685,10 @@ export function renderVerificationReport(input: VerificationReportInput): string
         input.promotionGateSummaryAvailable && promotionGateSummary
             ? promotionGateSummary
             : 'Promotion gate summary was not produced for this run.',
+        '',
+        '## Gate Visibility Contract',
+        '',
+        gateVisibilityContract,
         '',
         '## Live Verification',
         '',
