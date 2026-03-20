@@ -3,6 +3,23 @@ import { extname, join } from 'node:path';
 
 const LIVE_VERIFY_GATE_PROMOTION_STATUSES = new Set(['pass', 'held', 'block', 'unavailable']);
 
+function cloneEntries(entries) {
+  return Array.isArray(entries) ? entries.map((entry) => ({ ...entry })) : [];
+}
+
+function buildUnavailableLiveVerifyGateArtifact(gatePath, reasonCode, reason) {
+  return {
+    path: gatePath,
+    status: 'unavailable',
+    promotionGateStatus: 'unavailable',
+    blockingFailuresCount: 0,
+    heldEvidenceCount: 0,
+    unavailableEvidenceCount: 0,
+    reasonCode,
+    reason,
+  };
+}
+
 export function readJson(filePath) {
   return JSON.parse(readFileSync(filePath, 'utf8'));
 }
@@ -46,6 +63,9 @@ export function renderCapabilityEvidenceGeneratedModule(snapshot) {
     '',
     `export const CAPABILITY_EVIDENCE_GENERATED_AT = ${JSON.stringify(snapshot.generatedAt)};`,
     `export const CAPABILITY_EVIDENCE_DECISION_FILES = ${JSON.stringify(snapshot.decisionFiles, null, 2)} as const;`,
+    `export const CAPABILITY_SURFACE_TRUTH_POLICY = ${JSON.stringify(snapshot.surfaceTruthPolicy ?? null, null, 2)} as const;`,
+    `export const CAPABILITY_PUBLIC_SURFACES = ${JSON.stringify(snapshot.publicSurfaces ?? [], null, 2)} as const;`,
+    `export const CAPABILITY_SURFACE_EXCLUSIONS = ${JSON.stringify(snapshot.surfaceExclusions ?? [], null, 2)} as const;`,
     `export const LATEST_LIVE_VERIFY_GATE = ${renderedLatestGate};`,
     `export const TRACKED_PROMOTION_DECISIONS = ${JSON.stringify(snapshot.promotionDecisions, null, 2)} as const;`,
     `export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = ${JSON.stringify(snapshot.modules, null, 2)};`,
@@ -144,6 +164,8 @@ export function summarizeLiveVerifyGateArtifact(gateArtifact, gatePath) {
     blockingFailuresCount: Array.isArray(gateArtifact.blockingFailures) ? gateArtifact.blockingFailures.length : 0,
     heldEvidenceCount: Array.isArray(gateArtifact.heldEvidence) ? gateArtifact.heldEvidence.length : 0,
     unavailableEvidenceCount: Array.isArray(gateArtifact.unavailableEvidence) ? gateArtifact.unavailableEvidence.length : 0,
+    reasonCode: gateArtifact.reasonCode,
+    reason: gateArtifact.reason,
   };
 }
 
@@ -162,14 +184,22 @@ export function resolveCapabilityEvidenceGateArtifact(options) {
     if (required) {
       throw new Error('Capability evidence gate input path is required but was not provided.');
     }
-    return undefined;
+    return buildUnavailableLiveVerifyGateArtifact(
+      undefined,
+      'not-configured',
+      'No live verify gate input was configured for this snapshot.',
+    );
   }
 
   if (!fileExists(gatePath)) {
     if (required) {
       throw new Error(`Required live verify gate artifact not found: ${gatePath}`);
     }
-    return undefined;
+    return buildUnavailableLiveVerifyGateArtifact(
+      gatePath,
+      'missing-artifact',
+      'Live verify gate artifact was not found for the configured input path.',
+    );
   }
 
   const artifact = readJsonFile(gatePath);
@@ -219,6 +249,8 @@ export function buildCapabilityEvidenceSnapshot(baseline, decisions, decisionFil
   }
 
   const modules = baseline.modules.map((entry) => ({ ...entry }));
+  const publicSurfaces = cloneEntries(baseline.publicSurfaces);
+  const surfaceExclusions = cloneEntries(baseline.surfaceExclusions);
   const index = new Map(modules.map((entry, offset) => [capabilityModuleKey(entry.name), offset]));
   const latestDecisionIndex = buildLatestDecisionIndex(decisions, latestLiveVerifyGate);
 
@@ -240,10 +272,13 @@ export function buildCapabilityEvidenceSnapshot(baseline, decisions, decisionFil
 
   return {
     version: 1,
-    generatedAt: computeCapabilityEvidenceGeneratedAt(modules, decisions),
+    generatedAt: computeCapabilityEvidenceGeneratedAt([...modules, ...publicSurfaces], decisions),
     decisionFiles,
     latestLiveVerifyGate,
     modules,
+    publicSurfaces,
+    surfaceExclusions,
+    surfaceTruthPolicy: baseline.surfaceTruthPolicy ?? undefined,
     promotionDecisions: decisions,
   };
 }

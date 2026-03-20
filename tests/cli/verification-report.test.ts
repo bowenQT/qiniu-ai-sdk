@@ -65,7 +65,7 @@ describe('verification report renderer', () => {
             phasePolicySummary: '# Phase Policy\n\n- Status: closeout-candidate\n- New packages allowed: no\n',
             capabilityScorecard: '# Capability Scorecard\n\nTracked capability truth.\n',
             capabilityEvidenceAvailable: true,
-            capabilityEvidenceSummary: '# Capability Evidence Snapshot\n\nTracked promotion decisions: 1.\n\nLatest gate artifact:\n- Path: artifacts/live-verify-gate.json\n- Status: ok\n- Promotion gate: unavailable\n- Blocking failures: 0\n- Held evidence: 0\n- Unavailable evidence: 1\n',
+            capabilityEvidenceSummary: '# Capability Evidence Snapshot\n\nTracked decision files: 1\nPublic surfaces tracked: 1\nSurface exclusions tracked: 1\n\nTracked promotion decisions: 1.\n\nLatest gate artifact:\n- Path: artifacts/live-verify-gate.json\n- Status: ok\n- Promotion gate: unavailable\n- Blocking failures: 0\n- Held evidence: 0\n- Unavailable evidence: 1\n- Reason: Live verify gate artifact was not found for the configured input path.\n',
             promotionGateSummaryAvailable: true,
             promotionGateSummary: '# Promotion Gate Summary\n\n- Status: unavailable\n- Unavailable evidence: 1\n',
             liveVerifyAvailable: true,
@@ -85,8 +85,11 @@ describe('verification report renderer', () => {
         expect(output).toContain('## Capability Scorecard');
         expect(output).toContain('Tracked capability truth.');
         expect(output).toContain('## Capability Evidence Snapshot');
+        expect(output).toContain('Public surfaces tracked: 1');
+        expect(output).toContain('Surface exclusions tracked: 1');
         expect(output).toContain('Tracked promotion decisions: 1.');
         expect(output).toContain('Latest gate artifact:');
+        expect(output).toContain('Reason: Live verify gate artifact was not found for the configured input path.');
         expect(output).toContain('## Promotion Gate Summary');
         expect(output).toContain('- Status: unavailable');
         expect(output).toContain('## Live Verification');
@@ -131,6 +134,31 @@ describe('verification report renderer', () => {
         const output = renderCapabilityEvidenceSummary({
             generatedAt: '2026-03-17T00:00:00.000Z',
             decisionFiles: ['.trellis/decisions/phase3/phase3-node-integrations-mcphost-oauth-boundary.json'],
+            publicSurfaces: [
+                {
+                    name: 'streamObject',
+                    kind: 'runtime-surface',
+                    maturity: 'beta',
+                    validationLevel: 'contract',
+                    validatedAt: '2026-03-20',
+                },
+            ],
+            surfaceExclusions: [
+                {
+                    surface: 'Internal glue exports',
+                    reasonCode: 'internal-only',
+                    reason: 'Implementation detail or transitive glue that is not intended for direct consumer use.',
+                },
+            ],
+            surfaceTruthPolicy: {
+                firstClassSurfaceDefinition: ['User-facing package entrypoints are first-class surfaces.'],
+                exclusionReasonSemantics: {
+                    'internal-only': 'Implementation detail or transitive glue that is not intended for direct consumer use.',
+                },
+                gateBlankReasonSemantics: {
+                    unavailable: 'A live verify gate artifact is intentionally unavailable for this package or run.',
+                },
+            },
             promotionDecisions: [
                 {
                     module: 'NodeMCPHost',
@@ -144,13 +172,22 @@ describe('verification report renderer', () => {
                 status: 'ok',
                 promotionGateStatus: 'held',
                 heldEvidenceCount: 1,
+                reasonCode: 'missing-artifact',
+                reason: 'Live verify gate artifact was not found for the configured input path.',
             },
         });
 
         expect(output).toContain('# Capability Evidence Snapshot');
         expect(output).toContain('Tracked decision files: 1');
+        expect(output).toContain('Public surfaces tracked: 1');
+        expect(output).toContain('Surface exclusions tracked: 1');
+        expect(output).toContain('Surface truth policy:');
+        expect(output).toContain('- Gate blank unavailable: A live verify gate artifact is intentionally unavailable for this package or run.');
+        expect(output).toContain('Public surface records:');
+        expect(output).toContain('Surface exclusions:');
         expect(output).toContain('NodeMCPHost: beta (held)');
         expect(output).toContain('- Promotion gate: held');
+        expect(output).toContain('- Reason: Live verify gate artifact was not found for the configured input path.');
     });
 
     it('renders tracked review handoffs as a review-packet fallback artifact', () => {
