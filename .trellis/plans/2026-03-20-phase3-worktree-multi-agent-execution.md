@@ -1,6 +1,6 @@
 # Phase 3 Worktree Multi-Agent Execution
 
-Status: Wave A integrated, Wave B conditionally released
+Status: Wave A integrated, Wave B in progress
 
 Main baseline: `5067a8d`
 
@@ -119,3 +119,9 @@ Each completed package must provide:
   - no blocking findings in Wave A integration verification
   - release `phase3/foundation/export-coverage-guard` first
   - keep the other Wave B packages queued until package 1 lands
+- Wave B package 1 landed on `codex/vnext-integration` as `23e8fb9`
+- Remaining Wave B packages are now released for execution:
+  - `phase3/cloud-surface/responseapi-surface-split`
+  - `phase3/node-integrations/qiniu-mcp-server-truth-sync`
+  - `phase3/runtime-hardening/agent-resume-e2e-contract`
+  - `phase3/dx-validation/docs-api-drift-cleanup`
