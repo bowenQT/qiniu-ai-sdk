@@ -155,6 +155,49 @@ function trimEmbeddedHeading(content: string): string {
     return trimmed.replace(/^# .+\n+/, '');
 }
 
+function reviewHandoffFileName(candidate: string): string {
+    const normalized = candidate.replace(/\\/g, '/');
+    const segments = normalized.split('/');
+    return segments[segments.length - 1] ?? normalized;
+}
+
+function reviewHandoffDatePrefix(candidate: string): string {
+    const fileName = reviewHandoffFileName(candidate);
+    const match = /^(\d{4}-\d{2}-\d{2})-/.exec(fileName);
+    return match?.[1] ?? '';
+}
+
+function reviewHandoffPriority(candidate: string): number {
+    const fileName = reviewHandoffFileName(candidate).toLowerCase();
+    if (fileName.includes('closeout-review-handoff')) {
+        return 2;
+    }
+    if (fileName.includes('review-handoff')) {
+        return 1;
+    }
+    return 0;
+}
+
+export function selectPreferredReviewHandoff(candidates: string[]): string | undefined {
+    if (candidates.length === 0) {
+        return undefined;
+    }
+
+    return [...candidates].sort((left, right) => {
+        const dateCompare = reviewHandoffDatePrefix(right).localeCompare(reviewHandoffDatePrefix(left));
+        if (dateCompare !== 0) {
+            return dateCompare;
+        }
+
+        const priorityCompare = reviewHandoffPriority(right) - reviewHandoffPriority(left);
+        if (priorityCompare !== 0) {
+            return priorityCompare;
+        }
+
+        return reviewHandoffFileName(right).localeCompare(reviewHandoffFileName(left));
+    })[0];
+}
+
 function hasFinalPromotionGateEvalOutcome(
     evalCandidateReport?: FinalPromotionGateEvalCandidateSummary,
 ): boolean {

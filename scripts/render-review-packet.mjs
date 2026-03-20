@@ -13,15 +13,15 @@ const outputPath = resolve(
   process.argv[4] || process.env.QINIU_REVIEW_PACKET_OUTPUT || 'artifacts/review-packet.md',
 );
 
-function findLatestReviewHandoff(root) {
+function findLatestReviewHandoff(root, selectPreferredReviewHandoff) {
   const integrationsRoot = resolve(root, '.trellis', 'integrations');
   if (!existsSync(integrationsRoot)) {
     return undefined;
   }
   const candidates = readdirSync(integrationsRoot)
     .filter((entry) => entry.includes('review-handoff') && extname(entry) === '.md')
-    .sort((left, right) => right.localeCompare(left));
-  return candidates.length > 0 ? join(integrationsRoot, candidates[0]) : undefined;
+    .map((entry) => join(integrationsRoot, entry));
+  return selectPreferredReviewHandoff(candidates);
 }
 
 function resolveOptionalPath(inputPath) {
@@ -36,7 +36,7 @@ if (!existsSync(packageWorkflowDistEntry) || !existsSync(verificationReportDistE
   );
 }
 
-const { renderReviewPacketFallback } = await import(pathToFileURL(verificationReportDistEntry).href);
+const { renderReviewPacketFallback, selectPreferredReviewHandoff } = await import(pathToFileURL(verificationReportDistEntry).href);
 
 let rendered;
 const resolvedBriefPath = resolveOptionalPath(briefPath);
@@ -52,7 +52,7 @@ if (resolvedBriefPath && resolvedEvidencePath && existsSync(resolvedBriefPath) &
   const packet = createReviewPacket(changePackage, evidence);
   rendered = renderReviewPacketMarkdown(changePackage, packet);
 } else {
-  const resolvedHandoffPath = resolveOptionalPath(handoffPath) || findLatestReviewHandoff(process.cwd());
+  const resolvedHandoffPath = resolveOptionalPath(handoffPath) || findLatestReviewHandoff(process.cwd(), selectPreferredReviewHandoff);
   const handoffContent = resolvedHandoffPath && existsSync(resolvedHandoffPath)
     ? readFileSync(resolvedHandoffPath, 'utf8')
     : undefined;

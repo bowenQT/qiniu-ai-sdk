@@ -1,6 +1,6 @@
 # Verification Report
 
-Generated at: 2026-03-20T14:57:13.599Z
+Generated at: 2026-03-20T15:00:53.614Z
 
 This artifact combines tracked capability truth, package review artifacts, tracked promotion decisions, and the latest live verification evidence and policy boundaries produced in CI.
 

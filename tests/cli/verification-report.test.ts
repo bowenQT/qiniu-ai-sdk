@@ -6,6 +6,7 @@ import {
     renderPromotionGateSummary,
     renderReviewPacketFallback,
     renderVerificationReport,
+    selectPreferredReviewHandoff,
     toFinalPromotionGateSummaryJson,
 } from '../../src/cli/verification-report';
 
@@ -203,6 +204,14 @@ describe('verification report renderer', () => {
 
         expect(output).toContain('# Phase 2 Batch 2 Review Handoff');
         expect(output).toContain('Checkpoint summary.');
+    });
+
+    it('prefers closeout review handoffs over same-day wave handoffs', () => {
+        expect(selectPreferredReviewHandoff([
+            '.trellis/integrations/2026-03-20-phase3-wave-a-review-handoff.md',
+            '.trellis/integrations/2026-03-20-phase3-closeout-review-handoff.md',
+            '.trellis/integrations/2026-03-18-phase3-batch2-review-handoff.md',
+        ])).toBe('.trellis/integrations/2026-03-20-phase3-closeout-review-handoff.md');
     });
 
     it('renders tracked promotion decisions when no package-scoped decision input exists', () => {
