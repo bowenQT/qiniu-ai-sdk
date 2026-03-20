@@ -60,8 +60,8 @@
       "closeoutReportPath": "artifacts/phase2-closeout-report.md"
     },
     "phase3": {
-      "status": "active",
-      "allowNewPackages": true,
+      "status": "closeout-candidate",
+      "allowNewPackages": false,
       "entryCriteria": [
         "Phase 2 is closed on main.",
         "ResponseAPI and NodeMCPHost both have tracked held decisions.",
@@ -87,7 +87,17 @@
         "Any new cloud helper or MCP runtime surface beyond the approved subset moves to a later Phase 3 package.",
         "GA promotion remains deferred until nightly evidence and tracked decisions both support it.",
         "Cross-lane work touching more than two owner lanes must still be split into prerequisite packages."
-      ]
+      ],
+      "closeoutCriteria": [
+        "Wave A, Wave B, and Wave C package queues are integrated on codex/vnext-integration.",
+        "Capability truth, generated scorecard, verification report, and tracked handoff documents are in sync.",
+        "A single Phase 3 closeout report exists for final review."
+      ],
+      "overrideRules": [
+        "Only a tracked closeout or reopen package may change status or allowNewPackages for Phase 3.",
+        "Any post-closeout Phase 3 package requires a committed policy reopen before branch creation."
+      ],
+      "closeoutReportPath": "artifacts/phase3-closeout-report.md"
     }
   }
 }

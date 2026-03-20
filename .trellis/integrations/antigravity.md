@@ -24,6 +24,7 @@
   - focused verification before integration
 - Antigravity should prefer tracked package briefs, review packets, and verification artifacts over raw transcript replay.
 - Current review checkpoint:
+  - [`2026-03-20-phase3-closeout-review-handoff.md`](./2026-03-20-phase3-closeout-review-handoff.md)
   - [`2026-03-20-phase3-wave-a-review-handoff.md`](./2026-03-20-phase3-wave-a-review-handoff.md)
   - [`2026-03-17-phase2-closeout-review-handoff.md`](./2026-03-17-phase2-closeout-review-handoff.md)
   - prior checkpoint: [`2026-03-17-phase2-batch3-review-handoff.md`](./2026-03-17-phase2-batch3-review-handoff.md)

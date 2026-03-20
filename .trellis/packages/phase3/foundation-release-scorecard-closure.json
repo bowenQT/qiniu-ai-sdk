@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "packageId": "phase3/foundation/release-scorecard-closure",
+  "phase": "phase3",
+  "ownerLane": "foundation",
+  "category": "standard",
+  "topic": "release-scorecard-closure",
+  "goal": "Finalize Phase 3 tracked truth, scorecard, verification report, and release-closeout docs from the integrated Wave A/B/C baseline.",
+  "successCriteria": [
+    "The integrated branch has a coherent closeout snapshot for capability truth, scorecard, verification artifacts, and remaining deferred items, suitable for final review.",
+    "Tracked closeout docs accurately summarize what Phase 3 changed, what remains deferred, and what evidence gates are still unavailable or env-gated.",
+    "Focused verification proves the rendered scorecard and verification report remain in sync with integrated truth."
+  ],
+  "touchedSurfaces": [
+    "capability evidence snapshot, generated scorecard, verification report, and tracked closeout docs",
+    "foundation closeout artifacts and release-facing summary docs",
+    "tests guarding capability evidence and verification report rendering"
+  ],
+  "requiredEvidence": [
+    "focused-verification",
+    "full-gate-status",
+    "live-verify-delta",
+    "deferred-risks"
+  ],
+  "explicitlyOutOfScope": [
+    "Adding new product capabilities or reopening Wave A/B/C feature contracts",
+    "Changing live-verify policy semantics beyond closeout reporting",
+    "Cutting a release tag or merging integration back to main"
+  ],
+  "expectedMergeTarget": "main",
+  "expectedBranch": "codex/phase3/foundation/release-scorecard-closure",
+  "branch": "codex/phase3/foundation/release-scorecard-closure",
+  "worktreePath": "/Users/zhongbowen/Desktop/claude-project/qiniu_ai_sdk/.worktrees/foundation",
+  "createdAt": "2026-03-20T14:54:47.788Z",
+  "integrationPrerequisites": [
+    "Wave C cloud-surface/admin-account-surface-truth is integrated on codex/vnext-integration as 369f2fc.",
+    "This package lands last in the Phase 3 orchestration branch."
+  ],
+  "liveVerifyStatus": {
+    "status": "unavailable",
+    "reason": "This is a closeout/reporting package; it consolidates evidence and deferred state rather than introducing new live-verified behavior."
+  }
+}

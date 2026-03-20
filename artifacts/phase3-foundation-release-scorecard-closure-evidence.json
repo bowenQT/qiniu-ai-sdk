@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "packageId": "phase3/foundation/release-scorecard-closure",
+  "ownerLane": "foundation",
+  "generatedAt": "2026-03-20T14:57:13.599Z",
+  "changedFiles": [
+    ".trellis/packages/phase3/foundation-release-scorecard-closure.json",
+    ".trellis/spec/sdk/phase-policy.json",
+    ".trellis/integrations/2026-03-20-phase3-closeout-review-handoff.md",
+    ".trellis/integrations/2026-03-20-phase3-wave-c-launch.md",
+    ".trellis/integrations/antigravity.md",
+    ".trellis/plans/2026-03-20-phase3-worktree-multi-agent-execution.md",
+    "artifacts/phase3-closeout-report.md",
+    "artifacts/review-packet.md",
+    "artifacts/verification-report.md"
+  ],
+  "changedSurfaces": [
+    "phase3 closeout policy and package-freeze state",
+    "tracked closeout handoff, launch docs, and execution-plan closure",
+    "foundation closeout artifacts for review-packet and verification-report consumption"
+  ],
+  "focusedVerification": [
+    "npm run build",
+    "npm test -- tests/cli/capability-evidence.test.ts tests/cli/verification-report.test.ts tests/cli/package-workflow.test.ts",
+    "npm run test:docs",
+    "QINIU_REVIEW_HANDOFF_PATH=.trellis/integrations/2026-03-20-phase3-closeout-review-handoff.md npm run generate:review-packet",
+    "QINIU_REVIEW_HANDOFF_PATH=.trellis/integrations/2026-03-20-phase3-closeout-review-handoff.md npm run generate:verification-report"
+  ],
+  "fullGateStatus": [
+    "build: pass",
+    "focused tests: pass",
+    "test:docs: pass",
+    "review packet render: pass",
+    "verification report render: pass"
+  ],
+  "liveVerifyDelta": [
+    "unavailable: closeout package consolidates tracked truth and reporting only; no new live-verified behavior was introduced"
+  ],
+  "deferredRisks": [
+    "Phase 3 remains in closeout-candidate rather than closed because mainline landing and any final release-owner decision still happen outside this package.",
+    "Latest live verification and final promotion gate artifacts remain unavailable in this closeout run; the report makes that absence explicit rather than treating it as a blank state."
+  ],
+  "artifactLinks": [
+    ".trellis/integrations/2026-03-20-phase3-closeout-review-handoff.md",
+    ".trellis/spec/sdk/phase-policy.json",
+    ".trellis/plans/2026-03-20-phase3-worktree-multi-agent-execution.md",
+    "artifacts/phase3-closeout-report.md",
+    "artifacts/review-packet.md",
+    "artifacts/verification-report.md"
+  ]
+}
