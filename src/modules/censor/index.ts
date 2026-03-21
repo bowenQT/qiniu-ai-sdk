@@ -9,13 +9,14 @@
 import { IQiniuClient } from '../../lib/types';
 import { pollUntilComplete, type PollerOptions } from '../../lib/poller';
 import { createUnsupportedTaskCancellation, type TaskHandle } from '../../lib/task-handle';
+import { resolveQiniuAuthorizationHeader } from '../../lib/qiniu-auth';
 
 // ============================================================================
 // Types
 // ============================================================================
 
 /** Scenes for content moderation */
-export type CensorScene = 'pulp' | 'terror' | 'politician';
+export type CensorScene = 'pulp' | 'terror' | 'politician' | 'ads' | 'behavior';
 
 /** Suggestion result from moderation */
 export type CensorSuggestion = 'pass' | 'review' | 'block';
@@ -28,6 +29,13 @@ export interface ImageCensorRequest {
     id?: string;
     /** Scenes to check (default: all) */
     scenes?: CensorScene[];
+    /** Override Authorization header for the official Qiniu censor API */
+    authorization?: string;
+    /** AK/SK auth for the official Qiniu censor API */
+    auth?: {
+        accessKey: string;
+        secretKey: string;
+    };
 }
 
 /** Video censor request */
@@ -40,6 +48,13 @@ export interface VideoCensorRequest {
     scenes?: CensorScene[];
     /** Frame capture interval in milliseconds (default: 5000) */
     intervalMs?: number;
+    /** Override Authorization header for the official Qiniu censor API */
+    authorization?: string;
+    /** AK/SK auth for the official Qiniu censor API */
+    auth?: {
+        accessKey: string;
+        secretKey: string;
+    };
 }
 
 /** Scene result from moderation */
@@ -81,6 +96,11 @@ export interface VideoCensorWaitOptions {
     signal?: AbortSignal;
     maxRetries?: number;
     onPoll?: PollerOptions<VideoCensorResult>['onPoll'];
+    authorization?: string;
+    auth?: {
+        accessKey: string;
+        secretKey: string;
+    };
 }
 
 export interface VideoCensorTaskHandle
@@ -90,7 +110,7 @@ export interface VideoCensorTaskHandle
 }
 
 /** Video censor status */
-export type VideoCensorStatus = 'WAITING' | 'DOING' | 'DONE' | 'FAILED';
+export type VideoCensorStatus = 'WAITING' | 'DOING' | 'RESCHEDULED' | 'DONE' | 'FAILED' | 'FINISHED';
 
 /** Video censor result */
 export interface VideoCensorResult {
@@ -150,14 +170,23 @@ interface VideoCensorStatusApiResponse {
     error?: string;
 }
 
-const TERMINAL_VIDEO_CENSOR_STATUSES: VideoCensorStatus[] = ['DONE', 'FAILED'];
+const CENSOR_BASE_URL = 'https://ai.qiniuapi.com';
+const DEFAULT_CENSOR_SCENES: CensorScene[] = ['pulp', 'terror', 'politician', 'ads', 'behavior'];
+const TERMINAL_VIDEO_CENSOR_STATUSES: VideoCensorStatus[] = ['DONE', 'FAILED', 'FINISHED'];
 
-function createVideoCensorTaskHandle(censor: Censor, jobId: string): VideoCensorTaskHandle {
+function createVideoCensorTaskHandle(
+    censor: Censor,
+    jobId: string,
+    requestAuth: Pick<VideoCensorRequest, 'authorization' | 'auth'>,
+): VideoCensorTaskHandle {
     return {
         id: jobId,
         jobId,
-        get: () => censor.getVideoStatus(jobId),
-        wait: (options?: VideoCensorWaitOptions) => censor.waitForVideoCompletion(jobId, options),
+        get: () => censor.getVideoStatus(jobId, requestAuth),
+        wait: (options?: VideoCensorWaitOptions) => censor.waitForVideoCompletion(jobId, {
+            ...requestAuth,
+            ...options,
+        }),
         cancel: createUnsupportedTaskCancellation('Video censor', jobId),
     };
 }
@@ -197,21 +226,27 @@ export class Censor {
      */
     async image(request: ImageCensorRequest): Promise<ImageCensorResponse> {
         const logger = this.client.getLogger();
-        const scenes = request.scenes ?? ['pulp', 'terror', 'politician'];
+        const scenes = request.scenes ?? DEFAULT_CENSOR_SCENES;
+
+        if (!request.uri?.trim()) {
+            throw new Error('Image censor uri is required');
+        }
 
         logger.debug('Image censor request', { uri: request.uri, scenes });
+        const requestBody = {
+            data: {
+                uri: request.uri,
+                id: request.id,
+            },
+            params: {
+                scenes,
+            },
+        };
 
-        const response = await this.client.post<ImageCensorApiResponse>(
+        const response = await this.postCensor<ImageCensorApiResponse>(
             '/v3/image/censor',
-            {
-                data: {
-                    uri: request.uri,
-                    id: request.id,
-                },
-                params: {
-                    scenes,
-                },
-            }
+            requestBody,
+            request,
         );
 
         return this.normalizeImageResponse(response, scenes);
@@ -222,48 +257,59 @@ export class Censor {
      */
     async video(request: VideoCensorRequest): Promise<VideoCensorTaskHandle> {
         const logger = this.client.getLogger();
-        const scenes = request.scenes ?? ['pulp', 'terror', 'politician'];
+        const scenes = request.scenes ?? DEFAULT_CENSOR_SCENES;
         const intervalMs = request.intervalMs ?? 5000;
 
-        logger.debug('Video censor request', { uri: request.uri, scenes, intervalMs });
+        if (!request.uri?.trim()) {
+            throw new Error('Video censor uri is required');
+        }
 
-        const response = await this.client.post<VideoCensorApiResponse>(
+        logger.debug('Video censor request', { uri: request.uri, scenes, intervalMs });
+        const requestBody = {
+            data: {
+                uri: request.uri,
+                id: request.id,
+            },
+            params: {
+                scenes,
+                cut_param: {
+                    interval_msecs: intervalMs,
+                },
+            },
+        };
+
+        const response = await this.postCensor<VideoCensorApiResponse>(
             '/v3/video/censor',
-            {
-                data: {
-                    uri: request.uri,
-                    id: request.id,
-                },
-                params: {
-                    scenes,
-                    cut_param: {
-                        interval_msecs: intervalMs,
-                    },
-                },
-            }
+            requestBody,
+            request,
         );
 
         if (!response.job) {
             throw new Error('Video censor failed: no job ID returned');
         }
 
-        return createVideoCensorTaskHandle(this, response.job);
+        return createVideoCensorTaskHandle(this, response.job, request);
     }
 
     /**
      * Get video moderation job status and result.
      */
-    async getVideoStatus(jobIdOrHandle: string | Pick<VideoCensorJobResponse, 'jobId'>): Promise<VideoCensorResult> {
+    async getVideoStatus(
+        jobIdOrHandle: string | Pick<VideoCensorJobResponse, 'jobId'>,
+        authOptions: Pick<VideoCensorWaitOptions, 'authorization' | 'auth'> = {},
+    ): Promise<VideoCensorResult> {
         const jobId = typeof jobIdOrHandle === 'string' ? jobIdOrHandle : jobIdOrHandle.jobId;
         const logger = this.client.getLogger();
 
         logger.debug('Get video censor status', { jobId });
-
-        const response = await this.client.get<VideoCensorStatusApiResponse>(
-            `/v3/jobs/video/${jobId}`
+        const response = await this.getCensor<VideoCensorStatusApiResponse>(
+            `/v3/jobs/video/${jobId}`,
+            authOptions,
         );
 
-        const status = response.status ?? 'WAITING';
+        const status = response.status === 'FINISHED'
+            ? 'DONE'
+            : response.status ?? 'WAITING';
 
         return {
             jobId,
@@ -292,7 +338,7 @@ export class Censor {
             onPoll: options.onPoll,
             logger: this.client.getLogger(),
             isTerminal: (state) => TERMINAL_VIDEO_CENSOR_STATUSES.includes(state.status),
-            getStatus: (id) => this.getVideoStatus(id),
+            getStatus: (id) => this.getVideoStatus(id, options),
         });
 
         return result;
@@ -345,5 +391,56 @@ export class Censor {
             label: data.details?.[0]?.label,
             score: data.details?.[0]?.score,
         }));
+    }
+
+    private async postCensor<T>(
+        endpoint: string,
+        body: unknown,
+        authOptions: Pick<ImageCensorRequest, 'authorization' | 'auth'>,
+    ): Promise<T> {
+        const requestBody = JSON.stringify(body);
+        const authorization = await resolveQiniuAuthorizationHeader({
+            authorization: authOptions.authorization,
+            auth: authOptions.auth,
+            method: 'POST',
+            absoluteUrl: `${CENSOR_BASE_URL}${endpoint}`,
+            headers: { 'Content-Type': 'application/json' },
+            body: requestBody,
+        });
+
+        if (authorization) {
+            return this.client.postAbsolute<T>(
+                `${CENSOR_BASE_URL}${endpoint}`,
+                body,
+                undefined,
+                { headers: { Authorization: authorization } },
+            );
+        }
+
+        return this.client.post<T>(endpoint, body);
+    }
+
+    private async getCensor<T>(
+        endpoint: string,
+        authOptions: Pick<VideoCensorWaitOptions, 'authorization' | 'auth'>,
+    ): Promise<T> {
+        const authorization = await resolveQiniuAuthorizationHeader({
+            authorization: authOptions.authorization,
+            auth: authOptions.auth,
+            method: 'GET',
+            absoluteUrl: `${CENSOR_BASE_URL}${endpoint}`,
+            headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (authorization) {
+            return this.client.getAbsolute<T>(
+                `${CENSOR_BASE_URL}${endpoint}`,
+                undefined,
+                undefined,
+                { headers: { Authorization: authorization } },
+            );
+        }
+
+        return this.client.get<T>(endpoint);
     }
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Admin } from '../../../src/modules/admin';
 import { APIError } from '../../../src/lib/request';
 
@@ -6,6 +6,7 @@ function createMockClient() {
     return {
         post: vi.fn(),
         get: vi.fn(),
+        getBaseUrl: vi.fn(() => 'https://api.qnaigc.com/v1'),
         getLogger: () => ({
             debug: vi.fn(),
             info: vi.fn(),
@@ -16,9 +17,15 @@ function createMockClient() {
 }
 
 describe('Admin', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+    });
+
     it('currently exposes only API key CRUD operations', () => {
         const publicMethods = Object.getOwnPropertyNames(Admin.prototype)
             .filter((name) => name !== 'constructor')
+            .filter((name) => name !== 'buildAuthRequestOptions')
             .sort();
 
         expect(publicMethods).toEqual(['createKeys', 'getKey', 'listKeys', 'revokeKey']);
@@ -46,10 +53,15 @@ describe('Admin', () => {
             names: ['prod-key-1'],
         });
 
-        expect(client.post).toHaveBeenCalledWith('/apikeys', {
-            count: 1,
-            names: ['prod-key-1'],
-        });
+        expect(client.post).toHaveBeenCalledWith(
+            '/apikeys',
+            {
+                count: 1,
+                names: ['prod-key-1'],
+            },
+            undefined,
+            undefined,
+        );
         expect(keys).toEqual([
             expect.objectContaining({
                 key: 'sk-1',
@@ -59,6 +71,44 @@ describe('Admin', () => {
                 enabled: true,
             }),
         ]);
+    });
+
+    it('signs createKeys requests when AK/SK auth is provided', async () => {
+        const client = createMockClient();
+        client.post.mockResolvedValue({
+            keys: [{ key: 'sk-1', name: 'signed-key', created_at: '2026-03-21T00:00:00Z' }],
+        });
+
+        vi.stubGlobal('crypto', {
+            subtle: {
+                importKey: vi.fn(async () => 'imported-key'),
+                sign: vi.fn(async () => Uint8Array.from([1, 2, 3]).buffer),
+            },
+        } as Crypto);
+
+        const admin = new Admin(client);
+        await admin.createKeys({
+            count: 1,
+            names: ['signed-key'],
+            auth: {
+                accessKey: 'test-ak',
+                secretKey: 'test-sk',
+            },
+        });
+
+        expect(client.post).toHaveBeenCalledWith(
+            '/apikeys',
+            {
+                count: 1,
+                names: ['signed-key'],
+            },
+            undefined,
+            {
+                headers: {
+                    Authorization: 'Qiniu test-ak:AQID',
+                },
+            },
+        );
     });
 
     it('falls back to the legacy admin endpoint when /apikeys is unavailable', async () => {
@@ -81,14 +131,26 @@ describe('Admin', () => {
             name_prefix: 'legacy-',
         });
 
-        expect(client.post).toHaveBeenNthCalledWith(1, '/apikeys', {
-            count: 1,
-            name_prefix: 'legacy-',
-        });
-        expect(client.post).toHaveBeenNthCalledWith(2, '/admin/keys', {
-            count: 1,
-            name_prefix: 'legacy-',
-        });
+        expect(client.post).toHaveBeenNthCalledWith(
+            1,
+            '/apikeys',
+            {
+                count: 1,
+                name_prefix: 'legacy-',
+            },
+            undefined,
+            undefined,
+        );
+        expect(client.post).toHaveBeenNthCalledWith(
+            2,
+            '/admin/keys',
+            {
+                count: 1,
+                name_prefix: 'legacy-',
+            },
+            undefined,
+            undefined,
+        );
         expect(keys[0]?.key).toBe('sk-legacy');
     });
 
@@ -119,7 +181,7 @@ describe('Admin', () => {
         const admin = new Admin(client);
         const keys = await admin.listKeys();
 
-        expect(client.get).toHaveBeenCalledWith('/admin/keys');
+        expect(client.get).toHaveBeenCalledWith('/admin/keys', undefined, undefined, undefined);
         expect(keys).toEqual([
             expect.objectContaining({
                 key: 'sk-list',
@@ -162,6 +224,11 @@ describe('Admin', () => {
 
         await admin.revokeKey('sk-revoke');
 
-        expect(client.post).toHaveBeenCalledWith('/admin/keys/revoke', { key: 'sk-revoke' });
+        expect(client.post).toHaveBeenCalledWith(
+            '/admin/keys/revoke',
+            { key: 'sk-revoke' },
+            undefined,
+            undefined,
+        );
     });
 });

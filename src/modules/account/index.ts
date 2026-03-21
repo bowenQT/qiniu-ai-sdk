@@ -1,4 +1,5 @@
 import { IQiniuClient } from '../../lib/types';
+import { resolveQiniuAuthorizationHeader } from '../../lib/qiniu-auth';
 
 /**
  * Usage query parameters
@@ -72,96 +73,6 @@ interface UsageApiResponse {
     status?: boolean;
     data?: UsageModelStat[];
     error?: string;
-}
-
-function bytesToBinaryString(bytes: Uint8Array): string {
-    let binary = '';
-    const chunkSize = 0x8000;
-
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-    }
-
-    return binary;
-}
-
-function urlSafeBase64Encode(input: ArrayBuffer | ArrayBufferView): string {
-    const bytes = input instanceof ArrayBuffer
-        ? new Uint8Array(input)
-        : new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
-
-    if (typeof btoa !== 'function') {
-        throw new Error('Global btoa() is required for usage auth signing');
-    }
-
-    return btoa(bytesToBinaryString(bytes)).replace(/\+/g, '-').replace(/\//g, '_');
-}
-
-function generateSigningString(options: {
-    method: string;
-    path: string;
-    query?: string;
-    host: string;
-    contentType?: string;
-    headers?: Record<string, string>;
-    body?: string;
-}): string {
-    const { method, path, query, host, contentType, headers, body } = options;
-    let signingStr = method.toUpperCase() + ' ' + path;
-    if (query) signingStr += '?' + query;
-    signingStr += '\nHost: ' + host;
-    if (contentType) signingStr += '\nContent-Type: ' + contentType;
-
-    if (headers) {
-        const sortedKeys = Object.keys(headers).sort();
-        for (const key of sortedKeys) {
-            if (key.toLowerCase().startsWith('x-qiniu-')) {
-                signingStr += '\n' + key + ': ' + headers[key];
-            }
-        }
-    }
-
-    signingStr += '\n\n';
-
-    if (body && contentType && contentType !== 'application/octet-stream') {
-        signingStr += body;
-    }
-
-    return signingStr;
-}
-
-async function generateAccessToken(
-    accessKey: string,
-    secretKey: string,
-    options: {
-        method: string;
-        path: string;
-        query?: string;
-        host: string;
-        contentType?: string;
-        headers?: Record<string, string>;
-        body?: string;
-    }
-): Promise<string> {
-    if (!globalThis.crypto?.subtle) {
-        throw new Error('Web Crypto API is required for usage auth signing');
-    }
-
-    const signingStr = generateSigningString(options);
-    const cryptoKey = await globalThis.crypto.subtle.importKey(
-        'raw',
-        new TextEncoder().encode(secretKey),
-        { name: 'HMAC', hash: 'SHA-1' },
-        false,
-        ['sign']
-    );
-    const signature = await globalThis.crypto.subtle.sign(
-        'HMAC',
-        cryptoKey,
-        new TextEncoder().encode(signingStr)
-    );
-    const encodedSign = urlSafeBase64Encode(signature);
-    return `${accessKey}:${encodedSign}`;
 }
 
 function buildQueryString(params: Record<string, string>): string {
@@ -257,17 +168,14 @@ export class Account {
         if (query.authorization) {
             options = { headers: { Authorization: query.authorization } };
         } else if (query.auth) {
-            const url = new URL(baseUrl.replace(/\/v1$/, ''));
             const queryString = buildQueryString(params);
-            const signingStrOptions = {
+            const authorization = await resolveQiniuAuthorizationHeader({
+                auth: query.auth,
                 method: 'GET',
-                path: '/v2/stat/usage',
-                query: queryString,
-                host: url.host,
-                contentType: 'application/json',
-            };
-            const token = await generateAccessToken(query.auth.accessKey, query.auth.secretKey, signingStrOptions);
-            options = { headers: { Authorization: `Qiniu ${token}` } };
+                absoluteUrl: `${absoluteUrl}?${queryString}`,
+                headers: { 'Content-Type': 'application/json' },
+            });
+            options = authorization ? { headers: { Authorization: authorization } } : undefined;
         }
 
         const response = await this.client.getAbsolute<UsageApiResponse>(absoluteUrl, params, undefined, options);

@@ -45,6 +45,63 @@ describe('Phase 2: File Module', () => {
         });
     });
 
+    it('should create a file from the current source_url contract', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'file-source',
+                status: 'pending',
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        const result = await client.file.create({
+            source_url: 'https://example.com/document.pdf',
+            model: 'gemini-2.5-flash',
+            expires_in: 3600,
+        });
+
+        expect(result.id).toBe('file-source');
+        expect(JSON.parse(String(mockFetch.calls[0]?.init?.body))).toEqual({
+            source_url: 'https://example.com/document.pdf',
+            model: 'gemini-2.5-flash',
+            expires_in: 3600,
+        });
+    });
+
+    it('should allow kodo_source-only legacy uploads', async () => {
+        const mockFetch = createStaticMockFetch({
+            status: 200,
+            body: {
+                id: 'file-kodo',
+                status: 'uploaded',
+            },
+        });
+        const client = new QiniuAI({
+            apiKey: 'sk-test',
+            adapter: mockFetch.adapter,
+        });
+
+        await client.file.create({
+            kodo_source: {
+                bucket: 'bucket-a',
+                key: 'path/to/object.txt',
+            },
+            purpose: 'assistants',
+        });
+
+        expect(JSON.parse(String(mockFetch.calls[0]?.init?.body))).toEqual({
+            kodo_source: {
+                bucket: 'bucket-a',
+                key: 'path/to/object.txt',
+            },
+            purpose: 'assistants',
+        });
+    });
+
     it('should normalize data URLs and binary file sources before upload', async () => {
         const mockFetch = createStaticMockFetch({
             status: 200,

@@ -66,6 +66,33 @@ class FakeBrowserWebSocket {
     }
 }
 
+class FakeClosingWebSocket {
+    static readonly CONNECTING = 0;
+    static readonly OPEN = 1;
+    static readonly CLOSING = 2;
+    static readonly CLOSED = 3;
+
+    readyState = FakeClosingWebSocket.CONNECTING;
+    onopen: (() => void) | null = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onerror: ((event: Event) => void) | null = null;
+    onclose: ((event: { code: number; reason: string }) => void) | null = null;
+
+    constructor(..._args: unknown[]) {
+        queueMicrotask(() => {
+            this.readyState = FakeClosingWebSocket.CLOSED;
+            this.onclose?.({ code: 1006, reason: 'handshake failed' });
+        });
+    }
+
+    send(): void {}
+
+    close(code: number, reason: string): void {
+        this.readyState = FakeClosingWebSocket.CLOSED;
+        this.onclose?.({ code, reason });
+    }
+}
+
 class FakeNodeWebSocket {
     static readonly CONNECTING = 0;
     static readonly OPEN = 1;
@@ -82,24 +109,18 @@ describe('TTS Module', () => {
         FakeBrowserWebSocket.instances.length = 0;
     });
 
-    it('should use the global browser WebSocket without passing node-only options', async () => {
+    it('should fail fast in browsers because the official TTS stream API requires custom headers', async () => {
         const tts = new Tts(createMockClient() as any);
 
         vi.stubGlobal('process', undefined);
         vi.stubGlobal('WebSocket', FakeBrowserWebSocket as unknown as typeof WebSocket);
 
-        const chunks: Uint8Array[] = [];
-        for await (const chunk of tts.stream('hello world', { voice_type: 'voice-1' })) {
-            chunks.push(chunk);
-        }
-
-        expect(chunks).toHaveLength(0);
-        expect(FakeBrowserWebSocket.instances).toHaveLength(1);
-        expect(FakeBrowserWebSocket.instances[0].args).toEqual([
-            'wss://api.qnaigc.com/v1/voice/tts',
-        ]);
-        expect(FakeBrowserWebSocket.instances[0].sent).toHaveLength(1);
-        expect(typeof FakeBrowserWebSocket.instances[0].sent[0]).toBe('string');
+        await expect(async () => {
+            for await (const _chunk of tts.stream('hello world', { voice_type: 'voice-1' })) {
+                // noop
+            }
+        }).rejects.toThrow('TTS streaming requires a WebSocket implementation that supports custom headers');
+        expect(FakeBrowserWebSocket.instances).toHaveLength(0);
     });
 
     it('should load an optional ws implementation in Node.js when global WebSocket is absent', async () => {
@@ -132,5 +153,86 @@ describe('TTS Module', () => {
         await expect((tts as any).resolveWebSocketImpl()).rejects.toThrow(
             'WebSocket implementation "ws" is required in Node.js for TTS streaming. Install it with: npm install ws'
         );
+    });
+
+    it('should normalize bare-array voice lists from the official API', async () => {
+        const client = createMockClient();
+        client.get.mockResolvedValue([
+            {
+                voice_type: 'qiniu_zh_female_tmjxxy',
+                voice_name: '通用女声',
+                url: 'https://example.com/sample.mp3',
+            },
+        ]);
+
+        const tts = new Tts(client as any);
+        const voices = await tts.listVoices();
+
+        expect(voices).toEqual([
+            {
+                id: 'qiniu_zh_female_tmjxxy',
+                name: '通用女声',
+                sample_url: 'https://example.com/sample.mp3',
+                voice_type: 'qiniu_zh_female_tmjxxy',
+                voice_name: '通用女声',
+                url: 'https://example.com/sample.mp3',
+            },
+        ]);
+    });
+
+    it('should read duration from addition.duration when synthesizing', async () => {
+        const client = createMockClient();
+        client.post.mockResolvedValue({
+            audio: 'YmFzZTY0',
+            addition: {
+                duration: '1530',
+            },
+            format: 'mp3',
+        });
+
+        const tts = new Tts(client as any);
+        const result = await tts.synthesize({
+            text: 'hello',
+            voice_type: 'voice-1',
+        });
+
+        expect(result).toEqual({
+            audio: 'YmFzZTY0',
+            duration: 1530,
+            format: 'mp3',
+            sample_rate: undefined,
+        });
+    });
+
+    it('should use getApiKey() instead of reading a private apiKey field for streaming auth', async () => {
+        const client = createMockClient();
+        delete (client as any).apiKey;
+        const tts = new Tts(client as any);
+        const loadOptionalWebSocket = vi.fn(async () => FakeNodeWebSocket as unknown as typeof WebSocket);
+
+        vi.stubGlobal('WebSocket', undefined);
+        (globalThis as TtsHookGlobal).__QINIU_AI_SDK_TTS_TEST_HOOKS__ = {
+            loadOptionalWebSocket,
+        };
+
+        const wsInfo = await (tts as any).resolveWebSocketImpl();
+        expect(wsInfo.supportsHeaders).toBe(true);
+        expect((tts as any).apiKey).toBe('sk-test');
+    });
+
+    it('should reject when the websocket closes before the stream opens', async () => {
+        const tts = new Tts(createMockClient() as any);
+        const loadOptionalWebSocket = vi.fn(async () => FakeClosingWebSocket as unknown as typeof WebSocket);
+
+        vi.stubGlobal('WebSocket', undefined);
+        (globalThis as TtsHookGlobal).__QINIU_AI_SDK_TTS_TEST_HOOKS__ = {
+            loadOptionalWebSocket,
+        };
+
+        await expect(async () => {
+            for await (const _chunk of tts.stream('hello world', { voice_type: 'voice-1' })) {
+                // noop
+            }
+        }).rejects.toThrow('WebSocket closed before stream started');
     });
 });

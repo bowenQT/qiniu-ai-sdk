@@ -1,10 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Censor } from '../../../src/modules/censor';
 
 function createMockClient() {
     return {
         post: vi.fn(),
         get: vi.fn(),
+        postAbsolute: vi.fn(),
+        getAbsolute: vi.fn(),
         getLogger: () => ({
             debug: vi.fn(),
             info: vi.fn(),
@@ -15,6 +17,11 @@ function createMockClient() {
 }
 
 describe('Censor', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+    });
+
     it('moderates images with default scenes and normalizes scene details', async () => {
         const client = createMockClient();
         client.post.mockResolvedValue({
@@ -41,7 +48,7 @@ describe('Censor', () => {
                 id: undefined,
             },
             params: {
-                scenes: ['pulp', 'terror', 'politician'],
+                scenes: ['pulp', 'terror', 'politician', 'ads', 'behavior'],
             },
         });
         expect(result).toEqual({
@@ -76,6 +83,54 @@ describe('Censor', () => {
         );
     });
 
+    it('uses signed absolute requests for image moderation when AK/SK auth is provided', async () => {
+        const client = createMockClient();
+        client.postAbsolute.mockResolvedValue({
+            result: {
+                suggestion: 'pass',
+                scenes: {
+                    pulp: { suggestion: 'pass' },
+                },
+            },
+        });
+
+        vi.stubGlobal('crypto', {
+            subtle: {
+                importKey: vi.fn(async () => 'imported-key'),
+                sign: vi.fn(async () => Uint8Array.from([1, 2, 3]).buffer),
+            },
+        } as Crypto);
+
+        const censor = new Censor(client);
+        const result = await censor.image({
+            uri: 'qiniu://bucket/key.jpg',
+            auth: {
+                accessKey: 'test-ak',
+                secretKey: 'test-sk',
+            },
+        });
+
+        expect(client.postAbsolute).toHaveBeenCalledWith(
+            'https://ai.qiniuapi.com/v3/image/censor',
+            {
+                data: {
+                    uri: 'qiniu://bucket/key.jpg',
+                    id: undefined,
+                },
+                params: {
+                    scenes: ['pulp', 'terror', 'politician', 'ads', 'behavior'],
+                },
+            },
+            undefined,
+            {
+                headers: {
+                    Authorization: 'Qiniu test-ak:AQID',
+                },
+            },
+        );
+        expect(result.suggestion).toBe('pass');
+    });
+
     it('starts a video moderation job with default interval and scenes', async () => {
         const client = createMockClient();
         client.post.mockResolvedValue({ job: 'job-123' });
@@ -92,7 +147,7 @@ describe('Censor', () => {
                 id: undefined,
             },
             params: {
-                scenes: ['pulp', 'terror', 'politician'],
+                scenes: ['pulp', 'terror', 'politician', 'ads', 'behavior'],
                 cut_param: {
                     interval_msecs: 5000,
                 },
@@ -162,6 +217,25 @@ describe('Censor', () => {
                     score: 0.88,
                 },
             ],
+            error: undefined,
+        });
+    });
+
+    it('treats FINISHED as a terminal success state for video moderation', async () => {
+        const client = createMockClient();
+        client.get.mockResolvedValue({
+            status: 'FINISHED',
+            result: {
+                suggestion: 'pass',
+            },
+        });
+
+        const censor = new Censor(client);
+        await expect(censor.getVideoStatus('job-finished')).resolves.toEqual({
+            jobId: 'job-finished',
+            status: 'DONE',
+            suggestion: 'pass',
+            scenes: undefined,
             error: undefined,
         });
     });

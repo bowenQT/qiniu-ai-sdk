@@ -1,5 +1,6 @@
 import { IQiniuClient } from '../../lib/types';
 import { APIError } from '../../lib/request';
+import { resolveQiniuAuthorizationHeader } from '../../lib/qiniu-auth';
 
 /**
  * API key creation request
@@ -27,6 +28,25 @@ export interface CreateKeysRequest {
      * Optional description or metadata
      */
     description?: string;
+    /**
+     * Override Authorization header for Qiniu management APIs.
+     */
+    authorization?: string;
+    /**
+     * AK/SK auth for Qiniu management APIs.
+     */
+    auth?: {
+        accessKey: string;
+        secretKey: string;
+    };
+}
+
+export interface AdminRequestOptions {
+    authorization?: string;
+    auth?: {
+        accessKey: string;
+        secretKey: string;
+    };
 }
 
 /**
@@ -181,6 +201,7 @@ export class Admin {
             ...(params.expires_at ? { expires_at: params.expires_at } : {}),
             ...(params.description ? { description: params.description } : {}),
         };
+        const requestBodyJson = JSON.stringify(requestBody);
 
         logger.debug('Creating API keys', {
             count: params.count,
@@ -190,13 +211,23 @@ export class Admin {
 
         let response: CreateKeysApiResponse;
         try {
-            response = await this.client.post<CreateKeysApiResponse>('/apikeys', requestBody);
+            response = await this.client.post<CreateKeysApiResponse>(
+                '/apikeys',
+                requestBody,
+                undefined,
+                await this.buildAuthRequestOptions('POST', '/apikeys', params, requestBodyJson),
+            );
         } catch (error) {
             if (!(error instanceof APIError) || error.status !== 404) {
                 throw error;
             }
             logger.warn('Falling back to legacy admin key creation endpoint', { status: error.status });
-            response = await this.client.post<CreateKeysApiResponse>('/admin/keys', requestBody);
+            response = await this.client.post<CreateKeysApiResponse>(
+                '/admin/keys',
+                requestBody,
+                undefined,
+                await this.buildAuthRequestOptions('POST', '/admin/keys', params, requestBodyJson),
+            );
         }
 
         const keys = extractKeys(response);
@@ -218,12 +249,17 @@ export class Admin {
      * }
      * ```
      */
-    async listKeys(): Promise<ApiKey[]> {
+    async listKeys(options?: AdminRequestOptions): Promise<ApiKey[]> {
         const logger = this.client.getLogger();
 
         logger.debug('Listing API keys');
 
-        const response = await this.client.get<ListKeysApiResponse>('/admin/keys');
+        const response = await this.client.get<ListKeysApiResponse>(
+            '/admin/keys',
+            undefined,
+            undefined,
+            await this.buildAuthRequestOptions('GET', '/admin/keys', options),
+        );
 
         // Normalize response
         const keys = extractKeys(response);
@@ -244,7 +280,7 @@ export class Admin {
      * console.log('Key revoked successfully');
      * ```
      */
-    async revokeKey(key: string): Promise<void> {
+    async revokeKey(key: string, options?: AdminRequestOptions): Promise<void> {
         const logger = this.client.getLogger();
 
         if (!key || !key.trim()) {
@@ -253,7 +289,13 @@ export class Admin {
 
         logger.debug('Revoking API key', { keyPrefix: key.substring(0, 10) + '...' });
 
-        await this.client.post('/admin/keys/revoke', { key });
+        const requestBody = { key };
+        await this.client.post(
+            '/admin/keys/revoke',
+            requestBody,
+            undefined,
+            await this.buildAuthRequestOptions('POST', '/admin/keys/revoke', options, JSON.stringify(requestBody)),
+        );
 
         logger.info('API key revoked', { keyPrefix: key.substring(0, 10) + '...' });
     }
@@ -268,7 +310,7 @@ export class Admin {
      * console.log(`Last used: ${keyInfo.last_used_at}`);
      * ```
      */
-    async getKey(key: string): Promise<ApiKey | null> {
+    async getKey(key: string, options?: AdminRequestOptions): Promise<ApiKey | null> {
         const logger = this.client.getLogger();
 
         if (!key || !key.trim()) {
@@ -278,7 +320,12 @@ export class Admin {
         logger.debug('Getting API key details', { keyPrefix: key.substring(0, 10) + '...' });
 
         try {
-            const response = await this.client.get<ApiKey | { data: ApiKey }>(`/admin/keys/${encodeURIComponent(key)}`);
+            const response = await this.client.get<ApiKey | { data: ApiKey }>(
+                `/admin/keys/${encodeURIComponent(key)}`,
+                undefined,
+                undefined,
+                await this.buildAuthRequestOptions('GET', `/admin/keys/${encodeURIComponent(key)}`, options),
+            );
 
             // Normalize response
             if ('data' in response && response.data) {
@@ -294,5 +341,23 @@ export class Admin {
             // Re-throw network errors, 5xx errors, and other unexpected errors
             throw error;
         }
+    }
+
+    private async buildAuthRequestOptions(
+        method: 'GET' | 'POST',
+        endpoint: string,
+        authOptions?: AdminRequestOptions,
+        body?: string,
+    ): Promise<Parameters<IQiniuClient['post']>[3] | undefined> {
+        const authorization = await resolveQiniuAuthorizationHeader({
+            authorization: authOptions?.authorization,
+            auth: authOptions?.auth,
+            method,
+            absoluteUrl: `${this.client.getBaseUrl()}${endpoint}`,
+            headers: { 'Content-Type': 'application/json' },
+            body,
+        });
+
+        return authorization ? { headers: { Authorization: authorization } } : undefined;
     }
 }

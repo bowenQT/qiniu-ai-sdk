@@ -175,5 +175,32 @@ describe('ASR Module', () => {
             expect(result.text).toBe('Nested result text');
             expect(result.duration).toBe(9336);
         });
+
+        it('should fall back to top-level fields when data wrapper is empty', async () => {
+            const mockFetch = createStaticMockFetch({
+                status: 200,
+                body: {
+                    data: {},
+                    text: 'Top-level fallback text',
+                    duration: 1200,
+                    language: 'zh',
+                },
+            });
+
+            const client = new QiniuAI({
+                apiKey: 'sk-test',
+                adapter: mockFetch.adapter,
+            });
+
+            const result = await client.asr.transcribe({
+                audio: { format: 'mp3', url: 'https://example.com/audio.mp3' },
+            });
+
+            expect(result).toMatchObject({
+                text: 'Top-level fallback text',
+                duration: 1200,
+                language: 'zh',
+            });
+        });
     });
 });

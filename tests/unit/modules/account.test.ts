@@ -89,7 +89,7 @@ describe('Account Module', () => {
                 accessKey: 'test-ak',
                 secretKey: 'test-sk',
             },
-        })).rejects.toThrow('Web Crypto API is required for usage auth signing');
+        })).rejects.toThrow('Web Crypto API is required for Qiniu auth signing');
 
         expect(mockClient.getAbsolute).not.toHaveBeenCalled();
     });
@@ -114,7 +114,7 @@ describe('Account Module', () => {
                 accessKey: 'test-ak',
                 secretKey: 'test-sk',
             },
-        })).rejects.toThrow('Global btoa() is required for usage auth signing');
+        })).rejects.toThrow('Global btoa() is required for Qiniu auth signing');
 
         expect(mockClient.getAbsolute).not.toHaveBeenCalled();
     });

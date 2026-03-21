@@ -237,28 +237,38 @@ export class Asr {
      * Normalize various API response formats to a consistent AsrResponse
      */
     private normalizeResponse(response: AsrApiResponse, logger: ReturnType<IQiniuClient['getLogger']>): AsrResponse {
-        // Try different response structures
-        const data = response.data || response.result || response;
+        const data = response.data;
+        const topLevelResult = response.result;
+        const nestedResult = data?.result || topLevelResult;
 
-        const nestedResult = (data as AsrApiResponse['data'])?.result || (response.result as AsrApiResponse['result']);
-
-        const text = data.text || data.content || data.transcript ||
-            nestedResult?.text || nestedResult?.content || nestedResult?.transcript || '';
+        const text = firstDefinedString(
+            data?.text,
+            data?.content,
+            data?.transcript,
+            nestedResult?.text,
+            nestedResult?.content,
+            nestedResult?.transcript,
+            response.text,
+            response.content,
+            response.transcript,
+        ) || '';
 
         const additionsDuration = nestedResult?.additions?.duration;
         const additionsDurationMs = additionsDuration ? parseInt(additionsDuration, 10) : undefined;
 
-        const duration = data.duration_ms ??
-            data.duration ??
-            (data as AsrApiResponse['data'])?.audio_info?.duration ??
+        const duration = data?.duration_ms ??
+            data?.duration ??
+            data?.audio_info?.duration ??
             nestedResult?.duration_ms ??
             nestedResult?.duration ??
+            response.duration_ms ??
+            response.duration ??
             additionsDurationMs ??
             0;
 
-        const language = data.language || nestedResult?.language;
-        const words = data.words || nestedResult?.words;
-        const confidence = data.confidence ?? nestedResult?.confidence;
+        const language = firstDefinedString(data?.language, nestedResult?.language, response.language);
+        const words = data?.words ?? nestedResult?.words ?? response.words;
+        const confidence = data?.confidence ?? nestedResult?.confidence ?? response.confidence;
 
         if (!text) {
             logger.warn('ASR response has no text', { response });
@@ -272,4 +282,8 @@ export class Asr {
             confidence,
         };
     }
+}
+
+function firstDefinedString(...values: Array<string | undefined>): string | undefined {
+    return values.find((value) => typeof value === 'string' && value.length > 0);
 }

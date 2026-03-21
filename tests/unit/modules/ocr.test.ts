@@ -100,5 +100,32 @@ describe('OCR Module', () => {
             expect(result.text).toBe('Nested text');
             expect(result.confidence).toBe(0.88);
         });
+
+        it('should fall back to top-level confidence and blocks when data wrapper is empty', async () => {
+            const mockFetch = createStaticMockFetch({
+                status: 200,
+                body: {
+                    data: {},
+                    text: 'Top-level OCR text',
+                    confidence: 0.91,
+                    blocks: [{ text: 'Top-level OCR text', confidence: 0.91, bbox: [0, 0, 10, 10] }],
+                },
+            });
+
+            const client = new QiniuAI({
+                apiKey: 'sk-test',
+                adapter: mockFetch.adapter,
+            });
+
+            const result = await client.ocr.detect({
+                url: 'https://example.com/image.png',
+            });
+
+            expect(result).toMatchObject({
+                text: 'Top-level OCR text',
+                confidence: 0.91,
+            });
+            expect(result.blocks).toHaveLength(1);
+        });
     });
 });

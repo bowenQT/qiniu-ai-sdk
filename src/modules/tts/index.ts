@@ -33,6 +33,18 @@ export interface Voice {
      * Sample audio URL
      */
     sample_url?: string;
+    /**
+     * Official API voice type identifier
+     */
+    voice_type?: string;
+    /**
+     * Official API voice display name
+     */
+    voice_name?: string;
+    /**
+     * Official API sample URL field
+     */
+    url?: string;
 }
 
 /**
@@ -141,11 +153,17 @@ interface TtsApiResponse {
     duration_ms?: number;
     format?: string;
     sample_rate?: number;
+    addition?: {
+        duration?: number | string;
+    };
     result?: {
         audio?: string;
         data?: string;
         duration?: number;
         duration_ms?: number;
+        addition?: {
+            duration?: number | string;
+        };
     };
 }
 
@@ -162,10 +180,22 @@ interface TtsApiPayload {
     };
 }
 
+interface VoiceApiItem {
+    id?: string;
+    name?: string;
+    sample_url?: string;
+    voice_type?: string;
+    voice_name?: string;
+    url?: string;
+    language?: string;
+    gender?: 'male' | 'female' | 'neutral';
+    description?: string;
+}
+
 interface VoiceListResponse {
     voices?: Voice[];
-    data?: Voice[];
-    result?: Voice[];
+    data?: VoiceApiItem[];
+    result?: VoiceApiItem[];
 }
 
 type DynamicImport = (specifier: string) => Promise<unknown>;
@@ -213,7 +243,7 @@ export class Tts {
             .replace(/^http:\/\//, 'ws://')
             .replace(/\/v1$/, '');
         // Store API key for WebSocket auth (extracted from client)
-        this.apiKey = (client as any).apiKey || '';
+        this.apiKey = client.getApiKey?.() || (client as any).apiKey || '';
     }
 
     private async resolveWebSocketImpl(): Promise<{
@@ -266,17 +296,19 @@ export class Tts {
 
         logger.debug('Fetching TTS voice list');
 
-        const response = await this.client.get<VoiceListResponse>('/voice/list');
+        const response = await this.client.get<VoiceListResponse | VoiceApiItem[]>('/voice/list');
 
         // Normalize response format
-        const voices = response.voices || response.data || response.result || [];
+        const voices = Array.isArray(response)
+            ? response
+            : response.voices || response.data || response.result || [];
 
         if (!Array.isArray(voices)) {
             logger.warn('Unexpected voice list response format', { response });
             return [];
         }
 
-        return voices;
+        return voices.map((voice) => normalizeVoice(voice));
     }
 
     /**
@@ -382,6 +414,12 @@ export class Tts {
         }
 
         const wsImplInfo = await this.resolveWebSocketImpl();
+        if (!wsImplInfo.supportsHeaders) {
+            throw new Error(
+                'TTS streaming requires a WebSocket implementation that supports custom headers. ' +
+                'Browser WebSocket is not supported for the official TTS stream API.'
+            );
+        }
 
         const wsUrl = `${this.wsBaseUrl}/v1/voice/tts`;
 
@@ -439,8 +477,12 @@ export class Tts {
         };
 
         // Setup WebSocket handlers
+        let connectionOpened = false;
+        let rejectOpen: ((error: Error) => void) | null = null;
         const openPromise = new Promise<void>((resolve, reject) => {
+            rejectOpen = reject;
             ws.onopen = () => {
+                connectionOpened = true;
                 logger.debug('TTS WebSocket connected');
 
                 // Send initial configuration message
@@ -571,6 +613,12 @@ export class Tts {
 
         ws.onclose = (event: { code: number; reason: string }) => {
             logger.debug('TTS WebSocket closed', { code: event.code, reason: event.reason });
+            if (!connectionOpened) {
+                const error = new Error(`WebSocket closed before stream started: ${event.code} ${event.reason}`);
+                rejectOpen?.(error);
+                enqueueMessage(error);
+                return;
+            }
             if (event.code !== 1000) {
                 enqueueMessage(new Error(`WebSocket closed unexpectedly: ${event.code} ${event.reason}`));
             } else {
@@ -620,9 +668,13 @@ export class Tts {
      */
     private normalizeResponse(response: TtsApiResponse, logger: ReturnType<IQiniuClient['getLogger']>): TtsResponse {
         const result = response.result || response;
+        const additionDuration = result.addition?.duration ?? response.addition?.duration;
+        const parsedAdditionDuration = typeof additionDuration === 'string'
+            ? parseInt(additionDuration, 10)
+            : additionDuration;
 
         const audio = result.audio || result.data || '';
-        const duration = result.duration_ms ?? result.duration ?? 0;
+        const duration = result.duration_ms ?? result.duration ?? parsedAdditionDuration ?? 0;
 
         if (!audio) {
             logger.warn('TTS response has no audio data', { response });
@@ -635,4 +687,22 @@ export class Tts {
             sample_rate: response.sample_rate,
         };
     }
+}
+
+function normalizeVoice(voice: Voice | VoiceApiItem): Voice {
+    const normalizedId = voice.id || voice.voice_type || '';
+    const normalizedName = voice.name || voice.voice_name || normalizedId;
+    const sampleUrl = voice.sample_url || voice.url;
+
+    return {
+        id: normalizedId,
+        name: normalizedName,
+        ...(voice.language ? { language: voice.language } : {}),
+        ...(voice.gender ? { gender: voice.gender } : {}),
+        ...(voice.description ? { description: voice.description } : {}),
+        ...(sampleUrl ? { sample_url: sampleUrl } : {}),
+        ...(voice.voice_type ? { voice_type: voice.voice_type } : { voice_type: normalizedId || undefined }),
+        ...(voice.voice_name ? { voice_name: voice.voice_name } : { voice_name: normalizedName || undefined }),
+        ...(voice.url ? { url: voice.url } : sampleUrl ? { url: sampleUrl } : {}),
+    };
 }

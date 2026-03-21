@@ -15,7 +15,7 @@ export type FileSource =
 
 export interface FileCreateRequest {
     /** File data (base64/data URL/URL string) or binary input */
-    file: FileSource;
+    file?: FileSource;
     /** Purpose of the file */
     purpose?: string;
     /** Optional filename */
@@ -25,6 +25,12 @@ export interface FileCreateRequest {
         bucket: string;
         key: string;
     };
+    /** Current official file-ingestion source URL */
+    source_url?: string;
+    /** Optional model binding for official file ingestion */
+    model?: string;
+    /** Optional expiration in seconds for official file ingestion */
+    expires_in?: number;
 }
 
 export interface FileResponse {
@@ -121,9 +127,27 @@ export class File {
      * Create a file upload task
      */
     async create(params: FileCreateRequest): Promise<FileResponse> {
+        if (params.source_url) {
+            if (params.file || params.filename || params.purpose || params.kodo_source) {
+                throw new Error('source_url mode cannot be combined with legacy file upload fields');
+            }
+
+            return this.client.post<FileResponse>('/files', {
+                source_url: params.source_url,
+                ...(params.model ? { model: params.model } : {}),
+                ...(params.expires_in !== undefined ? { expires_in: params.expires_in } : {}),
+            });
+        }
+
+        if (!params.file && !params.kodo_source) {
+            throw new Error('Either file, kodo_source, or source_url must be provided');
+        }
+
         return this.client.post<FileResponse>('/files', {
-            ...params,
-            file: await normalizeFileSource(params.file),
+            ...(params.file ? { file: await normalizeFileSource(params.file) } : {}),
+            ...(params.purpose ? { purpose: params.purpose } : {}),
+            ...(params.filename ? { filename: params.filename } : {}),
+            ...(params.kodo_source ? { kodo_source: params.kodo_source } : {}),
         });
     }
 

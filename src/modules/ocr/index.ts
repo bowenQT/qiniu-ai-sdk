@@ -136,22 +136,33 @@ export class Ocr {
      * Normalize various API response formats to a consistent OcrResponse
      */
     private normalizeResponse(response: OcrApiResponse, logger: ReturnType<IQiniuClient['getLogger']>): OcrResponse {
-        // Try different response structures
-        const data = response.data || response.result || response;
+        const data = response.data;
+        const result = response.result;
 
-        const text = data.text || data.content || response.text || '';
-        const confidence = data.confidence;
-        const blocks = data.blocks;
+        const text = firstDefinedString(
+            data?.text,
+            data?.content,
+            result?.text,
+            result?.content,
+            response.text,
+            response.content,
+        ) || '';
+        const confidence = data?.confidence ?? result?.confidence ?? response.confidence;
+        const blocks = data?.blocks ?? result?.blocks ?? response.blocks;
 
         if (!text && !blocks?.length) {
             logger.warn('OCR response has no text or blocks', { response });
         }
 
         return {
-            id: data.id || response.id,
+            id: data?.id || result?.id || response.id,
             text,
             confidence,
             blocks,
         };
     }
+}
+
+function firstDefinedString(...values: Array<string | undefined>): string | undefined {
+    return values.find((value) => typeof value === 'string' && value.length > 0);
 }
