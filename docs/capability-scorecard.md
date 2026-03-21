@@ -1,6 +1,6 @@
 # Capability Scorecard
 
-Last synced: 2026-03-20T00:00:00.000Z
+Last synced: 2026-03-21T00:00:00.000Z
 
 This document is generated from the SDK capability registry and is intended to make product maturity auditable.
 
@@ -11,7 +11,7 @@ This document is generated from the SDK capability registry and is intended to m
 - Public surfaces tracked: 14
 - Surface exclusions tracked: 4
 - Module maturity split: ga=12, beta=15, experimental=4
-- Evidence snapshot generated at: 2026-03-20T00:00:00.000Z
+- Evidence snapshot generated at: 2026-03-21T00:00:00.000Z
 - Tracked promotion decisions: 7
 
 ## Coverage Semantics
@@ -75,43 +75,43 @@ This document is generated from the SDK capability registry and is intended to m
 
 | Module | Maturity | Decision | Validation | Validated At | Notes | Docs |
 | --- | --- | --- | --- | --- | --- | --- |
-| asr | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| asr | ga |  | unit | 2026-03-21 | ASR normalization now falls back across top-level and nested response shapes so empty data/result wrappers do not discard transcript fields, duration, language, or word timings. | https://apidocs.qnaigc.com/ |
 | chat | ga |  | live | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | createAgent | ga |  | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| file | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| file | ga |  | unit | 2026-03-21 | File creation supports both the current source_url/model/expires_in contract and legacy direct upload or Kodo-backed ingestion paths. | https://apidocs.qnaigc.com/ |
 | generateObject | ga |  | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
 | generateText | ga |  | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| image | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| image | ga |  | unit | 2026-03-14 | Async image task handles expose cancel(), but current provider-backed handles fail fast because remote cancellation is not supported; AbortSignal only cancels local waiting/polling. | https://apidocs.qnaigc.com/ |
 | log | ga |  | unit | 2026-03-15 | Absolute export contract is covered by unit tests; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
-| ocr | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
+| ocr | ga |  | unit | 2026-03-21 | OCR normalization now falls back across top-level and nested response shapes so empty data/result wrappers do not discard text, confidence, or blocks. | https://apidocs.qnaigc.com/ |
 | streamText | ga |  | contract | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| tts | ga |  | unit | 2026-03-14 |  | https://apidocs.qnaigc.com/ |
-| video | ga |  | unit | 2026-03-15 | Dedicated unit suites cover Veo/Kling normalization and task-handle behavior; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
-| account | beta |  | unit | 2026-03-15 | Usage auth signing and response handling are covered by unit tests; live verification remains opt-in. | https://apidocs.qnaigc.com/ |
+| tts | ga |  | unit | 2026-03-21 | TTS now normalizes official bare-array voice lists and addition.duration metadata. Streaming uses getApiKey() for header auth and fails fast in browser runtimes where the official WebSocket API cannot attach required headers. | https://apidocs.qnaigc.com/ |
+| video | ga |  | unit | 2026-03-15 | Dedicated unit suites cover Veo/Kling normalization and task-handle behavior. VideoTaskHandle.cancel() currently fails fast for provider-backed media jobs because remote cancellation is not supported; AbortSignal only cancels local waiting/polling. Live verification remains opt-in. | https://apidocs.qnaigc.com/ |
+| account | beta |  | unit | 2026-03-21 | The current account surface is limited to usage() time-series queries; usage auth signing and response handling are covered by unit tests, and live verification remains opt-in. | https://apidocs.qnaigc.com/ |
 | adapter | beta |  | unit |  |  | https://ai-sdk.dev/docs |
-| admin | beta |  | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
+| admin | beta |  | unit | 2026-03-21 | The current admin surface is limited to API key CRUD (createKeys, listKeys, getKey, revokeKey); broader quota, billing, project, or tenant administration is not part of the shipped SDK surface. Official management endpoints can now override the default Bearer path with authorization or auth(AK/SK) signing. | https://apidocs.qnaigc.com/ |
 | auditLogger | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | batch | beta |  | unit | 2026-03-15 | Core task lifecycle and handle behavior are covered; live verification remains env-gated. | https://apidocs.qnaigc.com/ |
-| censor | beta |  | unit | 2026-03-15 |  | https://apidocs.qnaigc.com/ |
+| censor | beta |  | unit | 2026-03-21 | Image/video censor support official authorization or auth(AK/SK) signing for direct ai.qiniuapi.com calls. Video status normalization now treats FINISHED as terminal success while cancel() remains an explicit unsupported contract today. | https://apidocs.qnaigc.com/ |
 | guardrails | beta |  | unit |  |  | https://openai.github.io/openai-agents-js/guides/guardrails/ |
 | KodoCheckpointer | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | memory | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
-| NodeMCPHost | beta | beta (held) | unit |  | Beta is held on remaining deferred risks: OAuth token acquisition beyond already-resolved bearer tokens and cross-server routing. | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
+| NodeMCPHost | beta | beta (held) | unit |  | Beta is held on remaining deferred risks: NodeMCPHost only forwards already-resolved HTTP bearer tokens through `token` or `tokenProvider`; OAuth discovery, authorization, refresh, callback, and device-code flows remain out of scope for this package. HTTP interop evidence is collected per server; cross-server routing remains a higher-level integration concern. | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
 | PostgresCheckpointer | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
 | RedisCheckpointer | beta |  | unit |  |  | https://docs.langchain.com/oss/javascript/langgraph/persistence |
-| ResponseAPI | beta | experimental -> beta | unit | 2026-03-15 | Core subset (create/followUp/createTextResult/followUpTextResult) remains beta via tracked promotion, and the stronger evidence-backed beta basis only applies when fresh nightly response-api evidence is present; stream, JSON/messages, reasoning, and chat-completion helpers remain deferred/provider-only. | https://apidocs.qnaigc.com/417773141e0 |
+| ResponseAPI | beta | experimental -> beta | unit | 2026-03-15 | Core subset (create/followUp/createTextResult/followUpTextResult) remains beta via tracked promotion, and the stronger evidence-backed beta basis only applies when fresh nightly response-api evidence is present; deferred stream, message, JSON, reasoning, and chat-completion helpers are recommended through response.experimental.* while legacy direct helper methods remain compatibility aliases. | https://apidocs.qnaigc.com/417773141e0 |
 | sandbox | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | skills | beta |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | A2A | experimental |  | unit |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
 | ai-tools | experimental |  | unit |  |  | https://apidocs.qnaigc.com/ |
 | crew | experimental |  | static |  |  | https://openai.github.io/openai-agents-js/guides/handoffs/ |
-| QiniuMCPServer | experimental |  | unit |  |  | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
+| QiniuMCPServer | experimental |  | unit | 2026-03-20 | Built-in stdio server currently exposes qiniu_chat, qiniu_ocr, qiniu_image_censor, qiniu_video_censor, and qiniu_image_generate. Frame extraction remains outside the server surface and stays available through ai-tools or asset resolver helpers. | https://modelcontextprotocol.io/specification/2025-11-25/basic/transports |
 
 ## Tracked Evidence Snapshot
 
 | Field | Value |
 | --- | --- |
-| Generated At | 2026-03-20T00:00:00.000Z |
+| Generated At | 2026-03-21T00:00:00.000Z |
 | Tracked Decision Files | 7 |
 | Public Surfaces | 14 |
 | Surface Exclusions | 4 |

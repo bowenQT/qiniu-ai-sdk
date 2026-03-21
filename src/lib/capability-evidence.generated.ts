@@ -1,6 +1,6 @@
 import type { ModuleMaturityInfo } from './capability-types';
 
-export const CAPABILITY_EVIDENCE_GENERATED_AT = "2026-03-20T00:00:00.000Z";
+export const CAPABILITY_EVIDENCE_GENERATED_AT = "2026-03-21T00:00:00.000Z";
 export const CAPABILITY_EVIDENCE_DECISION_FILES = [
   ".trellis/decisions/phase2/phase2-cloud-surface-responseapi-promotion-readiness.json",
   ".trellis/decisions/phase2/phase2-node-integrations-mcp-interop-evidence-policy.json",
@@ -581,33 +581,37 @@ export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
     "name": "ocr",
     "maturity": "ga",
     "docsUrl": "https://apidocs.qnaigc.com/",
-    "sourceUpdatedAt": "2026-03-14",
-    "validatedAt": "2026-03-14",
-    "validationLevel": "unit"
+    "sourceUpdatedAt": "2026-03-21",
+    "validatedAt": "2026-03-21",
+    "validationLevel": "unit",
+    "notes": "OCR normalization now falls back across top-level and nested response shapes so empty data/result wrappers do not discard text, confidence, or blocks."
   },
   {
     "name": "asr",
     "maturity": "ga",
     "docsUrl": "https://apidocs.qnaigc.com/",
-    "sourceUpdatedAt": "2026-03-14",
-    "validatedAt": "2026-03-14",
-    "validationLevel": "unit"
+    "sourceUpdatedAt": "2026-03-21",
+    "validatedAt": "2026-03-21",
+    "validationLevel": "unit",
+    "notes": "ASR normalization now falls back across top-level and nested response shapes so empty data/result wrappers do not discard transcript fields, duration, language, or word timings."
   },
   {
     "name": "tts",
     "maturity": "ga",
     "docsUrl": "https://apidocs.qnaigc.com/",
-    "sourceUpdatedAt": "2026-03-14",
-    "validatedAt": "2026-03-14",
-    "validationLevel": "unit"
+    "sourceUpdatedAt": "2026-03-21",
+    "validatedAt": "2026-03-21",
+    "validationLevel": "unit",
+    "notes": "TTS now normalizes official bare-array voice lists and addition.duration metadata. Streaming uses getApiKey() for header auth and fails fast in browser runtimes where the official WebSocket API cannot attach required headers."
   },
   {
     "name": "file",
     "maturity": "ga",
     "docsUrl": "https://apidocs.qnaigc.com/",
-    "sourceUpdatedAt": "2026-03-14",
-    "validatedAt": "2026-03-14",
-    "validationLevel": "unit"
+    "sourceUpdatedAt": "2026-03-21",
+    "validatedAt": "2026-03-21",
+    "validationLevel": "unit",
+    "notes": "File creation supports both the current source_url/model/expires_in contract and legacy direct upload or Kodo-backed ingestion paths."
   },
   {
     "name": "log",
@@ -654,8 +658,8 @@ export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
     "name": "account",
     "maturity": "beta",
     "docsUrl": "https://apidocs.qnaigc.com/",
-    "sourceUpdatedAt": "2026-03-14",
-    "validatedAt": "2026-03-15",
+    "sourceUpdatedAt": "2026-03-21",
+    "validatedAt": "2026-03-21",
     "validationLevel": "unit",
     "notes": "The current account surface is limited to usage() time-series queries; usage auth signing and response handling are covered by unit tests, and live verification remains opt-in."
   },
@@ -663,10 +667,10 @@ export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
     "name": "admin",
     "maturity": "beta",
     "docsUrl": "https://apidocs.qnaigc.com/",
-    "sourceUpdatedAt": "2026-03-14",
-    "validatedAt": "2026-03-15",
+    "sourceUpdatedAt": "2026-03-21",
+    "validatedAt": "2026-03-21",
     "validationLevel": "unit",
-    "notes": "The current admin surface is limited to API key CRUD (createKeys, listKeys, getKey, revokeKey); broader quota, billing, project, or tenant administration is not part of the shipped SDK surface."
+    "notes": "The current admin surface is limited to API key CRUD (createKeys, listKeys, getKey, revokeKey); broader quota, billing, project, or tenant administration is not part of the shipped SDK surface. Official management endpoints can now override the default Bearer path with authorization or auth(AK/SK) signing."
   },
   {
     "name": "batch",
@@ -681,10 +685,10 @@ export const MODULE_MATURITY_SOURCE: ModuleMaturityInfo[] = [
     "name": "censor",
     "maturity": "beta",
     "docsUrl": "https://apidocs.qnaigc.com/",
-    "sourceUpdatedAt": "2026-03-14",
-    "validatedAt": "2026-03-15",
+    "sourceUpdatedAt": "2026-03-21",
+    "validatedAt": "2026-03-21",
     "validationLevel": "unit",
-    "notes": "Video censor task handles expose cancel(), but current jobs fail fast because remote cancellation is not supported; callers should treat cancel() as an explicit unsupported contract today."
+    "notes": "Image/video censor support official authorization or auth(AK/SK) signing for direct ai.qiniuapi.com calls. Video status normalization now treats FINISHED as terminal success while cancel() remains an explicit unsupported contract today."
   },
   {
     "name": "adapter",

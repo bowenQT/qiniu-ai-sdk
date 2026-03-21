@@ -234,7 +234,7 @@ describe('CLI init and doctor', () => {
             expect.stringContaining('batch imports detected (beta, unit, validated 2026-03-15'),
         );
         expect(consoleLogSpy).toHaveBeenCalledWith(
-            expect.stringContaining('admin imports detected (beta, unit, validated 2026-03-15'),
+            expect.stringContaining('admin imports detected (beta, unit, validated 2026-03-21'),
         );
         expect(consoleLogSpy).toHaveBeenCalledWith(
             expect.stringContaining('ResponseAPI imports detected (beta, unit, validated 2026-03-15, tracked decision experimental -> beta'),

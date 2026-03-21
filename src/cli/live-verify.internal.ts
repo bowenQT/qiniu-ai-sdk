@@ -387,6 +387,19 @@ function parseOptionalJsonStringRecord(value: string | undefined, envName: strin
     );
 }
 
+function resolveRequiredQiniuCredentialAuth(
+    env: NodeJS.ProcessEnv,
+    triggerEnvName: string,
+): { accessKey: string; secretKey: string } | undefined {
+    if (env[triggerEnvName] !== '1') return undefined;
+    const accessKey = env.QINIU_ACCESS_KEY?.trim();
+    const secretKey = env.QINIU_SECRET_KEY?.trim();
+    if (!accessKey || !secretKey) {
+        throw new Error(`QINIU_ACCESS_KEY / QINIU_SECRET_KEY are required when ${triggerEnvName}=1`);
+    }
+    return { accessKey, secretKey };
+}
+
 function buildMcpServerConfig(env: NodeJS.ProcessEnv, url: string): MCPHttpServerConfig {
     return {
         name: 'live-verify-mcp',
@@ -582,6 +595,9 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
 
     if (options.lane === 'cloud-surface' || options.lane === 'dx-validation' || options.lane === 'integration') {
         const client = createQiniuClient(apiKey);
+        const fileSourceUrl = env.QINIU_LIVE_VERIFY_FILE_SOURCE_URL?.trim();
+        const censorAuth = resolveRequiredQiniuCredentialAuth(env, 'QINIU_LIVE_VERIFY_CENSOR_SIGNED');
+        const adminAuth = resolveRequiredQiniuCredentialAuth(env, 'QINIU_LIVE_VERIFY_ADMIN_SIGNED');
         const result = await client.chat.create({
             model: 'gemini-2.5-flash',
             messages: [{ role: 'user', content: 'Reply with the single word pong.' }],
@@ -593,19 +609,39 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
 
         if (env.QINIU_LIVE_VERIFY_FILE_WORKFLOW === '1') {
             const fileClient = client.file as {
-                create: (params: { file: string; filename: string; purpose: string }) => Promise<any>;
+                create: (params: {
+                    file?: string;
+                    filename?: string;
+                    purpose?: string;
+                    source_url?: string;
+                    model?: string;
+                    expires_in?: number;
+                }) => Promise<any>;
                 waitForReady?: (file: any, options: { timeoutMs: number; intervalMs: number }) => Promise<any>;
                 toContentPart?: (file: any) => { file: { file_id?: string; format?: string } };
                 delete?: (fileId: string) => Promise<unknown>;
             };
             let cleanupFileId: string | undefined;
+            const fileWorkflowMode = fileSourceUrl ? 'source_url' : 'legacy-upload';
 
             try {
-                const created = await fileClient.create({
-                    file: 'SGVsbG8=',
-                    filename: 'verify.txt',
-                    purpose: 'assistants',
-                });
+                const created = await fileClient.create(
+                    fileSourceUrl
+                        ? {
+                            source_url: fileSourceUrl,
+                            ...(env.QINIU_LIVE_VERIFY_FILE_MODEL?.trim()
+                                ? { model: env.QINIU_LIVE_VERIFY_FILE_MODEL.trim() }
+                                : {}),
+                            ...(parseOptionalTimeout(env.QINIU_LIVE_VERIFY_FILE_EXPIRES_IN)
+                                ? { expires_in: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_FILE_EXPIRES_IN) }
+                                : {}),
+                        }
+                        : {
+                            file: 'SGVsbG8=',
+                            filename: 'verify.txt',
+                            purpose: 'assistants',
+                        },
+                );
                 cleanupFileId = created?.id;
                 const ready = created.status === 'ready' || !fileClient.waitForReady
                     ? created
@@ -621,14 +657,15 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 addCheck(
                     checks,
                     'ok',
-                    `File workflow probe succeeded: ${part.file.file_id}${part.file.format ? ` (${part.file.format})` : ''}`,
+                    `File workflow probe succeeded: ${part.file.file_id}${part.file.format ? ` (${part.file.format})` : ''} [${fileWorkflowMode}]`,
                 );
                 addProbe(
                     probes,
                     options.lane,
                     'file-workflow',
                     'ok',
-                    `File workflow probe succeeded: ${part.file.file_id}${part.file.format ? ` (${part.file.format})` : ''}`,
+                    `File workflow probe succeeded: ${part.file.file_id}${part.file.format ? ` (${part.file.format})` : ''} [${fileWorkflowMode}]`,
+                    { mode: fileWorkflowMode },
                 );
             } finally {
                 if (cleanupFileId && fileClient.delete) {
@@ -1136,18 +1173,24 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
             const censorClient = client.censor as {
                 image?: (params: {
                     uri: string;
-                    scenes?: Array<'pulp' | 'terror' | 'politician'>;
+                    scenes?: Array<'pulp' | 'terror' | 'politician' | 'ads' | 'behavior'>;
+                    auth?: { accessKey: string; secretKey: string };
                 }) => Promise<{
                     suggestion?: string;
                     scenes?: Array<{ scene: string; suggestion: string }>;
                 }>;
                 video?: (params: {
                     uri: string;
-                    scenes?: Array<'pulp' | 'terror' | 'politician'>;
+                    scenes?: Array<'pulp' | 'terror' | 'politician' | 'ads' | 'behavior'>;
+                    auth?: { accessKey: string; secretKey: string };
                 }) => Promise<{
                     id?: string;
                     jobId: string;
-                    wait?: (options?: { timeoutMs?: number; intervalMs?: number }) => Promise<{
+                    wait?: (options?: {
+                        timeoutMs?: number;
+                        intervalMs?: number;
+                        auth?: { accessKey: string; secretKey: string };
+                    }) => Promise<{
                         jobId: string;
                         status: string;
                         suggestion?: string;
@@ -1167,11 +1210,12 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
             const scenes = env.QINIU_LIVE_VERIFY_CENSOR_SCENES
                 ?.split(',')
                 .map((scene) => scene.trim())
-                .filter(Boolean) as Array<'pulp' | 'terror' | 'politician'> | undefined;
+                .filter(Boolean) as Array<'pulp' | 'terror' | 'politician' | 'ads' | 'behavior'> | undefined;
 
             const censorResult = await censorClient.image({
                 uri,
                 ...(scenes && scenes.length > 0 ? { scenes } : {}),
+                ...(censorAuth ? { auth: censorAuth } : {}),
             });
             addCheck(
                 checks,
@@ -1180,7 +1224,15 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     censorResult.scenes?.length
                         ? ` (${censorResult.scenes.map((scene) => `${scene.scene}:${scene.suggestion}`).join(', ')})`
                         : ''
-                }`,
+                }${censorAuth ? ' [signed]' : ''}`,
+            );
+            addProbe(
+                probes,
+                options.lane,
+                'censor',
+                'ok',
+                `Censor probe succeeded: ${censorResult.suggestion ?? 'unknown'}${censorAuth ? ' [signed]' : ''}`,
+                { authMode: censorAuth ? 'qiniu-signed' : 'bearer' },
             );
         } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
             addCheck(
@@ -1188,17 +1240,23 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 'warn',
                 'QINIU_LIVE_VERIFY_CENSOR not set. Censor live probe was skipped.',
             );
+            addProbe(probes, options.lane, 'censor', 'skipped', 'Censor live probe was skipped.');
         }
 
         if (env.QINIU_LIVE_VERIFY_CENSOR_VIDEO === '1') {
             const censorClient = client.censor as {
                 video?: (params: {
                     uri: string;
-                    scenes?: Array<'pulp' | 'terror' | 'politician'>;
+                    scenes?: Array<'pulp' | 'terror' | 'politician' | 'ads' | 'behavior'>;
+                    auth?: { accessKey: string; secretKey: string };
                 }) => Promise<{
                     id?: string;
                     jobId: string;
-                    wait?: (options?: { timeoutMs?: number; intervalMs?: number }) => Promise<{
+                    wait?: (options?: {
+                        timeoutMs?: number;
+                        intervalMs?: number;
+                        auth?: { accessKey: string; secretKey: string };
+                    }) => Promise<{
                         jobId: string;
                         status: string;
                         suggestion?: string;
@@ -1218,17 +1276,18 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
             const scenes = env.QINIU_LIVE_VERIFY_CENSOR_VIDEO_SCENES
                 ?.split(',')
                 .map((scene) => scene.trim())
-                .filter(Boolean) as Array<'pulp' | 'terror' | 'politician'> | undefined;
+                .filter(Boolean) as Array<'pulp' | 'terror' | 'politician' | 'ads' | 'behavior'> | undefined;
 
             const videoJob = await censorClient.video({
                 uri,
                 ...(scenes && scenes.length > 0 ? { scenes } : {}),
+                ...(censorAuth ? { auth: censorAuth } : {}),
             });
 
             addCheck(
                 checks,
                 'ok',
-                `Censor video create probe succeeded: ${videoJob.id ?? videoJob.jobId}`,
+                `Censor video create probe succeeded: ${videoJob.id ?? videoJob.jobId}${censorAuth ? ' [signed]' : ''}`,
             );
 
             if (!videoJob.wait) {
@@ -1238,6 +1297,7 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
             const waited = await videoJob.wait({
                 timeoutMs: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_CENSOR_VIDEO_TIMEOUT_MS) ?? 120_000,
                 intervalMs: parseOptionalTimeout(env.QINIU_LIVE_VERIFY_CENSOR_VIDEO_INTERVAL_MS) ?? 2_000,
+                ...(censorAuth ? { auth: censorAuth } : {}),
             });
 
             addCheck(
@@ -1251,12 +1311,21 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                         : ''
                 }`,
             );
+            addProbe(
+                probes,
+                options.lane,
+                'censor-video',
+                'ok',
+                `Censor video wait probe succeeded: ${waited.jobId}${waited.status ? ` -> ${waited.status}` : ''}${censorAuth ? ' [signed]' : ''}`,
+                { authMode: censorAuth ? 'qiniu-signed' : 'bearer' },
+            );
         } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
             addCheck(
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_CENSOR_VIDEO not set. Censor video live probe was skipped.',
             );
+            addProbe(probes, options.lane, 'censor-video', 'skipped', 'Censor video live probe was skipped.');
         }
 
         if (env.QINIU_LIVE_VERIFY_ACCOUNT_USAGE === '1') {
@@ -1308,18 +1377,27 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
 
         if (env.QINIU_LIVE_VERIFY_ADMIN_LIST_KEYS === '1') {
             const adminClient = client.admin as {
-                listKeys?: () => Promise<Array<{ key: string; name: string; status?: string }>>;
-                getKey?: (key: string) => Promise<{ key: string; name: string; status?: string } | null>;
+                listKeys?: (options?: { auth?: { accessKey: string; secretKey: string } }) => Promise<Array<{ key: string; name: string; status?: string }>>;
+                getKey?: (key: string, options?: { auth?: { accessKey: string; secretKey: string } }) => Promise<{ key: string; name: string; status?: string } | null>;
+                createKeys?: (
+                    params: {
+                        count: number;
+                        names?: string[];
+                        auth?: { accessKey: string; secretKey: string };
+                    },
+                ) => Promise<Array<{ key: string; name: string; status?: string }>>;
+                revokeKey?: (key: string, options?: { auth?: { accessKey: string; secretKey: string } }) => Promise<void>;
             };
             if (!adminClient.listKeys) {
                 throw new Error('Admin live probe requires admin.listKeys() support in the current SDK build');
             }
 
-            const keys = await adminClient.listKeys();
+            const adminRequestOptions = adminAuth ? { auth: adminAuth } : undefined;
+            const keys = await adminClient.listKeys(adminRequestOptions);
             addCheck(
                 checks,
                 'ok',
-                `Admin listKeys probe succeeded: ${keys.length} keys${keys[0]?.name ? ` (${keys[0].name})` : ''}`,
+                `Admin listKeys probe succeeded: ${keys.length} keys${keys[0]?.name ? ` (${keys[0].name})` : ''}${adminAuth ? ' [signed]' : ''}`,
             );
 
             const targetKey = env.QINIU_LIVE_VERIFY_ADMIN_GET_KEY?.trim();
@@ -1327,11 +1405,11 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                 if (!adminClient.getKey) {
                     throw new Error('Admin getKey live probe requires admin.getKey() support in the current SDK build');
                 }
-                const keyInfo = await adminClient.getKey(targetKey);
+                const keyInfo = await adminClient.getKey(targetKey, adminRequestOptions);
                 addCheck(
                     checks,
                     'ok',
-                    `Admin getKey probe succeeded: ${keyInfo?.name ?? targetKey}${keyInfo?.status ? ` (${keyInfo.status})` : ''}`,
+                    `Admin getKey probe succeeded: ${keyInfo?.name ?? targetKey}${keyInfo?.status ? ` (${keyInfo.status})` : ''}${adminAuth ? ' [signed]' : ''}`,
                 );
             } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
                 addCheck(
@@ -1340,12 +1418,58 @@ export async function verifyLiveLane(options: LiveVerifyOptions): Promise<LiveVe
                     'QINIU_LIVE_VERIFY_ADMIN_GET_KEY not set. Admin getKey live probe was skipped.',
                 );
             }
+
+            if (env.QINIU_LIVE_VERIFY_ADMIN_CREATE_KEYS === '1') {
+                if (!adminClient.createKeys) {
+                    throw new Error('Admin createKeys live probe requires admin.createKeys() support in the current SDK build');
+                }
+                const createdKeyName = `live-verify-${Date.now()}`;
+                const createdKeys = await adminClient.createKeys({
+                    count: 1,
+                    names: [createdKeyName],
+                    ...(adminAuth ? { auth: adminAuth } : {}),
+                });
+                addCheck(
+                    checks,
+                    'ok',
+                    `Admin createKeys probe succeeded: ${createdKeys.length} keys${createdKeys[0]?.name ? ` (${createdKeys[0].name})` : ''}${adminAuth ? ' [signed]' : ''}`,
+                );
+
+                const createdKey = createdKeys[0]?.key;
+                if (createdKey && adminClient.revokeKey) {
+                    await adminClient.revokeKey(createdKey, adminRequestOptions);
+                    addCheck(
+                        checks,
+                        'ok',
+                        `Admin revokeKey cleanup succeeded: ${createdKeys[0]?.name ?? createdKey}${adminAuth ? ' [signed]' : ''}`,
+                    );
+                } else if (createdKey) {
+                    addCheck(
+                        checks,
+                        'warn',
+                        `Admin revokeKey cleanup was skipped: revokeKey() is not available for ${createdKeys[0]?.name ?? createdKey}`,
+                    );
+                }
+            }
+
+            addProbe(
+                probes,
+                options.lane,
+                'admin-keys',
+                'ok',
+                `Admin key probes succeeded${adminAuth ? ' [signed]' : ''}`,
+                {
+                    authMode: adminAuth ? 'qiniu-signed' : 'bearer',
+                    createKeys: env.QINIU_LIVE_VERIFY_ADMIN_CREATE_KEYS === '1',
+                },
+            );
         } else if (options.lane === 'cloud-surface' || options.lane === 'integration') {
             addCheck(
                 checks,
                 'warn',
                 'QINIU_LIVE_VERIFY_ADMIN_LIST_KEYS not set. Admin live probe was skipped.',
             );
+            addProbe(probes, options.lane, 'admin-keys', 'skipped', 'Admin live probe was skipped.');
         }
 
         if (env.QINIU_LIVE_VERIFY_LOG_EXPORT === '1') {

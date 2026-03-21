@@ -61,15 +61,15 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('chat: GA'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('image: GA (unit, validated 2026-03-14)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('video: GA (unit, validated 2026-03-15)'))).toBe(true);
-        expect(result.checks.some((check) => check.message.includes('file: GA'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('file: GA (unit, validated 2026-03-21)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('batch: BETA (unit, validated 2026-03-15)'))).toBe(true);
-        expect(result.checks.some((check) => check.message.includes('admin: BETA (unit, validated 2026-03-15)'))).toBe(true);
-        expect(result.checks.some((check) => check.message.includes('censor: BETA (unit, validated 2026-03-15)'))).toBe(true);
-        expect(result.checks.some((check) => check.message.includes('account: BETA (unit'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('admin: BETA (unit, validated 2026-03-21)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('censor: BETA (unit, validated 2026-03-21)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('account: BETA (unit, validated 2026-03-21)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('log: GA (unit'))).toBe(true);
-        expect(result.checks.some((check) => check.message.includes('ocr: GA (unit, validated 2026-03-14)'))).toBe(true);
-        expect(result.checks.some((check) => check.message.includes('asr: GA (unit, validated 2026-03-14)'))).toBe(true);
-        expect(result.checks.some((check) => check.message.includes('tts: GA (unit, validated 2026-03-14)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('ocr: GA (unit, validated 2026-03-21)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('asr: GA (unit, validated 2026-03-21)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('tts: GA (unit, validated 2026-03-21)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('ResponseAPI: BETA (unit, validated 2026-03-15'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Chat probe succeeded'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('File/qfile live probe was skipped'))).toBe(true);
@@ -201,9 +201,10 @@ describe('CLI live verification helpers', () => {
         });
 
         expect(result.exitCode).toBe(2);
-        expect(result.checks.some((check) => check.message.includes('File workflow probe succeeded: qfile-123 (text/plain)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('File workflow probe succeeded: qfile-123 (text/plain) [legacy-upload]'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('File cleanup succeeded: qfile-123'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Response API live probe was skipped'))).toBe(true);
+        expect(result.probes.some((probe) => probe.id === 'file-workflow' && probe.status === 'ok' && probe.details?.mode === 'legacy-upload')).toBe(true);
     });
 
     it('warns when file workflow cleanup cannot run because delete() is unavailable', async () => {
@@ -242,8 +243,63 @@ describe('CLI live verification helpers', () => {
         });
 
         expect(result.exitCode).toBe(2);
-        expect(result.checks.some((check) => check.message.includes('File workflow probe succeeded: qfile-no-delete (text/plain)'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('File workflow probe succeeded: qfile-no-delete (text/plain) [legacy-upload]'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('File cleanup was skipped: delete() is not available for qfile-no-delete'))).toBe(true);
+    });
+
+    it('runs the optional file workflow probe in source_url mode when explicitly configured', async () => {
+        const fileCreateCalls: Array<Record<string, unknown>> = [];
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_LIVE_VERIFY_FILE_WORKFLOW: '1',
+                QINIU_LIVE_VERIFY_FILE_SOURCE_URL: 'https://example.com/verify.txt',
+                QINIU_LIVE_VERIFY_FILE_MODEL: 'qiniu-file-v1',
+                QINIU_LIVE_VERIFY_FILE_EXPIRES_IN: '600',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                file: {
+                    create: async (params: Record<string, unknown>) => {
+                        fileCreateCalls.push(params);
+                        return { id: 'qfile-source-url', status: 'ready', content_type: 'text/plain' };
+                    },
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'qfile-source-url', format: 'text/plain' },
+                    }),
+                    delete: async () => ({ id: 'qfile-source-url', deleted: true }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(fileCreateCalls).toEqual([
+            {
+                source_url: 'https://example.com/verify.txt',
+                model: 'qiniu-file-v1',
+                expires_in: 600,
+            },
+        ]);
+        expect(result.checks.some((check) => check.message.includes('File workflow probe succeeded: qfile-source-url (text/plain) [source_url]'))).toBe(true);
+        expect(result.probes.some((probe) => probe.id === 'file-workflow' && probe.status === 'ok' && probe.details?.mode === 'source_url')).toBe(true);
     });
 
     it('runs the optional Response API probe when explicitly enabled', async () => {
@@ -495,6 +551,105 @@ describe('CLI live verification helpers', () => {
         expect(result.checks.some((check) => check.message.includes('Censor probe succeeded: review (pulp:review, terror:pass)'))).toBe(true);
     });
 
+    it('runs the optional signed censor probes with AK/SK auth when explicitly enabled', async () => {
+        const imageCalls: Array<Record<string, unknown>> = [];
+        const videoCalls: Array<Record<string, unknown>> = [];
+        const waitCalls: Array<Record<string, unknown>> = [];
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_ACCESS_KEY: 'ak-test',
+                QINIU_SECRET_KEY: 'sk-secret',
+                QINIU_LIVE_VERIFY_CENSOR_SIGNED: '1',
+                QINIU_LIVE_VERIFY_CENSOR: '1',
+                QINIU_LIVE_VERIFY_CENSOR_URI: 'https://example.com/censor.jpg',
+                QINIU_LIVE_VERIFY_CENSOR_SCENES: 'pulp,ads',
+                QINIU_LIVE_VERIFY_CENSOR_VIDEO: '1',
+                QINIU_LIVE_VERIFY_CENSOR_VIDEO_URI: 'https://example.com/censor.mp4',
+                QINIU_LIVE_VERIFY_CENSOR_VIDEO_SCENES: 'behavior',
+                QINIU_LIVE_VERIFY_CENSOR_VIDEO_TIMEOUT_MS: '100',
+                QINIU_LIVE_VERIFY_CENSOR_VIDEO_INTERVAL_MS: '1',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                file: {
+                    create: async () => ({ id: 'unused', status: 'ready' }),
+                    waitForReady: async () => ({ id: 'unused', status: 'ready' }),
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'unused', format: 'text/plain' },
+                    }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
+                },
+                censor: {
+                    image: async (params: Record<string, unknown>) => {
+                        imageCalls.push(params);
+                        return {
+                            suggestion: 'review',
+                            scenes: [
+                                { scene: 'pulp', suggestion: 'review' },
+                                { scene: 'ads', suggestion: 'pass' },
+                            ],
+                        };
+                    },
+                    video: async (params: Record<string, unknown>) => {
+                        videoCalls.push(params);
+                        return {
+                            id: 'job-signed',
+                            jobId: 'job-signed',
+                            wait: async (options?: Record<string, unknown>) => {
+                                waitCalls.push(options ?? {});
+                                return {
+                                    jobId: 'job-signed',
+                                    status: 'DONE',
+                                    suggestion: 'review',
+                                    scenes: [{ scene: 'behavior', suggestion: 'review' }],
+                                };
+                            },
+                        };
+                    },
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(imageCalls[0]).toMatchObject({
+            uri: 'https://example.com/censor.jpg',
+            scenes: ['pulp', 'ads'],
+            auth: { accessKey: 'ak-test', secretKey: 'sk-secret' },
+        });
+        expect(videoCalls[0]).toMatchObject({
+            uri: 'https://example.com/censor.mp4',
+            scenes: ['behavior'],
+            auth: { accessKey: 'ak-test', secretKey: 'sk-secret' },
+        });
+        expect(waitCalls[0]).toMatchObject({
+            timeoutMs: 100,
+            intervalMs: 1,
+            auth: { accessKey: 'ak-test', secretKey: 'sk-secret' },
+        });
+        expect(result.checks.some((check) => check.message.includes('Censor probe succeeded: review (pulp:review, ads:pass) [signed]'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Censor video create probe succeeded: job-signed [signed]'))).toBe(true);
+        expect(result.probes.some((probe) => probe.id === 'censor' && probe.status === 'ok' && probe.details?.authMode === 'qiniu-signed')).toBe(true);
+        expect(result.probes.some((probe) => probe.id === 'censor-video' && probe.status === 'ok' && probe.details?.authMode === 'qiniu-signed')).toBe(true);
+    });
+
     it('runs the optional censor video live probe when explicitly enabled', async () => {
         const result = await verifyLiveLane({
             lane: 'cloud-surface',
@@ -651,6 +806,87 @@ describe('CLI live verification helpers', () => {
         expect(result.exitCode).toBe(2);
         expect(result.checks.some((check) => check.message.includes('Admin listKeys probe succeeded: 1 keys (live-key)'))).toBe(true);
         expect(result.checks.some((check) => check.message.includes('Admin getKey probe succeeded: live-key (active)'))).toBe(true);
+    });
+
+    it('runs the optional signed admin createKeys probe and cleanup when explicitly enabled', async () => {
+        const listCalls: Array<Record<string, unknown> | undefined> = [];
+        const getCalls: Array<Record<string, unknown> | undefined> = [];
+        const createCalls: Array<Record<string, unknown>> = [];
+        const revokeCalls: Array<{ key: string; options?: Record<string, unknown> }> = [];
+        const result = await verifyLiveLane({
+            lane: 'cloud-surface',
+            env: {
+                QINIU_API_KEY: 'sk-test',
+                QINIU_ACCESS_KEY: 'ak-test',
+                QINIU_SECRET_KEY: 'sk-secret',
+                QINIU_LIVE_VERIFY_ADMIN_SIGNED: '1',
+                QINIU_LIVE_VERIFY_ADMIN_LIST_KEYS: '1',
+                QINIU_LIVE_VERIFY_ADMIN_GET_KEY: 'sk-live-1',
+                QINIU_LIVE_VERIFY_ADMIN_CREATE_KEYS: '1',
+            },
+            createQiniuClient: () => ({
+                chat: {
+                    create: async () => ({
+                        choices: [{ message: { content: 'pong' } }],
+                    }),
+                },
+                file: {
+                    create: async () => ({ id: 'unused', status: 'ready' }),
+                    waitForReady: async () => ({ id: 'unused', status: 'ready' }),
+                    toContentPart: () => ({
+                        type: 'file',
+                        file: { file_id: 'unused', format: 'text/plain' },
+                    }),
+                },
+                response: {
+                    createText: async () => 'response',
+                },
+                batch: {
+                    create: async () => ({
+                        id: 'unused-batch',
+                        status: 'validating',
+                        wait: async () => ({ status: 'completed' }),
+                        cancel: async () => undefined,
+                    }),
+                    delete: async () => undefined,
+                },
+                admin: {
+                    listKeys: async (options?: Record<string, unknown>) => {
+                        listCalls.push(options);
+                        return [{ key: 'sk-live-1', name: 'live-key', status: 'active' }];
+                    },
+                    getKey: async (_key: string, options?: Record<string, unknown>) => {
+                        getCalls.push(options);
+                        return { key: 'sk-live-1', name: 'live-key', status: 'active' };
+                    },
+                    createKeys: async (params: Record<string, unknown>) => {
+                        createCalls.push(params);
+                        return [{ key: 'sk-created-1', name: 'live-verify-created', status: 'active' }];
+                    },
+                    revokeKey: async (key: string, options?: Record<string, unknown>) => {
+                        revokeCalls.push({ key, options });
+                    },
+                },
+            }) as any,
+        });
+
+        expect(result.exitCode).toBe(2);
+        expect(listCalls[0]).toMatchObject({ auth: { accessKey: 'ak-test', secretKey: 'sk-secret' } });
+        expect(getCalls[0]).toMatchObject({ auth: { accessKey: 'ak-test', secretKey: 'sk-secret' } });
+        expect(createCalls[0]).toMatchObject({
+            count: 1,
+            auth: { accessKey: 'ak-test', secretKey: 'sk-secret' },
+        });
+        expect(Array.isArray(createCalls[0]?.names)).toBe(true);
+        expect(revokeCalls[0]).toMatchObject({
+            key: 'sk-created-1',
+            options: { auth: { accessKey: 'ak-test', secretKey: 'sk-secret' } },
+        });
+        expect(result.checks.some((check) => check.message.includes('Admin listKeys probe succeeded: 1 keys (live-key) [signed]'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Admin getKey probe succeeded: live-key (active) [signed]'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Admin createKeys probe succeeded: 1 keys (live-verify-created) [signed]'))).toBe(true);
+        expect(result.checks.some((check) => check.message.includes('Admin revokeKey cleanup succeeded: live-verify-created [signed]'))).toBe(true);
+        expect(result.probes.some((probe) => probe.id === 'admin-keys' && probe.status === 'ok' && probe.details?.authMode === 'qiniu-signed' && probe.details?.createKeys === true)).toBe(true);
     });
 
     it('runs the optional ocr/asr/tts live probes when explicitly enabled', async () => {
