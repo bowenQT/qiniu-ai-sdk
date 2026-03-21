@@ -26,7 +26,7 @@ const client = new QiniuAI({
 });
 
 async function main() {
-    console.log('🚀 Starting SDK Verification (v0.49.1)...\n');
+    console.log('🚀 Starting SDK Verification (v0.49.2)...\n');
 
     try {
         // 1. Chat Completion (Core Feature)

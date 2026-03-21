@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.49.2] - 2026-03-21
+
+### 🐛 Fixes
+
+- Fixed non-LLM cloud capability integrations for `censor`, `admin`, `file`, `tts`, `asr`, and `ocr`, including official Qiniu auth support, current file-ingestion contract compatibility, and safer response normalization.
+
+### 🔧 Improvements
+
+- Closed cloud capability evidence and live-verify gaps by updating capability evidence/scorecard output and extending env-gated probes for `file` source-url workflow plus signed `censor` and `admin` paths.
+
 ## [0.49.1] - 2026-03-16
 
 ### 📚 Documentation
